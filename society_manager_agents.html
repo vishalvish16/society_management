@@ -1,0 +1,206 @@
+
+<style>
+  .agents-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; padding: 1rem 0; }
+  .agent-card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); overflow: hidden; }
+  .agent-header { padding: 16px 20px 12px; border-bottom: 0.5px solid var(--color-border-tertiary); }
+  .agent-badge { display: inline-block; font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: var(--border-radius-md); margin-bottom: 8px; }
+  .agent-title { font-size: 16px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 4px; }
+  .agent-sub { font-size: 13px; color: var(--color-text-secondary); margin: 0; }
+  .agent-body { padding: 14px 20px; }
+  .section-label { font-size: 11px; font-weight: 500; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin: 12px 0 6px; }
+  .section-label:first-child { margin-top: 0; }
+  .task-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 5px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+  .task-text { font-size: 13px; color: var(--color-text-secondary); line-height: 1.5; }
+  .tool-chip { display: inline-block; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: var(--border-radius-md); margin: 2px 3px 2px 0; border: 0.5px solid var(--color-border-secondary); color: var(--color-text-secondary); }
+  .output-chip { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: var(--border-radius-md); margin: 2px 3px 2px 0; }
+  .trigger-row { font-size: 12px; color: var(--color-text-secondary); background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 6px 10px; margin-top: 10px; border-left: 3px solid; }
+
+  .dev .agent-badge { background: #E6F1FB; color: #0C447C; }
+  .dev .dot { background: #185FA5; }
+  .dev .trigger-row { border-color: #185FA5; }
+
+  .review .agent-badge { background: #EEEDFE; color: #3C3489; }
+  .review .dot { background: #534AB7; }
+  .review .trigger-row { border-color: #534AB7; }
+
+  .security .agent-badge { background: #FAECE7; color: #712B13; }
+  .security .dot { background: #993C1D; }
+  .security .trigger-row { border-color: #993C1D; }
+
+  .testing .agent-badge { background: #EAF3DE; color: #27500A; }
+  .testing .dot { background: #3B6D11; }
+  .testing .trigger-row { border-color: #3B6D11; }
+
+  .out-dev { background: #E6F1FB; color: #0C447C; }
+  .out-review { background: #EEEDFE; color: #3C3489; }
+  .out-security { background: #FAECE7; color: #712B13; }
+  .out-testing { background: #EAF3DE; color: #27500A; }
+</style>
+
+<div class="agents-grid">
+
+  <div class="agent-card dev">
+    <div class="agent-header">
+      <div class="agent-badge">Agent 1 — Development</div>
+      <p class="agent-title">Dev Agent</p>
+      <p class="agent-sub">Builds the full Flutter + Node.js + PostgreSQL codebase from the spec document</p>
+    </div>
+    <div class="agent-body">
+      <div class="section-label">Responsibilities</div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Build Super Admin SaaS Panel: Society management, Subscription plans (Basic/Std/Prem), Revenue dashboard (MRR/ARR)</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Write Prisma schema (PostgreSQL 15), run migrations (UUID PKs), seed Super Admin</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Build Node.js modules: Auth (RS256 JWT + Refresh), Units, Bills (Late Fee Engine), Expenses, Visitors (QR), Notifications</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Write Flutter 3.x screens: Single codebase for Web/Mobile using ResponsiveBuilder and Riverpod state management</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Implement QR logic: Server-side qrcode PNG generation, Redis 7 TTL storage, and WhatsApp Business API integration</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Wire S3/MinIO file upload flow using Presigned URLs for expenses and PDF receipts</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Write docker-compose (App, DB, Redis, Nginx, MinIO), SSL setup with Certbot, and .env.example</div></div>
+
+      <div class="section-label">Constraints</div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Implement checkPlanLimit(feature) middleware to block actions exceeding society plan limits</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">All cron jobs must be idempotent (no duplicate bills/penalties on re-run)</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Never pipe large file bytes through Node.js; use client-side S3 presigned PUT flow</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Follow directory structure: modules/ for backend features, features/ for Flutter</div></div>
+
+      <div class="section-label">Tools</div>
+      <span class="tool-chip">Node.js 20</span><span class="tool-chip">Flutter 3</span><span class="tool-chip">Prisma</span><span class="tool-chip">Redis 7</span><span class="tool-chip">Riverpod</span><span class="tool-chip">mobile_scanner</span><span class="tool-chip">Twilio/360dialog</span><span class="tool-chip">firebase-admin</span>
+
+      <div class="section-label">Outputs</div>
+      <span class="output-chip out-dev">Full SaaS backend</span>
+      <span class="output-chip out-dev">Responsive Flutter app</span>
+      <span class="output-chip out-dev">Prisma migrations</span>
+      <span class="output-chip out-dev">Docker stack config</span>
+
+      <div class="trigger-row">Triggered by: build spec document. Hands off to → Review + Security Agents.</div>
+    </div>
+  </div>
+
+  <div class="agent-card review">
+    <div class="agent-header">
+      <div class="agent-badge">Agent 2 — Code Review</div>
+      <p class="agent-title">Review Agent</p>
+      <p class="agent-sub">Reviews all code for correctness, architecture quality, and spec compliance</p>
+    </div>
+    <div class="agent-body">
+      <div class="section-label">Backend checks</div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">SaaS Multi-tenancy: society_id check on every query — NO cross-society data leaks</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Plan Enforcement: checkPlanLimit middleware is correctly applied to restricted routes</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Role Guards: role-based hierarchy (SA > Pramukh > Sec > Resident > Watchman) is enforced</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Async wrappers used on all Express routes (no unhandled promise rejections)</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Response Consistency: all endpoints return { success, data, message } envelope</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Prisma optimization: selective fetching (select/include) to avoid heavy payloads</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Critical Indexes: unit.society_id, bill.unit_id + billing_month, visitor.qr_token, user.phone</div></div>
+
+      <div class="section-label">Flutter checks</div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Layout Consistency: ResponsiveBuilder used for 768px breakpoint (Web table vs Mobile cards)</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">State Management: Riverpod used correctly with repositories injected (no direct API in widgets)</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Pagination: server-side page-based for web, cursor-based infinite scroll for mobile</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">UX/UI Patterns: Shimmer loaders, empty state illustrations, and correct keyboardTypes</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">File Handling: multi_file_attachments display and PDF receipt viewer integration</div></div>
+
+      <div class="section-label">Architecture checks</div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Module boundary compliance: no logic crossing feature modules without services</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">No hardcoded configuration: all values sourced from .env or DB settings table</div></div>
+
+      <div class="section-label">Tools</div>
+      <span class="tool-chip">ESLint</span><span class="tool-chip">flutter analyze</span><span class="tool-chip">dart format</span><span class="tool-chip">prettier</span>
+
+      <div class="section-label">Outputs</div>
+      <span class="output-chip out-review">Spec compliance report</span>
+      <span class="output-chip out-review">Optimization patches</span>
+      <span class="output-chip out-review">Architecture checklist</span>
+
+      <div class="trigger-row">Triggered by: Dev Agent output. Flags issues to Dev. Clears Testing Agent to proceed.</div>
+    </div>
+  </div>
+
+  <div class="agent-card security">
+    <div class="agent-header">
+      <div class="agent-badge">Agent 3 — Security</div>
+      <p class="agent-title">Security Agent</p>
+      <p class="agent-sub">Audits the codebase and infrastructure for vulnerabilities and hardening gaps</p>
+    </div>
+    <div class="agent-body">
+      <div class="section-label">Auth & tokens</div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">JWT uses RS256 (asymmetric) — reject if HS256 is used</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Access token expiry ≤ 15 min — reject if longer</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Refresh token in httpOnly + Secure + SameSite=Strict cookie only</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Refresh token stored in DB — revocation must be possible</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Rate limit on /auth/login: max 5 attempts / 15 min / IP</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">bcrypt cost factor ≥ 12</div></div>
+
+      <div class="section-label">API & input</div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Zod schema validates every request body and query param</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">All DB queries via Prisma parameterised — no raw SQL string concat</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">File uploads: MIME type validated, max 10 MB enforced, extension allowlist</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">CORS restricted to app bundle ID and web domain only</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Helmet.js applied with full default headers on all routes</div></div>
+
+      <div class="section-label">QR & visitor flow</div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">QR token is UUID — not sequential or guessable</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Redis TTL enforced on every QR token — no fallback bypass</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">One-time use: token deleted from Redis on first valid scan</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Validate endpoint checks society_id of watchman vs visitor</div></div>
+
+      <div class="section-label">Infrastructure</div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">No secrets in source code or Docker images — .env only</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">S3 bucket not publicly accessible — only via presigned URLs</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">PostgreSQL not exposed externally — only accessible from backend container</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Redis not exposed externally — password-protected</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">flutter_secure_storage used for all tokens on mobile — no SharedPreferences</div></div>
+
+      <div class="section-label">Tools</div>
+      <span class="tool-chip">npm audit</span><span class="tool-chip">OWASP checklist</span><span class="tool-chip">dependency-check</span><span class="tool-chip">trivy (Docker)</span>
+
+      <div class="section-label">Outputs</div>
+      <span class="output-chip out-security">Security audit report</span>
+      <span class="output-chip out-security">Severity-ranked issue list</span>
+      <span class="output-chip out-security">Hardening patches</span>
+
+      <div class="trigger-row">Triggered by: Dev Agent output (parallel to Review Agent). Blocks deployment until all HIGH issues resolved.</div>
+    </div>
+  </div>
+
+  <div class="agent-card testing">
+    <div class="agent-header">
+      <div class="agent-badge">Agent 4 — Testing</div>
+      <p class="agent-title">Testing Agent</p>
+      <p class="agent-sub">Writes and runs all unit, integration, E2E, and performance tests across the stack</p>
+    </div>
+    <div class="agent-body">
+      <div class="section-label">Backend Tests (Jest + Supertest)</div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">SaaS Flow: Super Admin creates society → Assigns pramukh → Plan pricing logic</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Multi-tenancy: isolation tests — User A cannot access Society B data via ID swap</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Maintenance Engine: late fee calculation (flat/percentage) and no-duplicate generation</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">QR/Redis logic: token extraction, TTL verification, and one-time use invalidation</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">File Flow: presigned URL generation and PDF receipt creation (PDFKit)</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Auth: RS256 signing, refresh token rotation, and logout revocation</div></div>
+
+      <div class="section-label">Flutter Tests</div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Widget Tests: ResponsiveBuilder layout swap, Shimmer states, and input validation</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Repository Mocking: Riverpod providers return mock data for all feature layers</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Scanner Mocking: Simulate valid/invalid QR scan events in the Watchman module</div></div>
+
+      <div class="section-label">E2E Tests (Patrol / Playwright)</div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Resident invite -> WhatsApp Mock -> Gate scan -> Successful entry log</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Bill generate -> Resident Pay -> Receipt download flow</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Secretary Expense -> Pramukh Approve -> Resident feed visibility</div></div>
+
+      <div class="section-label">Performance Benchmarks</div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">Bill generation for 500 units < 10s</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">QR validation heartbeat < 50ms</div></div>
+      <div class="task-row"><div class="dot"></div><div class="task-text">List fetch (10k bills) with pagination < 200ms</div></div>
+
+      <div class="section-label">Tools</div>
+      <span class="tool-chip">Jest</span><span class="tool-chip">Supertest</span><span class="tool-chip">flutter_test</span><span class="tool-chip">Patrol</span><span class="tool-chip">k6</span><span class="tool-chip">Playwright</span>
+
+      <div class="section-label">Outputs</div>
+      <span class="output-chip out-testing">Full test coverage report</span>
+      <span class="output-chip out-testing">Performance benchmarks</span>
+      <span class="output-chip out-testing">Bug-free guarantee</span>
+
+      <div class="trigger-row">Triggered by: Review Agent sign-off. Blocks deployment until all tests green and coverage ≥ 80%.</div>
+    </div>
+  </div>
+
+</div>

@@ -1,0 +1,185 @@
+# UI/UX Agent Output: Domestic Help Screen
+# Model: qwen2.5-coder:14b
+# Generated: 2026-04-05 17:30:06
+============================================================
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:shimmer/shimmer.dart';
+import 'package:pinput/pinput.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
+
+class DomesticHelpScreen extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final AsyncValue<List<Helper>> helpers = ref.watch(domesticHelpProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Domestic Help Registry', style: AppTextStyles.headline1),
+        backgroundColor: AppColors.primary,
+        foregroundColor: AppColors.background,
+      ),
+      body: helpers.when(
+        data: (helpers) {
+          if (helpers.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.people_outlined, size: 64, color: AppColors.textMuted),
+                  SizedBox(height: 16),
+                  Text('No helpers available', style: AppTextStyles.body1),
+                ],
+              ),
+            );
+          }
+          return ListView.builder(
+            padding: EdgeInsets.all(16),
+            itemCount: helpers.length,
+            itemBuilder: (context, index) {
+              final helper = helpers[index];
+              return Card(
+                elevation: 0,
+                color: AppColors.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+                child: ListTile(
+                  title: Text(helper.name, style: AppTextStyles.headline3),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(height: 4),
+                      Text('Type: ${helper.type}', style: AppTextStyles.body2),
+                      SizedBox(height: 4),
+                      Text('Unit: ${helper.unit}', style: AppTextStyles.body2),
+                      SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Pinput(
+                            length: 4,
+                            defaultPinTheme: PinTheme(
+                              width: 30.0,
+                              height: 50.0,
+                              textStyle: AppTextStyles.body2.copyWith(color: AppColors.textMain),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: AppColors.primaryLight),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: () {},
+                            icon: Icon(Icons.qr_code_scanner, size: 16),
+                            label: Text('Scan QR', style: AppTextStyles.body2),
+                            style: ButtonStyle(
+                              backgroundColor: MaterialStateProperty.all(AppColors.primaryLight),
+                              elevation: MaterialStateProperty.all(0),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  trailing: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: helper.status == 'Active' ? AppColors.secondary : AppColors.error,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(helper.status, style: AppTextStyles.body2.copyWith(color: AppColors.background)),
+                  ),
+                ).animate().fadeIn(duration: 300.ms).slideY(begin: -1.0, duration: 300.ms),
+              );
+            },
+          );
+        },
+        loading: () => Center(
+          child: Shimmer.fromColors(
+            baseColor: AppColors.textMuted,
+            highlightColor: AppColors.background,
+            child: ListView.builder(
+              padding: EdgeInsets.all(16),
+              itemCount: 5,
+              itemBuilder: (context, index) {
+                return Card(
+                  elevation: 0,
+                  color: AppColors.surface,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                  child: ListTile(
+                    title: Container(height: 16, width: double.infinity, color: Colors.grey[300]),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(height: 4),
+                        Container(height: 12, width: double.infinity, color: Colors.grey[300]),
+                        SizedBox(height: 4),
+                        Container(height: 12, width: double.infinity, color: Colors.grey[300]),
+                        SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(height: 50, width: 100, color: Colors.grey[300]),
+                            Container(height: 40, width: 120, color: Colors.grey[300]),
+                          ],
+                        ),
+                      ],
+                    ),
+                    trailing: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Color(0xFFE2E8F0)),
+                      ),
+                      child: Container(height: 16, width: 50, color: Colors.grey[300]),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        error: (error, stackTrace) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error, size: 64, color: AppColors.error),
+              SizedBox(height: 16),
+              Text('Failed to load helpers', style: AppTextStyles.body1),
+              SizedBox(height: 8),
+              ElevatedButton.icon(
+                onPressed: () => ref.refresh(domesticHelpProvider),
+                icon: Icon(Icons.refresh, size: 16),
+                label: Text('Retry', style: AppTextStyles.body2),
+                style: ButtonStyle(
+                  backgroundColor: MaterialStateProperty.all(AppColors.error),
+                  elevation: MaterialStateProperty.all(0),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class Helper {
+  final String name;
+  final String type;
+  final String unit;
+  final String status;
+
+  Helper({required this.name, required this.type, required this.unit, required this.status});
+}
+```

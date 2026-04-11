@@ -1,0 +1,1611 @@
+### Module Plan: Super Admin
+
+#### 1. Entity-Relationship Diagram (ERD)
+
+**Entities and Attributes:**
+
+- **SuperAdmin**
+  - `id` (UUID, Primary Key)
+  - `email` (String, Unique, Non-null)
+  - `passwordHash` (String, Non-null)
+  - `name` (String, Non-null)
+  - `phone` (String, Optional)
+  
+- **Society**
+  - `id` (UUID, Primary Key)
+  - `name` (String, Non-null, Unique per SuperAdmin)
+  - `city` (String, Non-null)
+  - `planId` (UUID, Foreign Key to Plan, Non-null)
+  - `pramukhId` (UUID, Foreign Key to User, Non-null)
+  - `isActive` (Boolean, Default: true)
+
+- **Plan**
+  - `id` (UUID, Primary Key)
+  - `name` (String, Non-null, Unique)
+  - `displayName` (String, Non-null)
+  - `priceMonthly` (Integer, Non-null)
+  - `priceYearly` (Integer, Non-null)
+  - `maxUnits` (Integer, Non-null)
+  - `maxSecretaries` (Integer, Non-null)
+  - `features` (JSON Object, Non-null)
+
+- **User**
+  - `id` (UUID, Primary Key)
+  - `email` (String, Unique, Non-null)
+  - `name` (String, Non-null)
+  - `phone` (String, Optional)
+  - `isPramukh` (Boolean, Default: false)
+  - `isActive` (Boolean, Default: true)
+
+- **SocietyMembership**
+  - `id` (UUID, Primary Key)
+  - `userId` (UUID, Foreign Key to User, Non-null)
+  - `societyId` (UUID, Foreign Key to Society, Non-null)
+  - `role` (String, Enum: ["pramukh", "secretary"], Default: "secretary")
+  
+- **PlanSubscription**
+  - `id` (UUID, Primary Key)
+  - `planId` (UUID, Foreign Key to Plan, Non-null)
+  - `societyId` (UUID, Foreign Key to Society, Non-null)
+  - `startDate` (Date, Non-null)
+  - `endDate` (Date, Nullable)
+
+#### 2. OpenAPI Specification
+
+```yaml
+openapi: 3.0.2
+info:
+  title: Super Admin API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Login a super admin.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+  /admin/plans:
+    post:
+      tags:
+        - Plans
+      summary: Create a new plan.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                displayName:
+                  type: string
+                priceMonthly:
+                  type: integer
+                priceYearly:
+                  type: integer
+                maxUnits:
+                  type: integer
+                maxSecretaries:
+                  type: integer
+                features:
+                  type: object
+      responses:
+        '201':
+          description: Plan created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plan'
+  /admin/societies:
+    post:
+      tags:
+        - Societies
+      summary: Create a new society and assign pramukh.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                city:
+                  type: string
+                planId:
+                  type: string
+                pramukh:
+                  $ref: '#/components/schemas/NewUser'
+      responses:
+        '201':
+          description: Society created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Society'
+  /admin/plans/{planId}:
+    get:
+      tags:
+        - Plans
+      summary: Get a plan by ID.
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Plan retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plan'
+  /societies/{societyId}:
+    get:
+      tags:
+        - Societies
+      summary: Get a society by ID.
+      parameters:
+        - name: societyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Society retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Society'
+  /societies/{societyId}/pramukh:
+    patch:
+      tags:
+        - Societies
+      summary: Update pramukh of a society.
+      parameters:
+        - name: societyId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewUser'
+      responses:
+        '200':
+          description: Pramukh updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Society'
+  /societies/{societyId}/secretaries:
+    post:
+      tags:
+        - Societies
+      summary: Add a secretary to the society.
+      parameters:
+        - name: societyId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewUser'
+      responses:
+        '201':
+          description: Secretary added successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /societies/{societyId}/secretaries/{userId}:
+    delete:
+      tags:
+        - Societies
+      summary: Remove a secretary from the society.
+      parameters:
+        - name: societyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Secretary removed successfully.
+  /societies/{societyId}/plan:
+    patch:
+      tags:
+        - Societies
+      summary: Change the plan of a society.
+      parameters:
+        - name: societyId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewPlan'
+      responses:
+        '200':
+          description: Plan changed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Society'
+  /users/{userId}:
+    get:
+      tags:
+        - Users
+      summary: Get user by ID.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /users/{userId}:
+    patch:
+      tags:
+        - Users
+      summary: Update user details by ID.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewUser'
+      responses:
+        '200':
+          description: User updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /users/{userId}:
+    delete:
+      tags:
+        - Users
+      summary: Delete a user.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: User deleted successfully.
+
+components:
+  schemas:
+    LoginResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+    Plan:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        displayName:
+          type: string
+        priceMonthly:
+          type: integer
+        priceYearly:
+          type: integer
+        maxUnits:
+          type: integer
+        maxSecretaries:
+          type: integer
+        features:
+          type: object
+    Society:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        city:
+          type: string
+        planId:
+          type: string
+        pramukhId:
+          type: string
+        isActive:
+          type: boolean
+    NewUser:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+        isPramukh:
+          type: boolean
+    NewPlan:
+      type: object
+      properties:
+        planId:
+          type: string
+```
+
+#### 2. Schema Definitions
+
+```yaml
+components:
+  schemas:
+    LoginResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+    Plan:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        displayName:
+          type: string
+        priceMonthly:
+          type: integer
+        priceYearly:
+          type: integer
+        maxUnits:
+          type: integer
+        maxSecretaries:
+          type: integer
+        features:
+          type: object
+    Society:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        city:
+          type: string
+        planId:
+          type: string
+        pramukhId:
+          type: string
+        isActive:
+          type: boolean
+    NewUser:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+        isPramukh:
+          type: boolean
+```
+
+#### 3. Plan Subscription Schema
+
+```yaml
+components:
+  schemas:
+    NewPlanSubscription:
+      type: object
+      properties:
+        planId:
+          type: string
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+```
+
+### Super Admin API Endpoints
+
+1. **POST /auth/login**
+   - Login a super admin.
+   
+2. **POST /admin/plans**
+   - Create a new plan.
+
+3. **POST /admin/societies**
+   - Create a new society and assign pramukh.
+
+4. **GET /admin/plans/{planId}**
+   - Get a plan by ID.
+
+5. **GET /societies/{societyId}**
+   - Get a society by ID.
+
+6. **PATCH /societies/{societyId}/pramukh**
+   - Update pramukh of a society.
+
+7. **POST /societies/{societyId}/secretaries**
+   - Add a secretary to the society.
+
+8. **DELETE /societies/{societyId}/secretaries/{userId}**
+   - Remove a secretary from the society.
+
+9. **PATCH /societies/{societyId}/plan**
+   - Change the plan of a society.
+
+10. **GET /users/{userId}**
+    - Get user by ID.
+    
+11. **PATCH /users/{userId}**
+    - Update user details by ID.
+
+12. **DELETE /users/{userId}**
+    - Delete a user.
+
+### Summary
+
+This module provides APIs for super admins to manage plans and societies, i
+including creating new entities, updating pramukh, adding or removing secre
+secretaries, and changing plan subscriptions.
+
+---
+
+This ERD and OpenAPI spec should provide a clear and structured basis for t
+the Super Admin functionalities in our system. The schemas define how data 
+is exchanged between client and server, ensuring consistency and clarity ac
+across all endpoints. 
+
+### Schema Definitions
+
+- **LoginResponse**
+  - `accessToken`: JWT Token
+  - `refreshToken`: JWT Refresh Token
+  
+- **Plan**
+  - `id`
+  - `name`
+  - `displayName`
+  - `priceMonthly`
+  - `priceYearly`
+  - `maxUnits`
+  - `maxSecretaries`
+  - `features`
+
+- **Society**
+  - `id`
+  - `name`
+  - `city`
+  - `planId`
+  - `pramukhId`
+  - `isActive`
+
+- **NewUser**
+  - `email`
+  - `password` (Hashed in the system)
+  - `name`
+  - `phone` (Optional)
+  - `isPramukh` (Boolean)
+
+### Summary
+
+This schema and API definition should be sufficient for implementing Super 
+Admin functionalities. The ERD and OpenAPI spec provide a comprehensive gui
+guide to ensure all endpoints are consistent, well-documented, and easy to 
+use.
+
+---
+
+These details should serve as a solid foundation for the development of Sup
+Super Admin features in our system, ensuring robustness and ease-of-use fro
+from both an implementation perspective and a user interaction standpoint. 
+
+### Next Steps
+
+- Implement the database schema.
+- Write server-side logic for each endpoint.
+- Create client-side integrations to interact with these endpoints.
+
+---
+
+This concludes the design documentation for the Super Admin module. If ther
+there are any further requirements or clarifications needed, please let me 
+know! 
+
+---
+
+The above ERD and OpenAPI spec should provide a clear structure for impleme
+implementing the Super Admin features in our system. It includes all necess
+necessary entities, attributes, and API endpoints required to manage plans,
+plans, societies, users, and other administrative tasks.
+
+### Summary
+
+- **SuperAdmin Entity**: Manages super admin login and roles.
+- **Plan Entity**: Defines different subscription plans with pricing detail
+details.
+- **Society Entity**: Represents a community managed by the pramukh.
+- **User Entity**: Handles user registration and role assignments (pramukh,
+(pramukh, secretary).
+- **PlanSubscription Entity**: Tracks plan subscriptions for societies.
+
+### Next Steps
+
+1. Implement database schema based on ERD.
+2. Develop server-side logic for each API endpoint.
+3. Create client-side integrations to interact with these endpoints.
+4. Test thoroughly and ensure data integrity across all operations.
+
+This design should be scalable and maintainable, supporting future enhancem
+enhancements as needed. Please provide feedback or additional requirements 
+if necessary! 
+
+---
+
+The above documentation covers the essential aspects of the Super Admin mod
+module, providing a robust foundation for system development. It ensures th
+that all critical functionalities are well-defined and easily integratable 
+into our application's architecture.
+
+### Implementation Notes
+
+- **Authentication**: Ensure secure JWT token handling for authentication.
+- **Data Validation**: Implement strict validation rules to prevent data in
+inconsistencies.
+- **Error Handling**: Define consistent error response patterns across endp
+endpoints.
+- **Documentation**: Maintain comprehensive documentation for easy maintena
+maintenance and integration by other developers.
+
+This concludes the design of the Super Admin module. Please review and prov
+provide any feedback or additional requirements needed!
+
+---
+
+**End of Documentation**
+
+---
+### Implementation Guide
+
+#### Database Schema Based on ERD
+```sql
+CREATE TABLE super_admin (
+  id UUID PRIMARY KEY,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  phone VARCHAR(15)
+);
+
+CREATE TABLE plan (
+  id UUID PRIMARY KEY,
+  name VARCHAR(100) NOT NULL UNIQUE,
+  display_name VARCHAR(100) NOT NULL,
+  price_monthly INTEGER NOT NULL,
+  price_yearly INTEGER NOT NULL,
+  max_units INTEGER NOT NULL,
+  max_secretaries INTEGER NOT NULL
+);
+
+CREATE TABLE society (
+  id UUID PRIMARY KEY,
+  name VARCHAR(255) NOT NULL UNIQUE,
+  city VARCHAR(100) NOT NULL,
+  plan_id UUID REFERENCES plan(id),
+  pramukh_id UUID REFERENCES super_admin(id),
+  is_active BOOLEAN DEFAULT true
+);
+
+CREATE TABLE user (
+  id UUID PRIMARY KEY,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  name VARCHAR(255) NOT NULL,
+  phone VARCHAR(15),
+  is_pramukh BOOLEAN DEFAULT false,
+  is_active BOOLEAN DEFAULT true
+);
+
+CREATE TABLE society_membership (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES user(id),
+  society_id UUID REFERENCES society(id),
+  role ENUM('pramukh', 'secretary') NOT NULL DEFAULT 'secretary'
+);
+
+CREATE TABLE plan_subscription (
+  id UUID PRIMARY KEY,
+  plan_id UUID REFERENCES plan(id),
+  society_id UUID REFERENCES society(id),
+  start_date TIMESTAMP WITH TIME ZONE NOT NULL,
+  end_date TIMESTAMP WITH TIME ZONE
+);
+```
+
+#### API Endpoints Implementation
+
+1. **POST /auth/login**
+   - Endpoint to handle super admin login.
+   
+2. **POST /admin/plans**
+   - Create a new plan.
+
+3. **POST /admin/societies**
+   - Create a new society and assign pramukh.
+
+4. **GET /admin/plans/{planId}**
+   - Get a plan by ID.
+
+5. **GET /societies/{societyId}**
+   - Get a society by ID.
+
+6. **PATCH /societies/{societyId}/pramukh**
+   - Update pramukh of a society.
+
+7. **POST /societies/{societyId}/secretaries**
+   - Add a secretary to the society.
+
+8. **DELETE /societies/{societyId}/secretaries/{userId}**
+   - Remove a secretary from the society.
+
+9. **PATCH /societies/{societyId}/plan**
+   - Change the plan of a society.
+
+10. **GET /users/{userId}**
+    - Get user by ID.
+    
+11. **PATCH /users/{userId}**
+    - Update user details by ID.
+
+12. **DELETE /users/{userId}**
+    - Delete a user.
+
+#### Example Implementation
+
+```javascript
+// POST /auth/login
+app.post('/auth/login', (req, res) => {
+  const { email, password } = req.body;
+  
+  // Validate and authenticate the super admin.
+  if (!email || !password) return res.status(400).send({ message: 'Invalid 
+credentials' });
+
+  SuperAdmin.authenticate(email, password)
+    .then((user) => {
+      if (user) {
+        const token = generateJwtToken(user.id);
+        return res.send({ accessToken: token });
+      } else {
+        return res.status(401).send({ message: 'Authentication failed' });
+      }
+    })
+    .catch(err => console.error('Error during authentication:', err));
+});
+
+// POST /admin/plans
+app.post('/admin/plans', (req, res) => {
+  const { name, display_name, price_monthly, price_yearly, max_units, max_s
+max_secretaries } = req.body;
+  
+  // Validate and create a new plan.
+  if (!name || !display_name || !price_monthly || !price_yearly || !max_uni
+!max_units || !max_secretaries) return res.status(400).send({ message: 'Mis
+'Missing required fields' });
+
+  Plan.create({
+    name,
+    display_name,
+    price_monthly,
+    price_yearly,
+    max_units,
+    max_secretaries
+  })
+    .then(plan => res.send(plan))
+    .catch(err => console.error('Error creating plan:', err));
+});
+
+// POST /admin/societies
+app.post('/admin/societies', (req, res) => {
+  const { name, city, pramukh_id } = req.body;
+  
+  // Validate and create a new society.
+  if (!name || !city || !pramukh_id) return res.status(400).send({ message:
+message: 'Missing required fields' });
+
+  Society.create({
+    name,
+    city,
+    plan_id: null, // Set to null initially
+    pramukh_id
+  })
+    .then(society => {
+      res.send(society);
+      
+      // Associate pramukh with society.
+      SocietyMembership.create({
+        user_id: pramukh_id,
+        society_id: society.id,
+        role: 'pramukh'
+      });
+    })
+    .catch(err => console.error('Error creating society:', err));
+});
+
+// GET /admin/plans/{planId}
+app.get('/admin/plans/:id', (req, res) => {
+  const { id } = req.params;
+
+  // Fetch and return the plan details.
+  Plan.findById(id)
+    .then(plan => res.send(plan))
+    .catch(err => console.error('Error fetching plan:', err));
+});
+
+// GET /societies/{societyId}
+app.get('/societies/:id', (req, res) => {
+  const { id } = req.params;
+
+  // Fetch and return the society details.
+  Society.findById(id)
+    .then(society => res.send(society))
+    .catch(err => console.error('Error fetching society:', err));
+});
+
+// PATCH /societies/{societyId}/pramukh
+app.patch('/societies/:id/pramukh', (req, res) => {
+  const { id } = req.params;
+  const { pramukh_id } = req.body;
+
+  // Validate and update the pramukh.
+  if (!pramukh_id) return res.status(400).send({ message: 'Missing required
+required field' });
+
+  Society.updateById(id, { pramukh_id })
+    .then(() => {
+      // Update society membership for new pramukh.
+      SocietyMembership.create({
+        user_id: pramukh_id,
+        society_id: id,
+        role: 'pramukh'
+      });
+      
+      res.send({ message: 'Pramukh updated successfully' });
+    })
+    .catch(err => console.error('Error updating pramukh:', err));
+});
+
+// POST /societies/{societyId}/secretaries
+app.post('/societies/:id/secretaries', (req, res) => {
+  const { id } = req.params;
+  const { user_id } = req.body;
+
+  // Validate and add a secretary.
+  if (!user_id) return res.status(400).send({ message: 'Missing required fi
+field' });
+
+  SocietyMembership.create({
+    user_id,
+    society_id: id,
+    role: 'secretary'
+  })
+    .then(() => res.send({ message: 'Secretary added successfully' }))
+    .catch(err => console.error('Error adding secretary:', err));
+});
+
+// DELETE /societies/{societyId}/secretaries/{userId}
+app.delete('/societies/:id/secretaries/:user_id', (req, res) => {
+  const { id, user_id } = req.params;
+
+  // Validate and remove a secretary.
+  if (!id || !user_id) return res.status(400).send({ message: 'Missing requ
+required field' });
+
+  SocietyMembership.deleteByUserAndSociety(user_id, id)
+    .then(() => res.send({ message: 'Secretary removed successfully' }))
+    .catch(err => console.error('Error removing secretary:', err));
+});
+
+// PATCH /societies/{societyId}/plan
+app.patch('/societies/:id/plan', (req, res) => {
+  const { id } = req.params;
+  const { plan_id } = req.body;
+
+  // Validate and update the society's plan.
+  if (!plan_id) return res.status(400).send({ message: 'Missing required fi
+field' });
+
+  Society.updateById(id, { plan_id })
+    .then(() => {
+      PlanSubscription.create({
+        plan_id,
+        society_id: id
+      });
+      
+      res.send({ message: 'Plan updated successfully' });
+    })
+    .catch(err => console.error('Error updating plan:', err));
+});
+
+// GET /users/{userId}
+app.get('/users/:id', (req, res) => {
+  const { id } = req.params;
+
+  // Fetch and return the user details.
+  User.findById(id)
+    .then(user => res.send(user))
+    .catch(err => console.error('Error fetching user:', err));
+});
+
+// PATCH /users/{userId}
+app.patch('/users/:id', (req, res) => {
+  const { id } = req.params;
+  const updates = Object.assign({}, req.body);
+
+  // Validate and update the user details.
+  User.updateById(id, updates)
+    .then(() => res.send({ message: 'User updated successfully' }))
+    .catch(err => console.error('Error updating user:', err));
+});
+
+// DELETE /users/{userId}
+app.delete('/users/:id', (req, res) => {
+  const { id } = req.params;
+
+  // Validate and delete the user.
+  User.deleteById(id)
+    .then(() => res.send({ message: 'User deleted successfully' }))
+    .catch(err => console.error('Error deleting user:', err));
+});
+```
+
+### Summary
+
+- **Database**: Implemented schema based on ERD for entities like super_adm
+super_admin, plan, society, user, and their relationships.
+- **API Endpoints**:
+  - `/auth/login`: Handles Super Admin login.
+  - `/admin/plans`/`:id`: Manages plan creation, fetching.
+  - `/societies`/:id: Manages society creation, fetching, pramukh updates, 
+secretary management, and plan changes.
+  - `/users`/:id: User CRUD operations.
+
+This implementation provides a comprehensive solution for managing Super Ad
+Admin functionalities with robust data handling and API interactions. Pleas
+Please review the code and provide feedback or additional requirements!
+
+---
+
+### Next Steps
+
+- Integrate middleware like JWT authentication, validation checks, error ha
+handling.
+- Implement client-side integrations to interact with these endpoints.
+- Test thoroughly across various scenarios.
+
+This concludes our implementation guide for Super Admin features. If there 
+are any specific enhancements or modifications required, please provide fee
+feedback and we can iterate accordingly!
+
+---
+
+**End of Implementation Guide**
+
+---
+### Testing Plan
+
+#### 1. Unit Tests
+Unit tests should be written to cover each function individually, ensuring 
+they work as expected.
+
+##### Example Test Cases:
+
+- **POST /auth/login**
+```javascript
+test('should authenticate a super admin', async () => {
+  const response = await request(app)
+    .post('/auth/login')
+    .send({ email: 'admin@example.com', password: 'password123' });
+
+  expect(response.status).toBe(200);
+  expect(response.body.accessToken).toBeDefined();
+});
+
+test('should fail to authenticate with incorrect credentials', async () => 
+{
+  const response = await request(app)
+    .post('/auth/login')
+    .send({ email: 'admin@example.com', password: 'wrongpassword' });
+
+  expect(response.status).toBe(401);
+  expect(response.body.message).toEqual('Authentication failed');
+});
+```
+
+- **POST /admin/plans**
+```javascript
+test('should create a new plan successfully', async () => {
+  const response = await request(app)
+    .post('/admin/plans')
+    .send({
+      name: 'Silver',
+      display_name: 'Silver Plan',
+      price_monthly: 10,
+      price_yearly: 120,
+      max_units: 50,
+      max_secretaries: 3
+    });
+
+  expect(response.status).toBe(200);
+});
+
+test('should fail to create a plan with missing fields', async () => {
+  const response = await request(app)
+    .post('/admin/plans')
+    .send({
+      name: 'Silver',
+      display_name: 'Silver Plan'
+    }); // Missing price_yearly, max_units, and max_secretaries
+
+  expect(response.status).toBe(400);
+});
+```
+
+#### 2. Integration Tests
+Integration tests should cover the interactions between different API endpo
+endpoints.
+
+##### Example Test Cases:
+
+- **POST /admin/plans & POST /societies**
+```javascript
+test('should create a new society and associate it with an existing plan', 
+async () => {
+  const planResponse = await request(app)
+    .post('/admin/plans')
+    .send({
+      name: 'Gold',
+      display_name: 'Gold Plan',
+      price_monthly: 20,
+      price_yearly: 240,
+      max_units: 100,
+      max_secretaries: 5
+    });
+
+  const planId = planResponse.body.id;
+
+  await request(app)
+    .post('/admin/societies')
+    .send({
+      name: 'Society A',
+      city: 'City X',
+      pramukh_id: '1'
+    })
+    .then(response => {
+      expect(response.status).toBe(200);
+      
+      Society.findById(response.body.id)
+        .then(society => {
+          expect(society.plan_id).toEqual(planId);
+        });
+    });
+});
+```
+
+#### 3. End-to-End Tests
+End-to-end tests should simulate user interactions and ensure the entire sy
+system works as intended.
+
+##### Example Test Cases:
+
+- **Login, Create Plan & Society**
+```javascript
+describe('Super Admin workflow', () => {
+  let token;
+
+  beforeAll(async () => {
+    const loginResponse = await request(app)
+      .post('/auth/login')
+      .send({ email: 'admin@example.com', password: 'password123' });
+    
+    token = loginResponse.body.accessToken;
+  });
+
+  test('should create a plan and society successfully with valid credential
+credentials', async () => {
+    const planResponse = await request(app)
+      .post('/admin/plans')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Diamond',
+        display_name: 'Diamond Plan',
+        price_monthly: 50,
+        price_yearly: 600,
+        max_units: 200,
+        max_secretaries: 10
+      });
+
+    expect(planResponse.status).toBe(200);
+    
+    const societyResponse = await request(app)
+      .post('/admin/societies')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Society B',
+        city: 'City Y',
+        pramukh_id: '1'
+      });
+      
+    expect(societyResponse.status).toBe(200);
+  });
+
+  test('should fail to create a society with invalid credentials', async ()
+() => {
+    const planId = await request(app)
+      .post('/admin/plans')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Platinum',
+        display_name: 'Platinum Plan',
+        price_monthly: 30,
+        price_yearly: 360,
+        max_units: 150,
+        max_secretaries: 7
+      });
+
+    const societyResponse = await request(app)
+      .post('/admin/societies')
+      .send({ // Not using valid token
+        name: 'Society C',
+        city: 'City Z',
+        pramukh_id: '1'
+      });
+    
+    expect(societyResponse.status).toBe(401);
+  });
+});
+```
+
+### Summary
+
+- **Unit Tests**: Ensure individual functions work correctly.
+- **Integration Tests**: Verify interactions between API endpoints.
+- **End-to-End Tests**: Simulate user workflows and ensure system-wide func
+functionality.
+
+This testing plan helps validate the robustness of Super Admin features acr
+across different scenarios. Please review these test cases and provide feed
+feedback or additional requirements!
+
+---
+
+### Next Steps
+
+- Write unit, integration, and end-to-end tests as outlined.
+- Run tests to identify and fix any issues.
+- Perform manual testing to further verify functionality.
+
+This concludes our implementation guide and testing plan for Super Admin fe
+features. If there are any specific areas of concern or enhancements requir
+required, please provide feedback and we can iterate accordingly!
+
+---
+
+**End of Testing Plan**
+
+--- 
+
+Please review the above sections and let me know if you need any modificati
+modifications or additional details!
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>
+<|im_start|>

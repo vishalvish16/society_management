@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx prisma:*)",
+      "Bash(ollama list:*)",
+      "Bash(python master_run.py)",
+      "Bash(python -c ':*)",
+      "Bash(python -c \"print\\('hello world'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('e:/Society_Managment/master_run.py',encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(taskkill /F /IM python.exe)",
+      "Bash(taskkill /F /IM ollama.exe)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('e:/Society_Managment/master_run.py',encoding='utf-8'\\).read\\(\\)\\); print\\('SYNTAX OK'\\)\")",
+      "Bash(curl -s http://localhost:11434/api/tags)",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(m['name']\\) for m in data.get\\('models',[]\\)]\")",
+      "Bash(psql postgresql://postgres:postgres@localhost:5432/society_manager -c \"DROP SCHEMA public CASCADE; CREATE SCHEMA public;\")",
+      "Bash(psql \"postgresql://postgres:postgres@localhost:5432/society_manager\" -c \"DROP SCHEMA public CASCADE; CREATE SCHEMA public;\")",
+      "Bash(psql --version)",
+      "Bash(where psql:*)",
+      "Bash(PGPASSWORD=postgres \"/c/Program Files/PostgreSQL/16/bin/psql\" -U postgres -d society_manager -c \"DROP SCHEMA public CASCADE; CREATE SCHEMA public;\")",
+      "Bash(node app.js)",
+      "Bash(curl -s http://localhost:3000/health)",
+      "Bash(curl -s http://localhost:3000/)",
+      "Bash(python3 -c \"import sys,json; p=json.load\\(sys.stdin\\); print\\('main:', p.get\\('main','?'\\)\\); print\\('scripts:', p.get\\('scripts',{}\\)\\)\")",
+      "Bash(node src/app.js)",
+      "Bash(npm install:*)",
+      "Bash(curl -s http://localhost:3000/api/auth/login -X POST -H \"Content-Type: application/json\" -d '{\"phone\":\"test\",\"password\":\"test\"}')",
+      "Bash(netstat -ano)",
+      "Bash(python3 write_screens.py)",
+      "Bash(flutter pub:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(flutter run:*)",
+      "Bash(grep -v \"^$\")"
+    ]
+  }
+}

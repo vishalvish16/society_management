@@ -1,0 +1,220 @@
+# UI/UX Agent Output: Gate Pass Screen
+# Model: qwen2.5-coder:14b
+# Generated: 2026-04-05 17:22:21
+============================================================
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:shimmer/shimmer.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
+
+class GatePassScreen extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Gate Pass Management', style: AppTextStyles.h2),
+        backgroundColor: AppColors.primary,
+        elevation: 0,
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ElevatedButton.icon(
+                onPressed: () {
+                  context.go('/gatepasses/generate');
+                },
+                icon: Icon(Icons.add, color: AppColors.background),
+                label: Text('Generate Pass', style: AppTextStyles.body1.copyWith(color: AppColors.background)),
+                style: ElevatedButton.styleFrom(
+                  primary: AppColors.secondary,
+                  onPrimary: AppColors.background,
+                ),
+              ),
+              SizedBox(height: 24),
+              Expanded(
+                child: GatePassList(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class GatePassList extends StatelessWidget {
+  final List<GatePass> mockData = [
+    GatePass(name: 'John Doe', unit: 'HR', validity: DateTime.now().add(Duration(days: 1)), status: 'Active'),
+    GatePass(name: 'Jane Smith', unit: 'Tech', validity: DateTime.now().subtract(Duration(days: 1)), status: 'Expired'),
+    GatePass(name: 'Alice Johnson', unit: 'Marketing', validity: DateTime.now(), status: 'Pending'),
+    GatePass(name: 'Bob Brown', unit: 'Finance', validity: DateTime.now().add(Duration(days: 2)), status: 'Active'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return ConsumerWidget(
+      builder: (context, ref, child) {
+        final passes = AsyncValue.data(mockData); // Replace with actual data provider
+
+        return passes.when(
+          loading: () => Shimmer.fromColors(
+            baseColor: AppColors.surface,
+            highlightColor: AppColors.background,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: 4,
+              itemBuilder: (context, index) {
+                return PassCardPlaceholder();
+              },
+            ),
+          ),
+          error: (err, stack) => Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error, color: AppColors.error, size: 48),
+                SizedBox(height: 16),
+                Text('Failed to load passes', style: AppTextStyles.body1.copyWith(color: AppColors.error)),
+                SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    // Retry logic
+                  },
+                  child: Text('Retry', style: AppTextStyles.body2.copyWith(color: AppColors.background)),
+                  style: ElevatedButton.styleFrom(
+                    primary: AppColors.secondary,
+                    onPrimary: AppColors.background,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          data: (data) {
+            if (data.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.list, color: AppColors.textMuted, size: 48),
+                    SizedBox(height: 16),
+                    Text('No passes available', style: AppTextStyles.body1.copyWith(color: AppColors.textMuted)),
+                  ],
+                ),
+              );
+            }
+
+            return GridView.builder(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: MediaQuery.of(context).size.width >= 1200 ? 4 : (MediaQuery.of(context).size.width >= 768 ? 2 : 1),
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+              ),
+              itemCount: data.length,
+              itemBuilder: (context, index) {
+                return PassCard(pass: data[index]).animate().slideY(begin: -0.5).fadeIn(duration: 400.ms);
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class PassCard extends StatelessWidget {
+  final GatePass pass;
+
+  const PassCard({Key? key, required this.pass}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(pass.name, style: AppTextStyles.h3),
+            SizedBox(height: 8),
+            Text('Unit: ${pass.unit}', style: AppTextStyles.body2.copyWith(color: AppColors.textMuted)),
+            SizedBox(height: 4),
+            Text('Validity: ${DateFormat.yMd().add_jm().format(pass.validity)}', style: AppTextStyles.body2.copyWith(color: AppColors.textMuted)),
+            SizedBox(height: 16),
+            Chip(
+              label: Text(pass.status, style: AppTextStyles.body2.copyWith(color: AppColors.background)),
+              backgroundColor: statusColor(pass.status),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color statusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'active':
+        return AppColors.secondary;
+      case 'expired':
+        return AppColors.error;
+      case 'pending':
+        return AppColors.warning;
+      default:
+        return AppColors.info;
+    }
+  }
+}
+
+class PassCardPlaceholder extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(height: 16, width: 150, color: AppColors.background),
+            SizedBox(height: 8),
+            Container(height: 12, width: 100, color: AppColors.background),
+            SizedBox(height: 4),
+            Container(height: 12, width: 120, color: AppColors.background),
+            SizedBox(height: 16),
+            Container(height: 32, width: 80, color: AppColors.background),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class GatePass {
+  final String name;
+  final String unit;
+  final DateTime validity;
+  final String status;
+
+  GatePass({required this.name, required this.unit, required this.validity, required this.status});
+}
+```

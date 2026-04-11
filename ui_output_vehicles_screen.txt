@@ -1,0 +1,191 @@
+# UI/UX Agent Output: Vehicles Screen
+# Model: qwen2.5-coder:14b
+# Generated: 2026-04-05 17:45:53
+============================================================
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:shimmer/shimmer.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
+
+class VehiclesScreen extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final vehicles = AsyncValue<List<Vehicle>>(AsyncData([
+      Vehicle(
+        plate: 'ABC-123',
+        type: 'Sedan',
+        ownerUnit: 'IT Department',
+        parkingSlot: 'A1',
+      ),
+      Vehicle(
+        plate: 'DEF-456',
+        type: 'SUV',
+        ownerUnit: 'Marketing',
+        parkingSlot: 'B2',
+      ),
+      // Add more mock data as needed
+    ]));
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Vehicle Registry', style: AppTextStyles.h1),
+        backgroundColor: AppColors.primary,
+        elevation: 0,
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          // Navigate to register vehicle screen
+          context.go('/register_vehicle');
+        },
+        backgroundColor: AppColors.secondary,
+        child: Icon(Icons.add, color: Colors.white),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              decoration: InputDecoration(
+                hintText: 'Search by plate',
+                prefixIcon: Icon(Icons.search, color: AppColors.textMuted),
+                filled: true,
+                fillColor: AppColors.surface,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                  borderSide: BorderSide(color: Colors.transparent),
+                ),
+              ),
+            ),
+            SizedBox(height: 16),
+            Expanded(
+              child: vehicles.when(
+                data: (data) {
+                  if (data.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.info, size: 48, color: AppColors.warning),
+                          SizedBox(height: 16),
+                          Text('No vehicles found', style: AppTextStyles.body),
+                        ],
+                      ),
+                    );
+                  }
+                  return ListView.builder(
+                    itemCount: data.length,
+                    itemBuilder: (context, index) {
+                      final vehicle = data[index];
+                      return Card(
+                        elevation: 0,
+                        borderOnForeground: false,
+                        color: AppColors.surface,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: Color(0xFFE2E8F0)),
+                        ),
+                        child: ListTile(
+                          title: Text(vehicle.plate, style: AppTextStyles.h3),
+                          subtitle: Row(
+                            children: [
+                              Icon(Icons.directions_car_outlined, color: AppColors.textMuted),
+                              SizedBox(width: 4),
+                              Text(vehicle.type, style: AppTextStyles.body2),
+                            ],
+                          ),
+                          trailing: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(vehicle.ownerUnit, style: AppTextStyles.caption),
+                              SizedBox(height: 4),
+                              Text('Slot ${vehicle.parkingSlot}', style: AppTextStyles.caption),
+                            ],
+                          ),
+                        )
+                        .animate()
+                        .fadeIn(duration: Duration(milliseconds: 300))
+                        .slideY(begin: -0.1, duration: Duration(milliseconds: 300)),
+                      ).animate().scale(begin: 0.9).duration(Duration(milliseconds: 300));
+                    },
+                  );
+                },
+                loading: () => Shimmer.fromColors(
+                  baseColor: AppColors.surface,
+                  highlightColor: AppColors.background,
+                  child: ListView.builder(
+                    itemCount: 10,
+                    itemBuilder: (context, index) {
+                      return Card(
+                        elevation: 0,
+                        borderOnForeground: false,
+                        color: AppColors.surface,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: Color(0xFFE2E8F0)),
+                        ),
+                        child: ListTile(
+                          title: Container(height: 16, width: 150, color: Colors.white),
+                          subtitle: Row(
+                            children: [
+                              Icon(Icons.directions_car_outlined, color: AppColors.textMuted),
+                              SizedBox(width: 4),
+                              Container(height: 12, width: 80, color: Colors.white),
+                            ],
+                          ),
+                          trailing: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(height: 12, width: 100, color: Colors.white),
+                              SizedBox(height: 4),
+                              Container(height: 12, width: 80, color: Colors.white),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                error: (error, stackTrace) => Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.error, size: 48, color: AppColors.error),
+                      SizedBox(height: 16),
+                      Text('Error loading vehicles', style: AppTextStyles.body),
+                      SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: () {
+                          // Retry action
+                        },
+                        child: Text('Retry', style: TextStyle(color: Colors.white)),
+                        style: ElevatedButton.styleFrom(primary: AppColors.error),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class Vehicle {
+  final String plate;
+  final String type;
+  final String ownerUnit;
+  final String parkingSlot;
+
+  Vehicle({required this.plate, required this.type, required this.ownerUnit, required this.parkingSlot});
+}
+```

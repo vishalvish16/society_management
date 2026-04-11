@@ -1,0 +1,213 @@
+# UI/UX Agent Output: Amenities Screen
+# Model: qwen2.5-coder:14b
+# Generated: 2026-04-05 17:02:02
+============================================================
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:shimmer/shimmer.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+class AmenitiesScreen extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final amenities = AsyncValue<List<Amenity>>(AsyncData([
+      Amenity(
+        name: 'Gym',
+        status: 'Open',
+        availabilityTimes: ['10:00 - 22:00'],
+      ),
+      Amenity(
+        name: 'Pool',
+        status: 'Closed',
+        availabilityTimes: [],
+      ),
+      Amenity(
+        name: 'Clubhouse',
+        status: 'Open',
+        availabilityTimes: ['09:00 - 18:00'],
+      ),
+    ]));
+
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Amenities', style: AppTextStyles.headline5),
+        backgroundColor: AppColors.primary,
+        elevation: 2,
+      ),
+      body: amenities.when(
+        data: (data) {
+          if (data.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.hourglass_empty, color: AppColors.textMuted, size: 48),
+                  SizedBox(height: 16),
+                  Text('No amenities available', style: AppTextStyles.bodyText1),
+                ],
+              ),
+            );
+          }
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: GridView.builder(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: screenWidth >= 1200 ? 4 : screenWidth >= 768 ? 2 : 1,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 3 / 2,
+              ),
+              itemCount: data.length,
+              itemBuilder: (context, index) {
+                final amenity = data[index];
+                return AmenityCard(
+                  name: amenity.name,
+                  status: amenity.status,
+                  availabilityTimes: amenity.availabilityTimes,
+                  onTap: () {
+                    // Navigate to booking screen
+                    context.go('/amenities/${amenity.name}/book');
+                  },
+                ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.2);
+              },
+            ),
+          );
+        },
+        loading: () => Shimmer.fromColors(
+          baseColor: AppColors.surface,
+          highlightColor: AppColors.background,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: GridView.builder(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: screenWidth >= 1200 ? 4 : screenWidth >= 768 ? 2 : 1,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 3 / 2,
+              ),
+              itemCount: 10, // Placeholder for shimmer loading
+              itemBuilder: (context, index) {
+                return Container(
+                  height: double.infinity,
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Color(0xFFE2E8F0)),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        error: (error, stack) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error, color: AppColors.error, size: 48),
+              SizedBox(height: 16),
+              Text('Failed to load amenities', style: AppTextStyles.bodyText1),
+              ElevatedButton(
+                onPressed: () {
+                  // Retry loading
+                  ref.refresh(amenitiesProvider);
+                },
+                child: Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        backgroundColor: AppColors.background,
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: AppColors.textMuted,
+        items: [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.book),
+            label: 'My Bookings',
+          ),
+          // Add more tabs if needed
+        ],
+      ),
+    );
+  }
+}
+
+class Amenity {
+  final String name;
+  final String status;
+  final List<String> availabilityTimes;
+
+  Amenity({required this.name, required this.status, required this.availabilityTimes});
+}
+
+class AmenityCard extends StatelessWidget {
+  final String name;
+  final String status;
+  final List<String> availabilityTimes;
+  final VoidCallback onTap;
+
+  AmenityCard({
+    required this.name,
+    required this.status,
+    required this.availabilityTimes,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Color(0xFFE2E8F0)),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(name, style: AppTextStyles.headline6),
+              SizedBox(height: 8),
+              Chip(
+                label: Text(status, style: TextStyle(color: Colors.white)),
+                backgroundColor: status == 'Open' ? AppColors.secondary : AppColors.error,
+              ),
+              SizedBox(height: 16),
+              Text('Availability Times', style: AppTextStyles.bodyText2),
+              Column(
+                children: availabilityTimes.map((time) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(child: Text(time, style: AppTextStyles.bodyText1)),
+                        ElevatedButton(
+                          onPressed: () {
+                            // Logic to cancel booking
+                          },
+                          style: ElevatedButton.styleFrom(primary: AppColors.error),
+                          child: Text('Cancel', style: TextStyle(color: Colors.white)),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+```

@@ -1,0 +1,196 @@
+# UI/UX Agent Output: Delivery Screen
+# Model: qwen2.5-coder:14b
+# Generated: 2026-04-05 17:38:39
+============================================================
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:shimmer/shimmer.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
+
+class DeliveryScreen extends ConsumerWidget {
+  const DeliveryScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final deliveries = AsyncValue.data([
+      {
+        'unit': '101',
+        'courier': 'John Doe',
+        'time': '10:30 AM',
+        'status': 'Pending',
+      },
+      {
+        'unit': '202',
+        'courier': 'Jane Smith',
+        'time': '11:45 AM',
+        'status': 'Collected',
+      },
+      {
+        'unit': '303',
+        'courier': 'Alice Johnson',
+        'time': '1:15 PM',
+        'status': 'Left at Gate',
+      },
+    ]);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Deliveries', style: AppTextStyles.h2),
+        backgroundColor: AppColors.primary,
+        elevation: 0,
+      ),
+      body: deliveries.when(
+        data: (data) {
+          if (data.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.delivery_dining, size: 64, color: AppColors.textMuted),
+                  SizedBox(height: 16),
+                  Text('No deliveries found', style: AppTextStyles.body2),
+                ],
+              ),
+            );
+          }
+          return GridView.builder(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: MediaQuery.of(context).size.width >= 1200 ? 4 : MediaQuery.of(context).size.width >= 768 ? 2 : 1,
+              childAspectRatio: 3 / 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+            ),
+            itemCount: data.length,
+            itemBuilder: (context, index) {
+              final delivery = data[index];
+              return Card(
+                elevation: 0,
+                color: AppColors.surface,
+                borderOnForeground: false,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Unit: ${delivery['unit']}', style: AppTextStyles.body1),
+                      SizedBox(height: 8),
+                      Text('Courier: ${delivery['courier']}', style: AppTextStyles.body2),
+                      SizedBox(height: 8),
+                      Text('Time: ${delivery['time']}', style: AppTextStyles.body2),
+                      SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: delivery['status'] == 'Pending' ? AppColors.warning : delivery['status'] == 'Collected' ? AppColors.secondary : AppColors.info,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(delivery['status'], style: TextStyle(fontSize: 12, color: AppColors.surface)),
+                          ),
+                          Row(
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: () {},
+                                icon: Icon(Icons.check_circle_outline, size: 16),
+                                label: Text('Log', style: TextStyle(fontSize: 14)),
+                                style: ElevatedButton.styleFrom(
+                                  primary: AppColors.secondary,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              ElevatedButton.icon(
+                                onPressed: () {},
+                                icon: Icon(Icons.notifications_none, size: 16),
+                                label: Text('Notify', style: TextStyle(fontSize: 14)),
+                                style: ElevatedButton.styleFrom(
+                                  primary: AppColors.primary,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ).animate().fadeIn(duration: 500.ms).slideY(begin: -0.1),
+              );
+            },
+          );
+        },
+        loading: () => Shimmer.fromColors(
+          baseColor: AppColors.textMuted.withOpacity(0.2),
+          highlightColor: AppColors.textMuted.withOpacity(0.4),
+          child: GridView.builder(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: MediaQuery.of(context).size.width >= 1200 ? 4 : MediaQuery.of(context).size.width >= 768 ? 2 : 1,
+              childAspectRatio: 3 / 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+            ),
+            itemCount: 6,
+            itemBuilder: (context, index) {
+              return Card(
+                elevation: 0,
+                color: AppColors.surface,
+                borderOnForeground: false,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(width: 50, height: 16, color: AppColors.surface),
+                      SizedBox(height: 8),
+                      Container(width: 80, height: 14, color: AppColors.surface),
+                      SizedBox(height: 8),
+                      Container(width: 60, height: 12, color: AppColors.surface),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        error: (error, stackTrace) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, size: 64, color: AppColors.error),
+              SizedBox(height: 16),
+              Text('Error loading deliveries', style: AppTextStyles.body2),
+              SizedBox(height: 8),
+              ElevatedButton.icon(
+                onPressed: () {},
+                icon: Icon(Icons.refresh_outlined, size: 16),
+                label: Text('Retry', style: TextStyle(fontSize: 14)),
+                style: ElevatedButton.styleFrom(
+                  primary: AppColors.primary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+```

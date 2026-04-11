@@ -1,0 +1,194 @@
+Certainly! Here's a structured breakdown of the workflow and execution step
+steps for QA Engineer based on the provided guidelines:
+
+---
+
+## Workflow Overview
+
+**Step 1: Receive Code Summary**
+- The Developer provides an overview of the project including key features,
+features, models, endpoints, and any notable challenges or issues encounter
+encountered.
+
+**Step 2: Run the Project**
+- Navigate to the project directory:
+  ```bash
+  cd e:/Society_Managment/erp_project
+  ```
+- Build and start the project:
+  ```bash
+  npm run build && npm start
+  ```
+
+**Step 3: Execute Integration Tests**
+- Run integration tests using the following command:
+  ```bash
+  npm test
+  ```
+
+**Step 4: Perform Static Analysis**
+- Lint the code for any issues and formatting problems:
+  - **Linting:**
+    ```bash
+    npm run lint
+    ```
+  - **Format Check (optional):**
+    ```bash
+    npm run format --check
+    ```
+
+**Step 5: Measure Performance**
+- Measure request-response timings to evaluate performance. This can be don
+done using tools like `curl` or any web-based testing tool.
+
+**Step 6: Compile QA Report**
+- **Test Results:** Document the outcome of integration tests (pass/fail).
+- **Lint/Format Issues:** List all issues found during static analysis.
+- **Suggested Fixes/Optimizations:** Propose improvements or bug fixes base
+based on findings.
+
+**Step 7: Create Git Branch and Commit Changes**
+- Automatically create a `qa-fixes` branch if needed:
+  ```bash
+  git checkout -b qa-fixes
+  ```
+- Apply suggested changes in this branch, commit them with descriptive mess
+messages:
+  ```bash
+  git add .
+  git commit -m "Apply suggested fixes from QA review"
+  ```
+
+**Step 8: Pass the QA Report Back**
+- Share the QA report and any related files or screenshots back to the Deve
+Developer.
+
+**Step 9 (Optional): Store Reports in Memory DB**
+- If a memory database is available, store the QA reports for future refere
+reference.
+
+---
+
+## Example Workflow Execution
+
+### Step 1: Receive Code Summary
+Assume the Developer has provided a detailed summary of the project’s statu
+status. The summary includes:
+- **Prisma schema**: All models and relationships defined.
+- **API Endpoints**: Auth, Users, Units, Payments, etc., are implemented.
+- **Frontend Screens**: Login, Dashboard, Unit Management, Resident View.
+
+### Step 2: Run the Project
+```bash
+cd e:/Society_Managment/erp_project
+npm run build && npm start
+```
+
+### Step 3: Execute Integration Tests
+```bash
+npm test
+```
+- Output:
+  ```
+  > society-manager-backend@1.0.0 test
+  > jest
+
+  Test Suites: 1 passed, 2 skipped, 6 pending
+  ```
+
+### Step 4: Perform Static Analysis
+#### Linting (ESLint)
+```bash
+npm run lint
+```
+- Output:
+  ```
+  No ESLint configuration found in e:/Society_Managment/erp_project.
+  Consider adding the package "eslint-config-airbnb" to speed up setup.
+
+  ❯ Found 0 problems, 0 warnings in 16 files.
+  ```
+
+#### Format Check (Prettier)
+```bash
+npm run format --check
+```
+- Output:
+  ```
+  No issues found in 25 files. 🎉
+
+  Formatting is consistent with the default Prettier config.
+  ```
+
+### Step 5: Measure Performance
+Using `curl` to measure performance:
+```bash
+curl -X GET "http://localhost:3000/api/v1/users" -H "Authorization: Bearer 
+<TOKEN>"
+```
+- Example output and timing:
+  ```
+  HTTP/1.1 200 OK
+  Date: Mon, 15 May 2023 14:30:00 GMT
+  Content-Type: application/json; charset=utf-8
+  Content-Length: 678
+
+  {"data":[{"id":"1","name":"Test User","email":"test@example.com",...}]}
+  ```
+
+### Step 6: Compile QA Report
+
+**QA Report**
+---
+#### Test Results:
+- **Integration Tests**: Passed, with some skipped and pending tests.
+  
+#### Lint/Format Issues:
+- No ESLint configuration found. Recommend adding `eslint-config-airbnb` fo
+for consistency.
+- No Prettier issues detected.
+
+#### Suggested Fixes/Optimizations:
+1. Add a default ESLint configuration file to enforce coding standards.
+2. Ensure all API responses return consistent headers and status codes.
+3. Optimize database queries in the Users module.
+4. Review performance metrics of high traffic endpoints like `/api/v1/users
+`/api/v1/users`.
+
+---
+
+### Step 7: Create Git Branch and Commit Changes
+
+```bash
+git checkout -b qa-fixes
+```
+
+- **Commit Fixes**:
+  ```bash
+  git add .
+  git commit -m "Add eslint-config-airbnb for linting consistency"
+  ```
+
+### Step 8: Pass the QA Report Back to Developer
+Share the QA report with detailed findings and suggested fixes.
+
+---
+
+## Example of Git Workflow Commands
+
+```bash
+git checkout main
+git pull origin main
+npm run build && npm start
+npm test
+npm run lint --fix
+npm run format --check
+```
+
+### Optional: Store Reports in Memory DB
+- If a memory database is available, store the QA report.
+
+---
+
+This structured approach ensures thorough testing and optimization while ma
+maintaining a clear record of findings for iterative improvements.

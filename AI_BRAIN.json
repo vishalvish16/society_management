@@ -1,0 +1,121 @@
+{
+    "system": {
+        "type": "Society Management SaaS",
+        "architecture": [
+            "Flutter",
+            "Node.js",
+            "PostgreSQL",
+            "Redis"
+        ],
+        "multi_tenant": true,
+        "rule": "Every query must include society_id"
+    },
+    "roles": [
+        "super_admin",
+        "pramukh",
+        "secretary",
+        "resident",
+        "watchman"
+    ],
+    "core_modules": {
+        "auth": [
+            "login",
+            "otp",
+            "refresh",
+            "logout"
+        ],
+        "units": [
+            "create",
+            "update",
+            "delete",
+            "assign residents"
+        ],
+        "users": [
+            "create roles",
+            "assign unit"
+        ],
+        "bills": [
+            "generate",
+            "pay",
+            "receipt"
+        ],
+        "expenses": [
+            "add",
+            "approve",
+            "reject"
+        ],
+        "visitors": [
+            "invite",
+            "QR generate",
+            "validate"
+        ],
+        "domestic_help": [
+            "register",
+            "entry",
+            "exit",
+            "attendance"
+        ],
+        "delivery": [
+            "create",
+            "respond",
+            "collect"
+        ],
+        "vehicles": [
+            "register",
+            "lookup"
+        ],
+        "parking": [
+            "assign",
+            "unassign"
+        ],
+        "move_requests": [
+            "move_in",
+            "move_out",
+            "NOC"
+        ],
+        "amenities": [
+            "create",
+            "book",
+            "approve"
+        ],
+        "gate_pass": [
+            "generate",
+            "verify"
+        ]
+    },
+    "flows": {
+        "visitor_flow": [
+            "resident_invite",
+            "QR_generate",
+            "watchman_scan",
+            "validate_once",
+            "mark_used"
+        ],
+        "bill_flow": [
+            "generate_monthly",
+            "resident_pay",
+            "update_status",
+            "generate_receipt"
+        ],
+        "delivery_flow": [
+            "watchman_create",
+            "resident_response",
+            "watchman_collect"
+        ]
+    },
+    "ui_rules": {
+        "must_be_responsive": true,
+        "no_raw_colors": true,
+        "no_raw_textstyle": true,
+        "use_design_system": true,
+        "loading": "shimmer_only",
+        "error": "card_with_retry"
+    },
+    "critical_checks": [
+        "button must trigger API",
+        "API must return correct response",
+        "DB must update correctly",
+        "UI must reflect updated state",
+        "no broken CRUD operations"
+    ]
+}

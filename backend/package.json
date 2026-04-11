@@ -1,0 +1,32 @@
+{
+  "name": "society-backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "npx prisma migrate dev --skip-generate && node src/server.js",
+    "start": "node src/server.js",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:stop": "pm2 stop society-backend",
+    "pm2:logs": "pm2 logs society-backend",
+    "pm2:restart": "pm2 restart society-backend"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "bcrypt": "^5.0.0",
+    "body-parser": "^1.20.0",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^10.0.0",
+    "express": "^4.17.0",
+    "express-rate-limit": "^8.3.2",
+    "ioredis": "^5.10.1",
+    "joi": "^18.1.2",
+    "jsonwebtoken": "^8.5.1",
+    "lodash": "^4.18.1",
+    "pm2": "^5.4.3"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.0",
+    "prisma": "^5.22.0"
+  }
+}

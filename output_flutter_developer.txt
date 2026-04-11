@@ -1,0 +1,320 @@
+# Flutter Developer
+# Generated: 2026-04-05 14:54:18
+============================================================
+
+// FILE: frontend/lib/main.dart
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/router/app_router.dart';
+
+void main() {
+  runApp(const ProviderScope(child: MyApp()));
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp.router(
+      title: 'Society Manager',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      routerConfig: appRouter,
+    );
+  }
+}
+```
+
+// FILE: frontend/lib/core/router/app_router.dart
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../features/auth/screens/login_screen.dart';
+import '../features/auth/screens/register_screen.dart';
+import '../features/gatepasses/screens/gate_pass_screen.dart';
+import '../features/domestichelp/screens/domestic_help_screen.dart';
+import '../features/deliveries/screens/delivery_screen.dart';
+
+final appRouter = GoRouter(
+  routes: <GoRoute>[
+    GoRoute(
+      path: '/',
+      builder: (context, state) => const LoginScreen(),
+    ),
+    GoRoute(
+      path: '/register',
+      builder: (context, state) => const RegisterScreen(),
+    ),
+    GoRoute(
+      path: '/gatepass',
+      builder: (context, state) => const GatePassScreen(),
+    ),
+    GoRoute(
+      path: '/domestichelp',
+      builder: (context, state) => const DomesticHelpScreen(),
+    ),
+    GoRoute(
+      path: '/delivery',
+      builder: (context, state) => const DeliveryScreen(),
+    ),
+  ],
+);
+```
+
+// FILE: frontend/lib/features/auth/screens/login_screen.dart
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+class LoginScreen extends ConsumerWidget {
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Login')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            TextField(
+              controller: _emailController,
+              decoration: InputDecoration(hintText: 'Email'),
+            ),
+            SizedBox(height: 20),
+            TextField(
+              controller: _passwordController,
+              obscureText: true,
+              decoration: InputDecoration(hintText: 'Password'),
+            ),
+            SizedBox(height: 30),
+            ElevatedButton(
+              onPressed: () {
+                // Add login logic here
+              },
+              child: Text('Login'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+// FILE: frontend/lib/features/auth/screens/register_screen.dart
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+class RegisterScreen extends ConsumerWidget {
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Register')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            TextField(
+              controller: _emailController,
+              decoration: InputDecoration(hintText: 'Email'),
+            ),
+            SizedBox(height: 20),
+            TextField(
+              controller: _passwordController,
+              obscureText: true,
+              decoration: InputDecoration(hintText: 'Password'),
+            ),
+            SizedBox(height: 30),
+            ElevatedButton(
+              onPressed: () {
+                // Add registration logic here
+              },
+              child: Text('Register'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+// FILE: frontend/lib/features/gatepasses/screens/gate_pass_screen.dart
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'providers/gate_pass_provider.dart';
+
+class GatePassScreen extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Gate Pass')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            ElevatedButton(
+              onPressed: () async {
+                await ref.read(gatePassProvider.notifier).verifyGatePass();
+              },
+              child: Text('Verify Gate Pass'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+// FILE: frontend/lib/features/gatepasses/providers/gate_pass_provider.dart
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
+
+final gatePassProvider = StateNotifierProvider<GatePassNotifier, String>((ref) {
+  return GatePassNotifier();
+});
+
+class GatePassNotifier extends StateNotifier<String> {
+  GatePassNotifier() : super('');
+
+  final Dio dio = Dio();
+
+  Future<void> verifyGatePass() async {
+    try {
+      // Add API call to verify gate pass
+      Response response = await dio.post('/api/v1/gatepass/verify', data: {'code': '123456'});
+      state = response.data['message'];
+    } catch (e) {
+      state = 'Failed to verify gate pass';
+    }
+  }
+}
+```
+
+// FILE: frontend/lib/features/domestichelp/screens/domestic_help_screen.dart
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'providers/domestic_help_provider.dart';
+
+class DomesticHelpScreen extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Domestic Help')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            ElevatedButton(
+              onPressed: () async {
+                await ref.read(domesticHelpProvider.notifier).enterCode();
+              },
+              child: Text('Enter Code'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+// FILE: frontend/lib/features/domestichelp/providers/domestic_help_provider.dart
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
+
+final domesticHelpProvider = StateNotifierProvider<DomesticHelpNotifier, String>((ref) {
+  return DomesticHelpNotifier();
+});
+
+class DomesticHelpNotifier extends StateNotifier<String> {
+  DomesticHelpNotifier() : super('');
+
+  final Dio dio = Dio();
+
+  Future<void> enterCode() async {
+    try {
+      // Add API call to enter domestic help code
+      Response response = await dio.post('/api/v1/domestichelp/entercode', data: {'code': '123456'});
+      state = response.data['message'];
+    } catch (e) {
+      state = 'Failed to enter code';
+    }
+  }
+}
+```
+
+// FILE: frontend/lib/features/deliveries/screens/delivery_screen.dart
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'providers/delivery_provider.dart';
+
+class DeliveryScreen extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Deliveries')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            ElevatedButton(
+              onPressed: () async {
+                await ref.read(deliveryProvider.notifier).logDelivery();
+              },
+              child: Text('Log Delivery'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+// FILE: frontend/lib/features/deliveries/providers/delivery_provider.dart
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
+
+final deliveryProvider = StateNotifierProvider<DeliveryNotifier, String>((ref) {
+  return DeliveryNotifier();
+});
+
+class DeliveryNotifier extends StateNotifier<String> {
+  DeliveryNotifier() : super('');
+
+  final Dio dio = Dio();
+
+  Future<void> logDelivery() async {
+    try {
+      // Add API call to log delivery
+      Response response = await dio.post('/api/v1/delivery/log', data: {'details': 'Sample details'});
+      state = response.data['message'];
+    } catch (e) {
+      state = 'Failed to log delivery';
+    }
+  }
+}
+```

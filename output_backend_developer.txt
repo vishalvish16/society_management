@@ -1,0 +1,206 @@
+# Backend Developer
+# Generated: 2026-04-05 15:38:08
+============================================================
+
+// FILE: backend/src/modules/auth/auth.test.js
+```js
+const request = require('supertest');
+const app = require('../../app');
+
+describe('Auth Routes', () => {
+  let testUser;
+
+  beforeAll(async () => {
+    // Seed a test user for login tests
+    const response = await request(app)
+      .post('/api/v1/auth/register')
+      .send({
+        email: 'testuser@example.com',
+        password: 'Password@123',
+        name: 'Test User'
+      });
+
+    expect(response.statusCode).toBe(201);
+    testUser = response.body;
+  });
+
+  afterAll(async () => {
+    // Cleanup the test user
+    await request(app)
+      .delete(`/api/v1/users/${testUser.id}`)
+      .set('Authorization', `Bearer ${process.env.ADMIN_ACCESS_TOKEN}`);
+  });
+
+  describe('POST /auth/login', () => {
+    it('should login a user and return an access token', async () => {
+      const response = await request(app)
+        .post('/api/v1/auth/login')
+        .send({
+          email: 'testuser@example.com',
+          password: 'Password@123'
+        });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toHaveProperty('accessToken');
+    });
+
+    it('should return 401 if the email is incorrect', async () => {
+      const response = await request(app)
+        .post('/api/v1/auth/login')
+        .send({
+          email: 'wrongemail@example.com',
+          password: 'Password@123'
+        });
+
+      expect(response.statusCode).toBe(401);
+    });
+
+    it('should return 401 if the password is incorrect', async () => {
+      const response = await request(app)
+        .post('/api/v1/auth/login')
+        .send({
+          email: 'testuser@example.com',
+          password: 'WrongPassword@123'
+        });
+
+      expect(response.statusCode).toBe(401);
+    });
+  });
+
+  describe('POST /auth/register', () => {
+    it('should register a new user and return the user details', async () => {
+      const response = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'newuser@example.com',
+          password: 'Password@123',
+          name: 'New User'
+        });
+
+      expect(response.statusCode).toBe(201);
+      expect(response.body).toHaveProperty('id');
+    });
+
+    it('should return 400 if the email is already registered', async () => {
+      const response = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'testuser@example.com',
+          password: 'Password@123',
+          name: 'Existing User'
+        });
+
+      expect(response.statusCode).toBe(400);
+    });
+
+    it('should return 400 if the required fields are missing', async () => {
+      const response = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'missingfields@example.com'
+        });
+
+      expect(response.statusCode).toBe(400);
+    });
+  });
+
+  describe('POST /auth/otp/send', () => {
+    it('should send an OTP to the provided email', async () => {
+      const response = await request(app)
+        .post('/api/v1/auth/otp/send')
+        .send({
+          email: 'testuser@example.com'
+        });
+
+      expect(response.statusCode).toBe(200);
+    });
+
+    it('should return 404 if the user with the provided email does not exist', async () => {
+      const response = await request(app)
+        .post('/api/v1/auth/otp/send')
+        .send({
+          email: 'nonexistent@example.com'
+        });
+
+      expect(response.statusCode).toBe(404);
+    });
+  });
+
+  describe('POST /auth/otp/verify', () => {
+    it('should verify a valid OTP and return the user details', async () => {
+      // Assuming an OTP has been sent to the email in a previous test
+      const otpResponse = await request(app)
+        .post('/api/v1/auth/otp/send')
+        .send({
+          email: 'testuser@example.com'
+        });
+
+      expect(otpResponse.statusCode).toBe(200);
+
+      const verifyResponse = await request(app)
+        .post('/api/v1/auth/otp/verify')
+        .send({
+          email: 'testuser@example.com',
+          otp: otpResponse.body.otp
+        });
+
+      expect(verifyResponse.statusCode).toBe(200);
+    });
+
+    it('should return 400 if the OTP is invalid', async () => {
+      const response = await request(app)
+        .post('/api/v1/auth/otp/verify')
+        .send({
+          email: 'testuser@example.com',
+          otp: '123456' // Invalid OTP
+        });
+
+      expect(response.statusCode).toBe(400);
+    });
+  });
+
+  describe('POST /auth/change-password', () => {
+    it('should change the user password and return success message', async () => {
+      const loginResponse = await request(app)
+        .post('/api/v1/auth/login')
+        .send({
+          email: 'testuser@example.com',
+          password: 'Password@123'
+        });
+
+      expect(loginResponse.statusCode).toBe(200);
+
+      const changePasswordResponse = await request(app)
+        .post('/api/v1/auth/change-password')
+        .set('Authorization', `Bearer ${loginResponse.body.accessToken}`)
+        .send({
+          currentPassword: 'Password@123',
+          newPassword: 'NewPassword@123'
+        });
+
+      expect(changePasswordResponse.statusCode).toBe(200);
+    });
+
+    it('should return 400 if the current password is incorrect', async () => {
+      const loginResponse = await request(app)
+        .post('/api/v1/auth/login')
+        .send({
+          email: 'testuser@example.com',
+          password: 'Password@123'
+        });
+
+      expect(loginResponse.statusCode).toBe(200);
+
+      const changePasswordResponse = await request(app)
+        .post('/api/v1/auth/change-password')
+        .set('Authorization', `Bearer ${loginResponse.body.accessToken}`)
+        .send({
+          currentPassword: 'WrongPassword@123',
+          newPassword: 'NewPassword@123'
+        });
+
+      expect(changePasswordResponse.statusCode).toBe(400);
+    });
+  });
+});
+```

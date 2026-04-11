@@ -1,0 +1,196 @@
+# UI/UX Agent Output: Super Admin Dashboard
+# Model: qwen2.5-coder:14b
+# Generated: 2026-04-05 16:24:55
+============================================================
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:shimmer/shimmer.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
+
+class SuperAdminDashboard extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Mock data for demonstration purposes
+    final stats = [
+      {'label': 'Total Societies', 'value': '150'},
+      {'label': 'Active Plans', 'value': '90'},
+      {'label': 'Revenue', 'value': '\$12,500'},
+      {'label': 'Expiring Soon', 'value': '7'},
+    ];
+
+    final societies = [
+      {
+        'name': 'Society A',
+        'plan': 'Gold',
+        'status': 'Active',
+      },
+      {
+        'name': 'Society B',
+        'plan': 'Silver',
+        'status': 'Inactive',
+      },
+      // Add more mock data as needed
+    ];
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Super Admin Dashboard', style: AppTextStyles.title),
+        backgroundColor: AppColors.primary,
+        elevation: 0,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            // Stat Cards
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: stats.map((stat) {
+                return Expanded(
+                  flex: MediaQuery.of(context).size.width >= 768 ? 4 : 12,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Card(
+                      elevation: 0,
+                      color: AppColors.surface,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(stat['label'] as String, style: AppTextStyles.bodyMedium),
+                            SizedBox(height: 8),
+                            Text(stat['value'] as String, style: AppTextStyles.headlineLarge),
+                          ],
+                        ),
+                      ),
+                    ).animate().fadeIn(duration: const Duration(milliseconds: 300)),
+                  ),
+                );
+              }).toList(),
+            ),
+            SizedBox(height: 24),
+
+            // Society List Table
+            Expanded(
+              child: Card(
+                elevation: 0,
+                color: AppColors.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            flex: 4,
+                            child: TextField(
+                              decoration: InputDecoration(
+                                hintText: 'Search...',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          DropdownButton<String>(
+                            hint: Text('Filter by Plan'),
+                            items: ['All', 'Gold', 'Silver'].map((String value) {
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text(value),
+                              );
+                            }).toList(),
+                            onChanged: (value) {},
+                          ),
+                          SizedBox(width: 12),
+                          DropdownButton<String>(
+                            hint: Text('Filter by Status'),
+                            items: ['All', 'Active', 'Inactive'].map((String value) {
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text(value),
+                              );
+                            }).toList(),
+                            onChanged: (value) {},
+                          ),
+                        ],
+                      ),
+                    ),
+                    Divider(),
+                    Expanded(
+                      child: societies.isNotEmpty
+                          ? ListView.builder(
+                              itemCount: societies.length,
+                              itemBuilder: (context, index) {
+                                final society = societies[index];
+                                return ListTile(
+                                  title: Text(society['name'] as String),
+                                  subtitle: Row(
+                                    children: [
+                                      Text('Plan: ${society['plan']}', style: AppTextStyles.bodySmall),
+                                      SizedBox(width: 8),
+                                      Text('Status: ${society['status']}', style: society['status'] == 'Active' ? TextStyle(color: AppColors.secondary) : TextStyle(color: AppColors.warning)),
+                                    ],
+                                  ),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: Icon(Icons.remove_red_eye, color: AppColors.textMuted),
+                                        onPressed: () {
+                                          // Implement View action
+                                        },
+                                      ),
+                                      IconButton(
+                                        icon: Icon(Icons.pause_circle_filled, color: society['status'] == 'Active' ? AppColors.warning : AppColors.secondary),
+                                        onPressed: () {
+                                          // Implement Suspend/Activate action
+                                        },
+                                      ),
+                                      IconButton(
+                                        icon: Icon(Icons.delete, color: AppColors.error),
+                                        onPressed: () {
+                                          // Implement Delete action
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ).animate().slideY(duration: const Duration(milliseconds: 300));
+                              },
+                            )
+                          : Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.hourglass_empty, color: AppColors.textMuted),
+                                  SizedBox(height: 8),
+                                  Text('No societies found.', style: AppTextStyles.bodyMedium),
+                                ],
+                              ),
+                            ),
+                    ),
+                  ],
+                ),
+              ).animate().fadeIn(duration: const Duration(milliseconds: 300)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```

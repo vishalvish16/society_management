@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int       @id @default(autoincrement())
+  email     String    @unique
+  password  String
+  societyId Int
+}
+
+model Society {
+  id         Int       @id @default(autoincrement())
+  name       String
+  units      Unit[]
+  users      User[]
+}
+
+model Unit {
+  id        Int      @id @default(autoincrement())
+  number    String
+  societyId Int
+  society   Society  @relation(fields: [societyId], references: [id])
+}
+
+model Delivery {
+  id          Int      @id @default(autoincrement())
+  unitId      Int
+  description String
+  status      String
+  societyId   Int
+  society     Society  @relation(fields: [societyId], references: [id])
+}
+
+model Vehicle {
+  id        Int      @id @default(autoincrement())
+  plateNumber String
+  unitId    Int
+  societyId Int
+  society   Society  @relation(fields: [societyId], references: [id])
+}
+
+model MoveRequest {
+  id       Int     @id @default(autoincrement())
+  unitId   Int
+  reason   String
+  status   String
+  societyId Int
+  society  Society @relation(fields: [societyId], references: [id])
+}

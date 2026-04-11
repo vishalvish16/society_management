@@ -1,0 +1,98 @@
+# UI/UX Agent Output: Login Screen
+# Model: qwen2.5-coder:14b
+# Generated: 2026-04-05 16:10:06
+============================================================
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:shimmer/shimmer.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
+
+class LoginScreen extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    int crossAxisCount = screenWidth >= 1200 ? 4 : screenWidth >= 768 ? 2 : 1;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Login', style: AppTextStyles.titleLarge),
+        backgroundColor: AppColors.primary,
+      ),
+      body: Padding(
+        padding: EdgeInsets.all(24.0),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: 360),
+            child: Card(
+              elevation: 0,
+              color: AppColors.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              child: Padding(
+                padding: EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FlutterLogo(size: 50).animate().slideY(begin: -1, end: 0, duration: 300.ms),
+                    SizedBox(height: 24),
+                    TextField(
+                      decoration: InputDecoration(
+                        labelText: 'Phone',
+                        border: OutlineInputBorder(),
+                        focusedBorder: OutlineInputBorder borderSide: BorderSide(color: AppColors.primary)),
+                      ),
+                    ),
+                    SizedBox(height: 16),
+                    TextField(
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        border: OutlineInputBorder(),
+                        focusedBorder: OutlineInputBorder borderSide: BorderSide(color: AppColors.primary)),
+                      ),
+                    ),
+                    SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: () {
+                        context.go('/home');
+                      },
+                      style: ButtonStyle(
+                        backgroundColor: MaterialStateProperty.all(AppColors.primary),
+                      ),
+                      child: Text('Login', style: AppTextStyles.buttonLarge),
+                    ).animate().fade(delay: 100.ms),
+                    SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () {
+                        context.go('/forgot-password');
+                      },
+                      child: Text('Forgot Password?', style: TextStyle(color: AppColors.primary)),
+                    ),
+                    SizedBox(height: 8),
+                    ElevatedButton(
+                      onPressed: () {
+                        context.go('/register');
+                      },
+                      style: ButtonStyle(
+                        backgroundColor: MaterialStateProperty.all(AppColors.secondary),
+                      ),
+                      child: Text('Register', style: AppTextStyles.buttonLarge),
+                    ).animate().fade(delay: 200.ms),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+```
