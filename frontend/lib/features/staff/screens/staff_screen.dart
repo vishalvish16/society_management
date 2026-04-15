@@ -183,6 +183,16 @@ class StaffScreen extends ConsumerWidget {
                                   onPressed: () =>
                                       _confirmDelete(context, ref, s),
                                 ),
+                                if (s.role == 'watchman')
+                                  IconButton(
+                                    icon: const Icon(Icons.lock_reset,
+                                        size: 18, color: AppColors.textMuted),
+                                    tooltip: s.hasLoginAccount
+                                        ? 'Reset Login Password'
+                                        : 'Set Login Password',
+                                    onPressed: () =>
+                                        _showResetPasswordDialog(context, ref, s),
+                                  ),
                               ],
                             ),
                           ],
@@ -199,11 +209,84 @@ class StaffScreen extends ConsumerWidget {
     );
   }
 
+  void _showResetPasswordDialog(BuildContext context, WidgetRef ref, StaffMember staff) {
+    final passCtrl = TextEditingController();
+    bool saving = false;
+    String? error;
+
+    showAppSheet(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            AppDimensions.screenPadding, AppDimensions.lg,
+            AppDimensions.screenPadding,
+            MediaQuery.of(ctx).viewInsets.bottom + AppDimensions.xxxl,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(child: Container(width: 36, height: 4,
+                decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
+              const SizedBox(height: AppDimensions.lg),
+              Text(staff.hasLoginAccount ? 'Reset Login Password' : 'Set Login Password',
+                  style: AppTextStyles.h1),
+              const SizedBox(height: 4),
+              Text('Watchman: ${staff.name}',
+                  style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
+              const SizedBox(height: AppDimensions.lg),
+              AppTextField(
+                label: 'New Password (min 6 chars)',
+                controller: passCtrl,
+                obscureText: true,
+              ),
+              if (error != null) ...[
+                const SizedBox(height: 8),
+                Text(error!, style: AppTextStyles.bodySmall.copyWith(color: AppColors.danger)),
+              ],
+              const SizedBox(height: AppDimensions.lg),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: saving ? null : () async {
+                    if (passCtrl.text.trim().length < 6) {
+                      setS(() => error = 'Password must be at least 6 characters');
+                      return;
+                    }
+                    setS(() { saving = true; error = null; });
+                    final err = await ref.read(staffProvider.notifier)
+                        .resetWatchmanPassword(staff.id, passCtrl.text.trim());
+                    if (ctx.mounted) {
+                      if (err == null) {
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Password reset successfully')),
+                        );
+                      } else {
+                        setS(() { saving = false; error = err; });
+                      }
+                    }
+                  },
+                  child: saving
+                      ? const SizedBox(width: 20, height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : Text(staff.hasLoginAccount ? 'Reset Password' : 'Set Password'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showAddEditDialog(BuildContext context, WidgetRef ref,
       {StaffMember? staff}) {
     final isEdit = staff != null;
     final nameCtrl = TextEditingController(text: staff?.name);
     final phoneCtrl = TextEditingController(text: staff?.phone);
+    final passCtrl = TextEditingController();
     final salaryCtrl =
         TextEditingController(text: staff?.salary.toStringAsFixed(0) ?? '');
     String role = staff?.role ?? _roles.first;
@@ -240,6 +323,34 @@ class StaffScreen extends ConsumerWidget {
                   items: _roles.map((r) => AppDropdownItem(value: r, label: r)).toList(),
                   onChanged: (v) => setDlgState(() => role = v ?? _roles.first),
                 ),
+                if (!isEdit && role == 'watchman') ...[
+                  const SizedBox(height: AppDimensions.sm),
+                  Container(
+                    padding: const EdgeInsets.all(AppDimensions.sm),
+                    decoration: BoxDecoration(
+                      color: AppColors.primarySurface,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Watchman will get an app login using their phone number and password below.',
+                            style: AppTextStyles.caption.copyWith(color: AppColors.primary),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppDimensions.md),
+                  AppTextField(
+                    label: 'Login Password * (min 6 chars)',
+                    controller: passCtrl,
+                    obscureText: true,
+                  ),
+                ],
                 if (isEdit) ...[
                   const SizedBox(height: AppDimensions.md),
                   SwitchListTile(
@@ -260,12 +371,27 @@ class StaffScreen extends ConsumerWidget {
                         );
                         return;
                       }
+                      if (!isEdit && role == 'watchman') {
+                        if (phoneCtrl.text.trim().isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Phone is required for watchman login')),
+                          );
+                          return;
+                        }
+                        if (passCtrl.text.trim().length < 6) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Password must be at least 6 characters')),
+                          );
+                          return;
+                        }
+                      }
                       final data = <String, dynamic>{
                         'name': nameCtrl.text.trim(),
                         'role': role,
                         'phone': phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim(),
                         'salary': double.tryParse(salaryCtrl.text.trim()) ?? 0,
                         if (isEdit) 'isActive': isActive,
+                        if (!isEdit && role == 'watchman') 'password': passCtrl.text.trim(),
                       };
                       final success = isEdit
                           ? await ref.read(staffProvider.notifier).updateStaff(staff.id, data)

@@ -12,5 +12,6 @@ router.patch('/:id', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), c.updateSt
 router.delete('/:id', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), c.deleteStaff);
 router.post('/:id/attendance', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'WATCHMAN']), c.markAttendance);
 router.get('/:id/attendance', c.getAttendance);
+router.post('/:id/reset-password', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), c.resetWatchmanPassword);
 
 module.exports = router;

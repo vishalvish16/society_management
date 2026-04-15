@@ -513,6 +513,7 @@ model User {
   scannedLogs        VisitorLog[]      @relation("scannedLogs")
   sentNotifications  Notification[]    @relation("sentNotifications")
   createdNotices     Notice[]          @relation("createdNotices")
+  staffProfile       Staff?
 
   @@map("users")
 }
@@ -766,6 +767,9 @@ model Staff {
   isActive    Boolean           @default(true)
   createdAt   DateTime          @default(now())
   attendance  StaffAttendance[]
+  /// Linked User account (only for watchman — gives them app login access)
+  userId      String?           @unique
+  user        User?             @relation(fields: [userId], references: [id])
 
   @@index([societyId])
   @@map("staff")

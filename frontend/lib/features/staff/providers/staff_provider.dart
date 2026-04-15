@@ -12,6 +12,7 @@ class StaffMember {
   final DateTime? joiningDate;
   final bool isActive;
   final String? lastAttendanceStatus;
+  final String? userId; // linked User account (watchman only)
 
   const StaffMember({
     required this.id,
@@ -22,7 +23,10 @@ class StaffMember {
     this.joiningDate,
     required this.isActive,
     this.lastAttendanceStatus,
+    this.userId,
   });
+
+  bool get hasLoginAccount => userId != null;
 
   factory StaffMember.fromJson(Map<String, dynamic> j) {
     final attendance = (j['attendance'] as List?)?.isNotEmpty == true
@@ -37,6 +41,7 @@ class StaffMember {
       joiningDate: j['joiningDate'] != null ? DateTime.tryParse(j['joiningDate']) : null,
       isActive: j['isActive'] ?? true,
       lastAttendanceStatus: attendance?['status'],
+      userId: j['user']?['id'],
     );
   }
 }
@@ -117,6 +122,21 @@ class StaffNotifier extends StateNotifier<AsyncValue<List<StaffMember>>> {
       return false;
     } catch (_) {
       return false;
+    }
+  }
+
+  /// Returns null on success, or an error message string.
+  Future<String?> resetWatchmanPassword(String staffId, String newPassword) async {
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.post('staff/$staffId/reset-password',
+          data: {'password': newPassword});
+      if (response.data['success'] == true) return null;
+      return response.data['message'] ?? 'Failed';
+    } on DioException catch (e) {
+      return e.response?.data?['message'] ?? e.message ?? 'Network error';
+    } catch (e) {
+      return e.toString();
     }
   }
 

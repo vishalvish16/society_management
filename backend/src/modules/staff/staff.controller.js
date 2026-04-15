@@ -22,6 +22,7 @@ async function listStaff(req, res) {
             orderBy: { date: 'desc' },
             take: 1,
           },
+          user: { select: { id: true, phone: true, role: true, isActive: true } },
         },
       }),
       prisma.staff.count({ where }),
@@ -37,11 +38,37 @@ async function listStaff(req, res) {
 // POST /api/staff
 async function createStaff(req, res) {
   try {
-    const { societyId } = req.user;
-    const { name, role, phone, salary, joiningDate } = req.body;
+    const { societyId, id: createdById } = req.user;
+    const { name, role, phone, salary, joiningDate, password } = req.body;
 
     if (!name || !role || salary === undefined) {
       return sendError(res, 'name, role, and salary are required', 400);
+    }
+
+    // Watchman: also create a User account so they can log into the app
+    let userId = null;
+    if (role === 'watchman') {
+      if (!phone) return sendError(res, 'Phone is required for watchman login', 400);
+      if (!password || password.length < 6) {
+        return sendError(res, 'Password (min 6 chars) is required for watchman login', 400);
+      }
+
+      const existing = await prisma.user.findFirst({ where: { phone, societyId } });
+      if (existing) return sendError(res, 'A user with this phone already exists in this society', 409);
+
+      const bcrypt = require('bcrypt');
+      const passwordHash = await bcrypt.hash(password, 12);
+      const newUser = await prisma.user.create({
+        data: {
+          societyId,
+          role: 'WATCHMAN',
+          name,
+          phone,
+          passwordHash,
+          createdById,
+        },
+      });
+      userId = newUser.id;
     }
 
     const staff = await prisma.staff.create({
@@ -52,7 +79,9 @@ async function createStaff(req, res) {
         phone: phone || null,
         salary: Number(salary),
         joiningDate: joiningDate ? new Date(joiningDate) : null,
+        ...(userId ? { userId } : {}),
       },
+      include: { user: { select: { id: true, phone: true, role: true, isActive: true } } },
     });
 
     return sendSuccess(res, staff, 'Staff member created', 201);
@@ -176,4 +205,51 @@ async function getAttendance(req, res) {
   }
 }
 
-module.exports = { listStaff, createStaff, updateStaff, deleteStaff, markAttendance, getAttendance };
+// POST /api/staff/:id/reset-password  — set or reset watchman's app login password
+async function resetWatchmanPassword(req, res) {
+  try {
+    const { societyId, id: actorId } = req.user;
+    const { id } = req.params;
+    const { password } = req.body;
+
+    if (!password || password.length < 6) {
+      return sendError(res, 'Password must be at least 6 characters', 400);
+    }
+
+    const staff = await prisma.staff.findUnique({ where: { id }, include: { user: true } });
+    if (!staff || staff.societyId !== societyId) return sendError(res, 'Staff not found', 404);
+
+    const bcrypt = require('bcrypt');
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    if (staff.userId) {
+      // Already has an account — just update the password
+      await prisma.user.update({ where: { id: staff.userId }, data: { passwordHash } });
+    } else {
+      // No account yet — create one and link it
+      if (!staff.phone) return sendError(res, 'Staff has no phone number — edit the staff record to add a phone first', 400);
+
+      const existing = await prisma.user.findFirst({ where: { phone: staff.phone, societyId } });
+      if (existing) return sendError(res, 'A user with this phone already exists in this society', 409);
+
+      const newUser = await prisma.user.create({
+        data: {
+          societyId,
+          role: 'WATCHMAN',
+          name: staff.name,
+          phone: staff.phone,
+          passwordHash,
+          createdById: actorId,
+        },
+      });
+      await prisma.staff.update({ where: { id }, data: { userId: newUser.id } });
+    }
+
+    return sendSuccess(res, null, 'Password set successfully');
+  } catch (err) {
+    console.error('Reset watchman password error:', err.message);
+    return sendError(res, err.message, err.status || 500);
+  }
+}
+
+module.exports = { listStaff, createStaff, updateStaff, deleteStaff, markAttendance, getAttendance, resetWatchmanPassword };
