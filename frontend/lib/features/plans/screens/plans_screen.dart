@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../providers/plans_provider.dart';
+import '../../../shared/widgets/show_app_dialog.dart';
 
 class PlansScreen extends ConsumerStatefulWidget {
   const PlansScreen({super.key});
@@ -33,15 +35,13 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Subscription Plans',
-                          style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.textMain)),
-                      SizedBox(height: 4),
-                      Text('Manage pricing and feature limits',
-                          style: TextStyle(fontSize: 14, color: AppColors.textMuted)),
+                      Text('Subscription Plans', style: AppTextStyles.displayMedium),
+                      const SizedBox(height: 4),
+                      Text('Manage pricing and feature limits', style: AppTextStyles.bodyMedium),
                     ],
                   ),
                 ),
@@ -57,7 +57,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
               child: state.isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : state.plans.isEmpty
-                      ? const Center(child: Text('No plans configured', style: TextStyle(color: AppColors.textMuted)))
+                      ? Center(child: Text('No plans configured', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textMuted)))
                       : LayoutBuilder(
                           builder: (context, constraints) {
                             final crossAxisCount = constraints.maxWidth >= 900 ? 3 : constraints.maxWidth >= 500 ? 2 : 1;
@@ -86,7 +86,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
   }
 
   void _confirmDeactivate(Map<String, dynamic> plan) {
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Deactivate Plan'),
@@ -94,7 +94,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
             onPressed: () async {
               Navigator.pop(ctx);
               final ok = await ref.read(plansProvider.notifier).deactivatePlan(plan['id']);
@@ -113,15 +113,22 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
 
   void _showPlanDialog(BuildContext context, {Map<String, dynamic>? plan}) {
     final isEdit = plan != null;
-    final nameC = TextEditingController(text: plan?['displayName'] ?? plan?['name'] ?? '');
+    final nameC = TextEditingController(text: plan?['displayName'] ?? '');
     final descC = TextEditingController(text: plan?['description'] ?? '');
     final priceC = TextEditingController(text: plan?['priceMonthly']?.toString() ?? '');
     final unitsC = TextEditingController(text: plan?['maxUnits']?.toString() ?? '');
     final residentsC = TextEditingController(text: plan?['maxResidents']?.toString() ?? '');
     final watchmenC = TextEditingController(text: plan?['maxWatchmen']?.toString() ?? '2');
     String code = plan?['name'] ?? 'basic';
+    Map<String, dynamic> features = Map<String, dynamic>.from(plan?['features'] ?? {
+      'whatsapp': true,
+      'visitor_qr': false,
+      'pdf_receipts': false,
+      'expense_approval': false,
+      'attachments_count': false,
+    });
 
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(isEdit ? 'Edit Plan' : 'Create Plan'),
@@ -132,15 +139,12 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (!isEdit)
-                  DropdownButtonFormField<String>(
-                    initialValue: code.toUpperCase(),
-                    decoration: const InputDecoration(labelText: 'Plan Code *'),
-                    items: const [
-                      DropdownMenuItem(value: 'BASIC', child: Text('BASIC')),
-                      DropdownMenuItem(value: 'STANDARD', child: Text('STANDARD')),
-                      DropdownMenuItem(value: 'PREMIUM', child: Text('PREMIUM')),
-                    ],
-                    onChanged: (v) => code = (v ?? 'BASIC').toLowerCase(),
+                  TextField(
+                    decoration: const InputDecoration(
+                      labelText: 'Plan Code (e.g. BASIC, ENTERPRISE) *',
+                      helperText: 'Unique internal identifier',
+                    ),
+                    onChanged: (v) => code = v.toLowerCase().trim(),
                   ),
                 const SizedBox(height: 10),
                 TextField(controller: nameC, decoration: const InputDecoration(labelText: 'Display Name *')),
@@ -178,6 +182,27 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                     ),
                   ),
                 ]),
+                const SizedBox(height: 20),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Plan Features', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(height: 8),
+                StatefulBuilder(
+                  builder: (ctx, setInternalState) => Column(
+                    children: features.keys.map((key) {
+                      return CheckboxListTile(
+                        title: Text(key.replaceAll('_', ' ').toUpperCase(), style: const TextStyle(fontSize: 14)),
+                        value: features[key] == true,
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        onChanged: (v) {
+                          setInternalState(() => features[key] = v);
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ),
               ],
             ),
           ),
@@ -193,6 +218,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                 'maxUnits': int.tryParse(unitsC.text) ?? 0,
                 'maxResidents': int.tryParse(residentsC.text) ?? 0,
                 'maxWatchmen': int.tryParse(watchmenC.text) ?? 2,
+                'features': features,
               };
               if (!isEdit) data['name'] = code.toLowerCase();
 
@@ -223,12 +249,13 @@ class _PlanCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isActive = plan['isActive'] == true;
     final features = plan['features'] as Map<String, dynamic>? ?? {};
-    final subCount = plan['_count']?['subscriptions'] ?? 0;
-    final code = plan['code'] ?? '';
+    final subCount = plan['societyCount'] ?? 0;
+    final name = plan['name']?.toString().toUpperCase() ?? '';
+    final displayName = plan['displayName'] ?? (name.isNotEmpty ? name : 'PLAN');
 
-    final accentColor = code == 'PREMIUM'
+    final accentColor = name == 'PREMIUM'
         ? const Color(0xFF8B5CF6)
-        : code == 'STANDARD'
+        : name == 'STANDARD'
             ? const Color(0xFF3B82F6)
             : const Color(0xFF64748B);
 
@@ -251,48 +278,48 @@ class _PlanCard extends StatelessWidget {
                     color: accentColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text(code, style: TextStyle(color: accentColor, fontWeight: FontWeight.bold, fontSize: 11)),
+                  child: Text(name, style: AppTextStyles.labelSmall.copyWith(color: accentColor)),
                 ),
                 const Spacer(),
                 if (!isActive)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: AppColors.error.withValues(alpha: 0.1),
+                      color: AppColors.dangerSurface,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Text('Inactive',
-                        style: TextStyle(color: AppColors.error, fontSize: 11, fontWeight: FontWeight.w600)),
+                    child: Text('Inactive',
+                        style: AppTextStyles.labelSmall.copyWith(color: AppColors.dangerText)),
                   ),
               ],
             ),
             const SizedBox(height: 12),
-            Text(plan['name'] ?? '', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(displayName, style: AppTextStyles.h2),
             const SizedBox(height: 4),
             Text(
-              '${currencyFormat.format(num.tryParse(plan['price']?.toString() ?? '0') ?? 0)}/mo',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: accentColor),
+              '${currencyFormat.format(num.tryParse(plan['priceMonthly']?.toString() ?? '0') ?? 0)}/mo',
+              style: AppTextStyles.amountLarge.copyWith(color: accentColor),
             ),
             const SizedBox(height: 4),
-            Text('$subCount active subscribers', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+            Text('$subCount active societies', style: AppTextStyles.caption.copyWith(color: AppColors.textMuted)),
             const Divider(height: 24),
-            _limitRow('Units', '${plan['maxUnits']}'),
-            _limitRow('Residents', '${plan['maxResidents']}'),
-            _limitRow('Watchmen', '${plan['maxWatchmen']}'),
+            _limitRow('Units', '${plan['maxUnits'] ?? 0}'),
+            _limitRow('Residents', '${plan['maxResidents'] ?? 0}'),
+            _limitRow('Watchmen', '${plan['maxWatchmen'] ?? 0}'),
             const SizedBox(height: 8),
             Wrap(
               spacing: 6,
               runSpacing: 4,
               children: features.entries.map((e) {
                 return Chip(
-                  label: Text(e.key, style: const TextStyle(fontSize: 11)),
+                  label: Text(e.key, style: AppTextStyles.labelSmall),
                   backgroundColor: e.value == true
-                      ? AppColors.secondary.withValues(alpha: 0.1)
-                      : AppColors.error.withValues(alpha: 0.05),
+                      ? AppColors.successSurface
+                      : AppColors.dangerSurface,
                   side: BorderSide.none,
                   visualDensity: VisualDensity.compact,
                   avatar: Icon(e.value == true ? Icons.check : Icons.close,
-                      size: 14, color: e.value == true ? AppColors.secondary : AppColors.error),
+                      size: 14, color: e.value == true ? AppColors.success : AppColors.danger),
                 );
               }).toList(),
             ),
@@ -305,7 +332,7 @@ class _PlanCard extends StatelessWidget {
                 if (isActive) ...[
                   const SizedBox(width: 8),
                   IconButton(
-                    icon: const Icon(Icons.block, color: AppColors.error, size: 20),
+                    icon: const Icon(Icons.block, color: AppColors.danger, size: 20),
                     tooltip: 'Deactivate',
                     onPressed: onDeactivate,
                   ),
@@ -319,13 +346,13 @@ class _PlanCard extends StatelessWidget {
   }
 
   Widget _limitRow(String label, String value) {
-    final display = value == '999999' ? 'Unlimited' : value;
+    final display = (value == '999999' || value == '-1') ? 'Unlimited' : value;
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
         children: [
-          Text('$label: ', style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
-          Text(display, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+          Text('$label: ', style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
+          Text(display, style: AppTextStyles.labelLarge),
         ],
       ),
     );

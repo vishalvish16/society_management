@@ -9,12 +9,15 @@ const router = Router();
 router.use(authMiddleware);
 
 // Visible to admins for history
-router.get('/', roleGuard(['PRAMUKH', 'SECRETARY']), notificationsController.getNotifications);
+router.get('/', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), notificationsController.getNotifications);
 
 // Residents see their own notifications
 router.get('/me', notificationsController.getMyNotifications);
 
+// Register / update FCM token (any authenticated user)
+router.post('/fcm-token', notificationsController.registerFcmToken);
+
 // Send (Only admins)
-router.post('/send', roleGuard(['PRAMUKH', 'SECRETARY']), notificationsController.sendNotification);
+router.post('/send', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), notificationsController.sendNotification);
 
 module.exports = router;

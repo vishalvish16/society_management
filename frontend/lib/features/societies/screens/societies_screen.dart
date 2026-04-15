@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
+import '../../../core/providers/dio_provider.dart';
 import '../providers/societies_provider.dart';
+import '../../../shared/widgets/app_searchable_dropdown.dart';
+import '../../../shared/widgets/show_app_dialog.dart';
 
 class SocietiesScreen extends ConsumerStatefulWidget {
   const SocietiesScreen({super.key});
@@ -37,168 +42,217 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(societiesProvider);
+    final isMobile = MediaQuery.of(context).size.width < 800;
+    final activeCount =
+        state.societies.where((s) => s['status'] == 'ACTIVE').length;
+    final suspendedCount =
+        state.societies.where((s) => s['status'] == 'SUSPENDED').length;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(isMobile ? 16 : 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
-            Row(
-              children: [
-                const Expanded(
-                  child: Column(
+            isMobile
+                ? Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Societies',
-                          style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.textMain)),
-                      SizedBox(height: 4),
+                      Text('Societies', style: AppTextStyles.displayMedium),
+                      const SizedBox(height: 4),
                       Text('Manage all registered societies',
-                          style: TextStyle(fontSize: 14, color: AppColors.textMuted)),
+                          style: AppTextStyles.bodyMedium),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: () => _showRegisterStepper(context),
+                          icon: const Icon(Icons.add_rounded),
+                          label: const Text('Register Society'),
+                        ),
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Societies', style: AppTextStyles.displayMedium),
+                            const SizedBox(height: 4),
+                            Text('Manage all registered societies',
+                                style: AppTextStyles.bodyMedium),
+                          ],
+                        ),
+                      ),
+                      FilledButton.icon(
+                        onPressed: () => _showRegisterStepper(context),
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('Register Society'),
+                      ),
                     ],
                   ),
-                ),
-                FilledButton.icon(
-                  onPressed: () => _showCreateDialog(context),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add Society'),
-                ),
-              ],
+            const SizedBox(height: 20),
+
+            _StatsRow(
+              isMobile: isMobile,
+              total: state.total,
+              active: activeCount,
+              suspended: suspendedCount,
             ),
             const SizedBox(height: 20),
 
             // Search & Filter Bar
-            Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Search by name...',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                _searchController.clear();
-                                _search();
-                              },
-                            )
-                          : null,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                    ),
-                    onSubmitted: (_) => _search(),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 160,
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _statusFilter,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: '', child: Text('All Status')),
-                      DropdownMenuItem(value: 'active', child: Text('Active')),
-                      DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
+            isMobile
+                ? Column(
+                    children: [
+                      TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Search by name...',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _searchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    _search();
+                                  },
+                                )
+                              : null,
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                        ),
+                        onSubmitted: (_) => _search(),
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: _statusFilter,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                          contentPadding:
+                              const EdgeInsets.symmetric(horizontal: 12),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: '', child: Text('All Status')),
+                          DropdownMenuItem(value: 'ACTIVE', child: Text('Active')),
+                          DropdownMenuItem(value: 'SUSPENDED', child: Text('Suspended')),
+                        ],
+                        onChanged: (val) {
+                          setState(() => _statusFilter = val ?? '');
+                          _search();
+                        },
+                      ),
                     ],
-                    onChanged: (val) {
-                      setState(() => _statusFilter = val ?? '');
-                      _search();
-                    },
+                  )
+                : Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: TextField(
+                          controller: _searchController,
+                          decoration: InputDecoration(
+                            hintText: 'Search by name...',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: _searchController.text.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      _search();
+                                    },
+                                  )
+                                : null,
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 16),
+                          ),
+                          onSubmitted: (_) => _search(),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        width: 160,
+                        child: DropdownButtonFormField<String>(
+                          value: _statusFilter,
+                          decoration: InputDecoration(
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 12),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: '', child: Text('All Status')),
+                            DropdownMenuItem(value: 'ACTIVE', child: Text('Active')),
+                            DropdownMenuItem(
+                                value: 'SUSPENDED', child: Text('Suspended')),
+                          ],
+                          onChanged: (val) {
+                            setState(() => _statusFilter = val ?? '');
+                            _search();
+                          },
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
             const SizedBox(height: 16),
 
             // Total count
             Text('${state.total} societies found',
-                style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
             const SizedBox(height: 12),
 
-            // Table
+            // Content
             Expanded(
               child: state.isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : state.error != null
-                      ? Center(child: Text(state.error!, style: const TextStyle(color: AppColors.error)))
+                      ? Center(
+                          child: Text(state.error!,
+                              style: AppTextStyles.bodyMedium
+                                  .copyWith(color: AppColors.danger)))
                       : state.societies.isEmpty
-                          ? const Center(
+                          ? Center(
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.apartment_outlined, size: 64, color: AppColors.textMuted),
-                                  SizedBox(height: 12),
-                                  Text('No societies found', style: TextStyle(color: AppColors.textMuted, fontSize: 16)),
+                                  const Icon(Icons.apartment_outlined,
+                                      size: 64, color: AppColors.textMuted),
+                                  const SizedBox(height: 12),
+                                  Text('No societies found',
+                                      style: AppTextStyles.bodyMedium
+                                          .copyWith(color: AppColors.textMuted)),
                                 ],
                               ),
                             )
-                          : Card(
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: const BorderSide(color: Color(0xFFE2E8F0)),
-                              ),
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: DataTable(
-                                  headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
-                                  columns: const [
-                                    DataColumn(label: Text('Name', style: TextStyle(fontWeight: FontWeight.w600))),
-                                    DataColumn(label: Text('Contact', style: TextStyle(fontWeight: FontWeight.w600))),
-                                    DataColumn(label: Text('Plan', style: TextStyle(fontWeight: FontWeight.w600))),
-                                    DataColumn(label: Text('Units', style: TextStyle(fontWeight: FontWeight.w600))),
-                                    DataColumn(label: Text('Users', style: TextStyle(fontWeight: FontWeight.w600))),
-                                    DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.w600))),
-                                    DataColumn(label: Text('Created', style: TextStyle(fontWeight: FontWeight.w600))),
-                                    DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.w600))),
-                                  ],
-                                  rows: state.societies.map<DataRow>((s) {
-                                    final planName = s['plan']?['displayName'] ?? s['plan']?['name'] ?? 'No Plan';
-                                    final isActive = s['status'] == 'active';
-
-                                    return DataRow(cells: [
-                                      DataCell(Text(s['name'] ?? '',
-                                          style: const TextStyle(fontWeight: FontWeight.w500))),
-                                      DataCell(Text(s['contactPhone'] ?? s['contactEmail'] ?? '-',
-                                          style: const TextStyle(fontSize: 13))),
-                                      DataCell(_badge(planName, const Color(0xFF3B82F6))),
-                                      DataCell(Text('${s['unitCount'] ?? 0}')),
-                                      DataCell(Text('${s['userCount'] ?? 0}')),
-                                      DataCell(_statusToggle(s['id'], isActive)),
-                                      DataCell(Text(
-                                        s['createdAt'] != null
-                                            ? DateFormat('dd MMM yy').format(DateTime.parse(s['createdAt']))
-                                            : '-',
-                                        style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
-                                      )),
-                                      DataCell(Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          IconButton(
-                                            icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.primary),
-                                            tooltip: 'Edit Society',
-                                            onPressed: () => _showCreateDialog(context, society: s),
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.lock_reset, size: 18, color: AppColors.textMuted),
-                                            tooltip: 'Reset Pramukh Password',
-                                            onPressed: () => _showResetPasswordDialog(s['id'], s['name']),
-                                          ),
-                                        ],
-                                      )),
-                                    ]);
-                                  }).toList(),
-                                ),
-                              ),
-                            ),
+                          : isMobile
+                              ? ListView.builder(
+                                  padding: const EdgeInsets.only(bottom: 24),
+                                  itemCount: state.societies.length,
+                                  itemBuilder: (context, index) {
+                                    final s = state.societies[index];
+                                    return _SocietyCard(
+                                      society: s,
+                                      onView: () => _showDetailDialog(s['id']),
+                                      onEdit: () =>
+                                          _showCreateDialog(context, society: s),
+                                      onResetPassword: () =>
+                                          _showResetPasswordDialog(
+                                              s['id'], s['name'], s['chairman']?['name']),
+                                      onToggleStatus: () => _confirmToggleStatus(
+                                          s['id'], s['status'] == 'ACTIVE'),
+                                      onSettings: () => _showSocietySettingsDialog(
+                                          s['id'], s['name'], s['settings']),
+                                    );
+                                  },
+                                )
+                              : _buildDesktopTable(state),
             ),
 
             // Pagination
@@ -210,25 +264,32 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                   children: [
                     TextButton(
                       onPressed: state.page > 1
-                          ? () => ref.read(societiesProvider.notifier).loadSocieties(
-                                page: state.page - 1,
-                                search: _searchController.text,
-                                status: _statusFilter.isNotEmpty ? _statusFilter : null,
-                              )
+                          ? () =>
+                              ref.read(societiesProvider.notifier).loadSocieties(
+                                    page: state.page - 1,
+                                    search: _searchController.text,
+                                    status: _statusFilter.isNotEmpty
+                                        ? _statusFilter
+                                        : null,
+                                  )
                           : null,
                       child: const Text('Previous'),
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text('Page ${state.page}', style: const TextStyle(fontWeight: FontWeight.w500)),
+                      child:
+                          Text('Page ${state.page}', style: AppTextStyles.labelLarge),
                     ),
                     TextButton(
                       onPressed: state.page * 20 < state.total
-                          ? () => ref.read(societiesProvider.notifier).loadSocieties(
-                                page: state.page + 1,
-                                search: _searchController.text,
-                                status: _statusFilter.isNotEmpty ? _statusFilter : null,
-                              )
+                          ? () =>
+                              ref.read(societiesProvider.notifier).loadSocieties(
+                                    page: state.page + 1,
+                                    search: _searchController.text,
+                                    status: _statusFilter.isNotEmpty
+                                        ? _statusFilter
+                                        : null,
+                                  )
                           : null,
                       child: const Text('Next'),
                     ),
@@ -241,6 +302,104 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
     );
   }
 
+  Widget _buildDesktopTable(SocietiesState state) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minWidth: 1000), // Force minimum width for horizontal scroll
+        child: SingleChildScrollView(
+          scrollDirection: Axis.vertical,
+          child: Card(
+            margin: const EdgeInsets.only(bottom: 24),
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: Color(0xFFE2E8F0)),
+            ),
+            child: DataTable(
+              columnSpacing: 20,
+              horizontalMargin: 12,
+              headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
+              columns: [
+                DataColumn(label: SizedBox(width: 150, child: Text('Name', style: AppTextStyles.labelLarge))),
+                DataColumn(label: SizedBox(width: 120, child: Text('Contact', style: AppTextStyles.labelLarge))),
+                DataColumn(label: SizedBox(width: 80, child: Text('Plan', style: AppTextStyles.labelLarge))),
+                DataColumn(label: SizedBox(width: 60, child: Text('Units', style: AppTextStyles.labelLarge))),
+                DataColumn(label: SizedBox(width: 60, child: Text('Users', style: AppTextStyles.labelLarge))),
+                DataColumn(label: SizedBox(width: 110, child: Text('Status', style: AppTextStyles.labelLarge))),
+                DataColumn(label: SizedBox(width: 90, child: Text('Created', style: AppTextStyles.labelLarge))),
+                DataColumn(label: SizedBox(width: 80, child: Text('Actions', style: AppTextStyles.labelLarge))),
+              ],
+              rows: state.societies.map<DataRow>((s) {
+                final planName = s['plan']?['displayName'] ?? s['plan']?['name'] ?? 'No Plan';
+                final isActive = s['status'] == 'ACTIVE';
+
+                return DataRow(cells: [
+                  DataCell(Text(s['name'] ?? '', style: AppTextStyles.bodyMedium, overflow: TextOverflow.ellipsis)),
+                  DataCell(Text(s['contactPhone'] ?? s['contactEmail'] ?? '-',
+                      style: AppTextStyles.bodySmall, overflow: TextOverflow.ellipsis)),
+                  DataCell(_badge(planName, const Color(0xFF3B82F6))),
+                  DataCell(Text('${s['unitCount'] ?? 0}')),
+                  DataCell(Text('${s['userCount'] ?? 0}')),
+                  DataCell(_statusToggle(s['id'], isActive)),
+                  DataCell(Text(
+                    s['createdAt'] != null
+                        ? DateFormat('dd MMM yy')
+                            .format(DateTime.parse(s['createdAt']))
+                        : '-',
+                    style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
+                  )),
+                  DataCell(Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.visibility_outlined,
+                            size: 18, color: AppColors.primary),
+                        tooltip: 'View',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => _showDetailDialog(s['id']),
+                      ),
+                      const SizedBox(width: 10),
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined,
+                            size: 18, color: AppColors.primary),
+                        tooltip: 'Edit Society',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => _showCreateDialog(context, society: s),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.lock_reset,
+                            size: 18, color: AppColors.textMuted),
+                        tooltip: 'Reset Chairman Password',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => _showResetPasswordDialog(
+                            s['id'], s['name'], s['chairman']?['name']),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.tune_rounded,
+                            size: 18, color: AppColors.textMuted),
+                        tooltip: 'Society Settings',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => _showSocietySettingsDialog(
+                            s['id'], s['name'], s['settings']),
+                      ),
+                    ],
+                  )),
+                ]);
+              }).toList(),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Clickable status chip that toggles active ↔ suspended
   Widget _statusToggle(String id, bool isActive) {
     return GestureDetector(
@@ -248,10 +407,12 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: (isActive ? AppColors.secondary : AppColors.error).withValues(alpha: 0.1),
+          color:
+              (isActive ? AppColors.success : AppColors.danger).withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: (isActive ? AppColors.secondary : AppColors.error).withValues(alpha: 0.4),
+            color: (isActive ? AppColors.success : AppColors.danger)
+                .withValues(alpha: 0.4),
           ),
         ),
         child: Row(
@@ -260,15 +421,13 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
             Icon(
               isActive ? Icons.check_circle_outline : Icons.cancel_outlined,
               size: 12,
-              color: isActive ? AppColors.secondary : AppColors.error,
+              color: isActive ? AppColors.success : AppColors.danger,
             ),
             const SizedBox(width: 4),
             Text(
               isActive ? 'Active' : 'Suspended',
-              style: TextStyle(
-                color: isActive ? AppColors.secondary : AppColors.error,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+              style: AppTextStyles.labelMedium.copyWith(
+                color: isActive ? AppColors.success : AppColors.danger,
               ),
             ),
           ],
@@ -284,13 +443,17 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+      child: Text(
+        text,
+        style: AppTextStyles.labelMedium.copyWith(color: color),
+        overflow: TextOverflow.ellipsis,
+      ),
     );
   }
 
   void _confirmToggleStatus(String id, bool isCurrentlyActive) {
     final action = isCurrentlyActive ? 'suspend' : 'activate';
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('${isCurrentlyActive ? 'Suspend' : 'Activate'} Society'),
@@ -300,10 +463,12 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
               : 'This will reactivate the society and all its users. Continue?',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: isCurrentlyActive ? AppColors.error : AppColors.secondary,
+              backgroundColor:
+                  isCurrentlyActive ? AppColors.danger : AppColors.success,
             ),
             onPressed: () async {
               Navigator.pop(ctx);
@@ -316,58 +481,155 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
     );
   }
 
-  void _showResetPasswordDialog(String id, String? name) {
+  void _showResetPasswordDialog(String id, String? societyName, String? currentChairmanName) {
     final passCtrl = TextEditingController();
+    final nameCtrl = TextEditingController(text: currentChairmanName);
+    String mode = 'auto'; // auto | manual
     bool obscure = true;
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: Text('Reset Pramukh Password'),
+          title: const Text('Reset Admin Password'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Reset password for Pramukh of "${name ?? ''}".',
-                  style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
+              Text(
+                  'Update credentials for "${currentChairmanName ?? 'Chairman'}" of "${societyName ?? ''}".',
+                  style:
+                      AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => setDialogState(() => mode = 'auto'),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                          color: mode == 'auto'
+                              ? AppColors.primary
+                              : const Color(0xFFE2E8F0),
+                        ),
+                      ),
+                      child: Text(
+                        'Auto-generate',
+                        style: TextStyle(
+                            color: mode == 'auto'
+                                ? AppColors.primary
+                                : AppColors.textMuted),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => setDialogState(() => mode = 'manual'),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                          color: mode == 'manual'
+                              ? AppColors.primary
+                              : const Color(0xFFE2E8F0),
+                        ),
+                      ),
+                      child: Text(
+                        'Set manually',
+                        style: TextStyle(
+                            color: mode == 'manual'
+                                ? AppColors.primary
+                                : AppColors.textMuted),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 16),
               TextField(
-                controller: passCtrl,
-                obscureText: obscure,
+                controller: nameCtrl,
                 decoration: InputDecoration(
-                  labelText: 'New Password',
-                  hintText: 'Minimum 8 characters',
-                  suffixIcon: IconButton(
-                    icon: Icon(obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined),
-                    onPressed: () => setDialogState(() => obscure = !obscure),
-                  ),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  labelText: 'Chairman Name',
+                  border:
+                      OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
+              const SizedBox(height: 16),
+              if (mode == 'manual')
+                TextField(
+                  controller: passCtrl,
+                  obscureText: obscure,
+                  decoration: InputDecoration(
+                    labelText: 'New Password',
+                    hintText: 'Minimum 8 characters',
+                    suffixIcon: IconButton(
+                      icon: Icon(obscure
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined),
+                      onPressed: () => setDialogState(() => obscure = !obscure),
+                    ),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                )
+              else
+                Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.successSurface,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: AppColors.success.withValues(alpha: 0.25)),
+                  ),
+                  child: Text(
+                    'A new password will be auto-generated and applied.',
+                    style: AppTextStyles.bodySmall
+                        .copyWith(color: AppColors.success),
+                  ),
+                ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
             FilledButton(
               onPressed: () async {
-                if (passCtrl.text.length < 8) {
+                if (mode == 'manual' &&
+                    passCtrl.text.isNotEmpty &&
+                    passCtrl.text.length < 8) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Password must be at least 8 characters')),
+                    const SnackBar(
+                        content: Text('Password must be at least 8 characters')),
                   );
                   return;
                 }
-                Navigator.pop(ctx);
-                final ok = await ref.read(societiesProvider.notifier).resetPassword(id, passCtrl.text);
-                if (mounted) {
+                if (mode == 'manual' &&
+                    passCtrl.text.isEmpty &&
+                    nameCtrl.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Provide either a new name or password')),
+                  );
+                  return;
+                }
+                final notifier = ref.read(societiesProvider.notifier);
+                final success = await notifier.resetPassword(
+                  id,
+                  mode == 'manual' ? passCtrl.text : null,
+                  name: nameCtrl.text,
+                  mode: mode,
+                );
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(ok ? 'Password reset successfully' : 'Failed to reset password'),
-                      backgroundColor: ok ? AppColors.secondary : AppColors.error,
-                    ),
+                        content: Text(success
+                            ? 'Chairman updated successfully'
+                            : 'Failed to update chairman')),
                   );
                 }
               },
-              child: const Text('Reset Password'),
+              child: const Text('Update'),
             ),
           ],
         ),
@@ -382,16 +644,17 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
     final cityC = TextEditingController(text: society?['city'] ?? '');
     final phoneC = TextEditingController(text: society?['contactPhone'] ?? '');
     final emailC = TextEditingController(text: society?['contactEmail'] ?? '');
-    final planName = society?['plan']?['name'] as String?;
-    String selectedPlan = planName ?? 'BASIC';
+    final existingPlanName = society?['plan']?['name'] as String?;
+    String selectedPlan = (existingPlanName ?? 'basic').toLowerCase();
+    bool planChanged = false;
 
-    // Controllers for Pramukh (only for create)
+    // Controllers for Chairman (only for create)
     final pNameC = TextEditingController();
     final pPhoneC = TextEditingController();
     final pEmailC = TextEditingController();
     final pPassC = TextEditingController();
 
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(isEdit ? 'Edit Society' : 'Create New Society'),
@@ -402,44 +665,67 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Society Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                Text('Society Details', style: AppTextStyles.h3),
                 const SizedBox(height: 12),
-                TextField(controller: nameC, decoration: const InputDecoration(labelText: 'Society Name *')),
+                TextField(
+                    controller: nameC,
+                    decoration: const InputDecoration(labelText: 'Society Name *')),
                 const SizedBox(height: 10),
-                TextField(controller: addressC, decoration: const InputDecoration(labelText: 'Address')),
+                TextField(
+                    controller: addressC,
+                    decoration: const InputDecoration(labelText: 'Address')),
                 const SizedBox(height: 10),
-                TextField(controller: cityC, decoration: const InputDecoration(labelText: 'City')),
+                TextField(
+                    controller: cityC,
+                    decoration: const InputDecoration(labelText: 'City')),
                 const SizedBox(height: 10),
                 Row(children: [
-                  Expanded(child: TextField(controller: phoneC, decoration: const InputDecoration(labelText: 'Phone'))),
+                  Expanded(
+                      child: TextField(
+                          controller: phoneC,
+                          decoration: const InputDecoration(labelText: 'Phone'))),
                   const SizedBox(width: 10),
-                  Expanded(child: TextField(controller: emailC, decoration: const InputDecoration(labelText: 'Email'))),
+                  Expanded(
+                      child: TextField(
+                          controller: emailC,
+                          decoration: const InputDecoration(labelText: 'Email'))),
                 ]),
                 const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  initialValue: selectedPlan.toUpperCase(),
-                  decoration: const InputDecoration(labelText: 'Plan'),
+                AppSearchableDropdown<String>(
+                  label: 'Plan',
+                  value: selectedPlan,
                   items: const [
-                    DropdownMenuItem(value: 'BASIC', child: Text('Basic')),
-                    DropdownMenuItem(value: 'STANDARD', child: Text('Standard')),
-                    DropdownMenuItem(value: 'PREMIUM', child: Text('Premium')),
+                    AppDropdownItem(value: 'basic', label: 'Basic'),
+                    AppDropdownItem(value: 'standard', label: 'Standard'),
+                    AppDropdownItem(value: 'premium', label: 'Premium'),
                   ],
-                  onChanged: (v) => selectedPlan = v ?? 'BASIC',
+                  onChanged: (v) {
+                    selectedPlan = v ?? 'basic';
+                    planChanged = true;
+                  },
                 ),
                 if (!isEdit) ...[
                   const SizedBox(height: 20),
-                  const Text('Pramukh (Admin) Account', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                  Text('Chairman (Admin) Account', style: AppTextStyles.h3),
                   const SizedBox(height: 12),
                   Row(children: [
-                    Expanded(child: TextField(controller: pNameC, decoration: const InputDecoration(labelText: 'Name *'))),
+                    Expanded(
+                        child: TextField(
+                            controller: pNameC,
+                            decoration: const InputDecoration(labelText: 'Name *'))),
                     const SizedBox(width: 10),
                     Expanded(
-                        child: TextField(controller: pPhoneC, decoration: const InputDecoration(labelText: 'Phone *'))),
+                        child: TextField(
+                            controller: pPhoneC,
+                            decoration:
+                                const InputDecoration(labelText: 'Phone *'))),
                   ]),
                   const SizedBox(height: 10),
                   Row(children: [
                     Expanded(
-                        child: TextField(controller: pEmailC, decoration: const InputDecoration(labelText: 'Email'))),
+                        child: TextField(
+                            controller: pEmailC,
+                            decoration: const InputDecoration(labelText: 'Email'))),
                     const SizedBox(width: 10),
                     Expanded(
                       child: TextField(
@@ -455,7 +741,8 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(
             onPressed: () async {
               if (nameC.text.isEmpty) return;
@@ -465,29 +752,1117 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                 'city': cityC.text.trim(),
                 'contactPhone': phoneC.text.trim(),
                 'contactEmail': emailC.text.trim(),
-                'planName': selectedPlan.toLowerCase(),
               };
 
-              if (!isEdit && pNameC.text.isNotEmpty && pPhoneC.text.isNotEmpty && pPassC.text.isNotEmpty) {
-                data['pramukh'] = {
+              // Only send planName if explicitly changed or it's a new society
+              if (!isEdit || planChanged) {
+                data['planName'] = selectedPlan;
+              }
+
+              if (!isEdit &&
+                  pNameC.text.isNotEmpty &&
+                  pPhoneC.text.isNotEmpty &&
+                  pPassC.text.isNotEmpty) {
+                data['chairman'] = {
                   'name': pNameC.text.trim(),
                   'phone': pPhoneC.text.trim(),
-                  'email': pEmailC.text.trim().isNotEmpty ? pEmailC.text.trim() : null,
+                  'email':
+                      pEmailC.text.trim().isNotEmpty ? pEmailC.text.trim() : null,
                   'password': pPassC.text,
                 };
               }
 
               Navigator.pop(ctx);
               if (isEdit) {
-                await ref.read(societiesProvider.notifier).updateSociety(society['id'], data);
+                final ok = await ref
+                    .read(societiesProvider.notifier)
+                    .updateSociety(society['id'], data);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(ok
+                          ? 'Society updated successfully'
+                          : 'Failed to update society'),
+                      backgroundColor: ok ? AppColors.success : AppColors.danger,
+                    ),
+                  );
+                }
               } else {
-                await ref.read(societiesProvider.notifier).createSociety(data);
+                final ok = await ref
+                    .read(societiesProvider.notifier)
+                    .createSociety(data);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(ok
+                          ? 'Society created successfully'
+                          : 'Failed to create society'),
+                      backgroundColor: ok ? AppColors.success : AppColors.danger,
+                    ),
+                  );
+                }
               }
             },
             child: Text(isEdit ? 'Update Society' : 'Create Society'),
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _showDetailDialog(String id) async {
+    showAppDialog(
+      context: context,
+      builder: (ctx) => const AlertDialog(
+        content: SizedBox(
+          height: 80,
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ),
+    );
+
+    final data = await ref.read(societiesProvider.notifier).getSociety(id);
+    if (!mounted) return;
+    // Close the loader dialog (pop only the dialog route, not the page route).
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    if (rootNav.canPop()) rootNav.pop();
+
+    if (data == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to load society details')),
+      );
+      return;
+    }
+
+    final chairman = data['chairman'] as Map<String, dynamic>?;
+    final planName =
+        data['plan']?['displayName'] ?? data['plan']?['name'] ?? 'No Plan';
+    final isActive = data['status'] == 'ACTIVE';
+
+    showAppDialog(
+      context: context,
+      maxWidth: 620,
+      builder: (ctx) => AlertDialog(
+        title: Text(data['name'] ?? 'Society'),
+        content: SizedBox(
+          width: 560,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    _badge(planName, const Color(0xFF3B82F6)),
+                    const SizedBox(width: 10),
+                    _statusToggle(id, isActive),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text('Society Info', style: AppTextStyles.h3),
+                const SizedBox(height: 10),
+                _kv('City', data['city'] ?? '-'),
+                _kv('Address', data['address'] ?? '-'),
+                _kv('Phone', data['contactPhone'] ?? '-'),
+                _kv('Email', data['contactEmail'] ?? '-'),
+                _kv('Units', '${data['unitCount'] ?? 0}'),
+                _kv('Users', '${data['userCount'] ?? 0}'),
+                const SizedBox(height: 16),
+                Text('Admin (Chairman/Pramukh)', style: AppTextStyles.h3),
+                const SizedBox(height: 10),
+                _kv('Name', chairman?['name'] ?? '-'),
+                _kv('Phone', chairman?['phone'] ?? '-'),
+                _kv('Email', chairman?['email'] ?? '-'),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showResetPasswordDialog(id, data['name'], chairman?['name']);
+            },
+            icon: const Icon(Icons.lock_reset_rounded, size: 18),
+            label: const Text('Reset Password'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showCreateDialog(context, society: data);
+            },
+            icon: const Icon(Icons.edit_rounded, size: 18),
+            label: const Text('Edit'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _kv(String k, String v) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(k,
+                style:
+                    AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
+          ),
+          Expanded(child: Text(v, style: AppTextStyles.bodyMedium)),
+        ],
+      ),
+    );
+  }
+
+  void _showSocietySettingsDialog(
+      String societyId, String societyName, dynamic currentSettings) {
+    final settings = (currentSettings is Map) ? Map<String, dynamic>.from(currentSettings) : <String, dynamic>{};
+    final qrCtrl = TextEditingController(
+      text: settings['visitor_qr_max_hrs']?.toString() ?? '',
+    );
+    String? errorText;
+    bool saving = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Society Settings', style: AppTextStyles.h2),
+              Text(societyName,
+                  style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
+            ],
+          ),
+          content: SizedBox(
+            width: 360,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: AppColors.primarySurface,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.qr_code_2_rounded,
+                          color: AppColors.primary, size: 18),
+                    ),
+                    const SizedBox(width: 10),
+                    Text('Visitor QR Max Expiry', style: AppTextStyles.labelMedium),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Override the platform default for this society. Leave blank to use the platform default.',
+                  style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: qrCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: InputDecoration(
+                    labelText: 'Max hours (e.g. 12)',
+                    suffixText: 'hrs',
+                    errorText: errorText,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving ? null : () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      final raw = qrCtrl.text.trim();
+                      if (raw.isNotEmpty) {
+                        final n = int.tryParse(raw);
+                        if (n == null || n < 1) {
+                          setS(() => errorText = 'Must be a positive integer');
+                          return;
+                        }
+                      }
+                      setS(() { saving = true; errorText = null; });
+                      try {
+                        final dio = ref.read(dioProvider);
+                        final messenger = ScaffoldMessenger.of(context);
+                        final body = <String, dynamic>{};
+                        if (raw.isNotEmpty) body['visitor_qr_max_hrs'] = int.parse(raw);
+                        await dio.patch('societies/$societyId/settings', data: body);
+                        if (ctx.mounted) {
+                          Navigator.pop(ctx);
+                          messenger.showSnackBar(
+                            const SnackBar(
+                              content: Text('Society settings saved'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        setS(() { saving = false; errorText = 'Save failed'; });
+                      }
+                    },
+              child: saving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showRegisterStepper(BuildContext context) {
+    // Bottom-sheet step-by-step registration (mobile-friendly), saving each step before moving on.
+    final nameC = TextEditingController();
+    final addressC = TextEditingController();
+    final cityC = TextEditingController();
+    final phoneC = TextEditingController();
+    final emailC = TextEditingController();
+    final wingsC = TextEditingController();
+    final unitsC = TextEditingController();
+
+    String selectedPlan = 'standard';
+    bool enableTrial = true;
+    final trialDaysC = TextEditingController(text: '30');
+
+    final adminNameC = TextEditingController();
+    final adminPhoneC = TextEditingController();
+    final adminEmailC = TextEditingController();
+    final adminPassC = TextEditingController();
+
+    final nameErr = ValueNotifier<String?>(null);
+    final cityErr = ValueNotifier<String?>(null);
+    final adminNameErr = ValueNotifier<String?>(null);
+    final adminPhoneErr = ValueNotifier<String?>(null);
+    final adminPassErr = ValueNotifier<String?>(null);
+    final trialDaysErr = ValueNotifier<String?>(null);
+
+    int step = 0;
+    bool saving = false;
+    String? societyId;
+
+    void clearErrors() {
+      nameErr.value = null;
+      cityErr.value = null;
+      adminNameErr.value = null;
+      adminPhoneErr.value = null;
+      adminPassErr.value = null;
+      trialDaysErr.value = null;
+    }
+
+    showAppSheet(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final maxH = MediaQuery.of(ctx).size.height * 0.88;
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              14,
+              16,
+              MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: maxH),
+              child: Column(
+                mainAxisSize: MainAxisSize.max,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.border,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text('Register New Society', style: AppTextStyles.h2),
+                  const SizedBox(height: 10),
+                  _SheetStepHeader(
+                    step: step,
+                    labels: const ['Details', 'Plan', 'Admin', 'Review'],
+                    onTap: (i) {
+                      if (i <= step) setSheetState(() => step = i);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (step == 0) ...[
+                            ValueListenableBuilder<String?>(
+                              valueListenable: nameErr,
+                              builder: (_, err, __) => TextField(
+                                controller: nameC,
+                                decoration: InputDecoration(
+                                  labelText: 'Society Name *',
+                                  errorText: err,
+                                ),
+                                onChanged: (_) => nameErr.value = null,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            TextField(
+                              controller: addressC,
+                              decoration:
+                                  const InputDecoration(labelText: 'Address'),
+                            ),
+                            const SizedBox(height: 10),
+                            ValueListenableBuilder<String?>(
+                              valueListenable: cityErr,
+                              builder: (_, err, __) => TextField(
+                                controller: cityC,
+                                decoration: InputDecoration(
+                                  labelText: 'City *',
+                                  errorText: err,
+                                ),
+                                onChanged: (_) => cityErr.value = null,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: wingsC,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                        labelText: 'No. of Wings'),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: TextField(
+                                    controller: unitsC,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                        labelText: 'Expected Units'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: phoneC,
+                                    decoration: const InputDecoration(
+                                        labelText: 'Contact Phone'),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: TextField(
+                                    controller: emailC,
+                                    decoration: const InputDecoration(
+                                        labelText: 'Contact Email'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                          if (step == 1) ...[
+                            AppSearchableDropdown<String>(
+                              label: 'Plan *',
+                              value: selectedPlan,
+                              items: const [
+                                AppDropdownItem(value: 'basic', label: 'Basic'),
+                                AppDropdownItem(
+                                    value: 'standard', label: 'Standard'),
+                                AppDropdownItem(
+                                    value: 'premium', label: 'Premium'),
+                              ],
+                              onChanged: (v) => setSheetState(
+                                  () => selectedPlan = v ?? 'standard'),
+                            ),
+                            const SizedBox(height: 10),
+                            CheckboxListTile(
+                              value: enableTrial,
+                              onChanged: (v) =>
+                                  setSheetState(() => enableTrial = v ?? true),
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('Enable free trial period'),
+                            ),
+                            if (enableTrial)
+                              ValueListenableBuilder<String?>(
+                                valueListenable: trialDaysErr,
+                                builder: (_, err, __) => TextField(
+                                  controller: trialDaysC,
+                                  keyboardType: TextInputType.number,
+                                  decoration: InputDecoration(
+                                    labelText: 'Trial Days *',
+                                    errorText: err,
+                                  ),
+                                  onChanged: (_) => trialDaysErr.value = null,
+                                ),
+                              ),
+                          ],
+                          if (step == 2) ...[
+                            ValueListenableBuilder<String?>(
+                              valueListenable: adminNameErr,
+                              builder: (_, err, __) => TextField(
+                                controller: adminNameC,
+                                decoration: InputDecoration(
+                                  labelText: 'Admin Full Name *',
+                                  errorText: err,
+                                ),
+                                onChanged: (_) => adminNameErr.value = null,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            ValueListenableBuilder<String?>(
+                              valueListenable: adminPhoneErr,
+                              builder: (_, err, __) => TextField(
+                                controller: adminPhoneC,
+                                decoration: InputDecoration(
+                                  labelText: 'Mobile Number *',
+                                  errorText: err,
+                                ),
+                                onChanged: (_) => adminPhoneErr.value = null,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            TextField(
+                              controller: adminEmailC,
+                              decoration: const InputDecoration(
+                                  labelText: 'Email Address'),
+                            ),
+                            const SizedBox(height: 10),
+                            ValueListenableBuilder<String?>(
+                              valueListenable: adminPassErr,
+                              builder: (_, err, __) => TextField(
+                                controller: adminPassC,
+                                obscureText: true,
+                                decoration: InputDecoration(
+                                  labelText: 'Password *',
+                                  hintText: 'Min 8 characters',
+                                  errorText: err,
+                                ),
+                                onChanged: (_) => adminPassErr.value = null,
+                              ),
+                            ),
+                          ],
+                          if (step == 3) ...[
+                            _kv('Society',
+                                nameC.text.trim().isEmpty ? '—' : nameC.text.trim()),
+                            _kv('City',
+                                cityC.text.trim().isEmpty ? '—' : cityC.text.trim()),
+                            _kv('Plan', selectedPlan),
+                            _kv(
+                              'Trial',
+                              enableTrial
+                                  ? '${trialDaysC.text.trim().isEmpty ? '—' : trialDaysC.text.trim()} days'
+                                  : 'No',
+                            ),
+                            _kv(
+                                'Admin',
+                                adminNameC.text.trim().isEmpty
+                                    ? '—'
+                                    : adminNameC.text.trim()),
+                            _kv(
+                                'Admin Phone',
+                                adminPhoneC.text.trim().isEmpty
+                                    ? '—'
+                                    : adminPhoneC.text.trim()),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: saving
+                              ? null
+                              : () {
+                                  if (step == 0) {
+                                    Navigator.pop(ctx);
+                                  } else {
+                                    setSheetState(() => step -= 1);
+                                  }
+                                },
+                          child: Text(step == 0 ? 'Cancel' : 'Back'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: saving
+                              ? null
+                              : () async {
+                              clearErrors();
+                              final notifier = ref.read(societiesProvider.notifier);
+
+                              // STEP 0: create society draft (upload details)
+                              if (step == 0) {
+                                final name = nameC.text.trim();
+                                final city = cityC.text.trim();
+                                bool ok = true;
+                                if (name.isEmpty) {
+                                  nameErr.value = 'Required';
+                                  ok = false;
+                                }
+                                if (city.isEmpty) {
+                                  cityErr.value = 'Required';
+                                  ok = false;
+                                }
+                                if (!ok) return;
+
+                                setSheetState(() => saving = true);
+                                final id = await notifier.createSocietyDraft({
+                                  'name': name,
+                                  'address': addressC.text.trim(),
+                                  'city': city,
+                                  'contactPhone': phoneC.text.trim(),
+                                  'contactEmail': emailC.text.trim(),
+                                  'settings': {
+                                    if (wingsC.text.trim().isNotEmpty)
+                                      'wings': int.tryParse(wingsC.text.trim()) ??
+                                          wingsC.text.trim(),
+                                    if (unitsC.text.trim().isNotEmpty)
+                                      'expectedUnits':
+                                          int.tryParse(unitsC.text.trim()) ??
+                                              unitsC.text.trim(),
+                                  },
+                                });
+                                setSheetState(() => saving = false);
+
+                                if (id == null) {
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content: Text('Failed to save society details')),
+                                  );
+                                  return;
+                                }
+                                societyId = id;
+                                setSheetState(() => step = 1);
+                                return;
+                              }
+
+                              // STEP 1: update plan/trial (upload step data)
+                              if (step == 1) {
+                                if (societyId == null) return;
+                                if (enableTrial) {
+                                  final td = int.tryParse(trialDaysC.text.trim());
+                                  if (td == null || td <= 0) {
+                                    trialDaysErr.value = 'Enter valid days';
+                                    return;
+                                  }
+                                }
+
+                                setSheetState(() => saving = true);
+                                final ok = await notifier.updateSociety(societyId!, {
+                                  'planName': selectedPlan,
+                                  'settings': {
+                                    if (wingsC.text.trim().isNotEmpty)
+                                      'wings': int.tryParse(wingsC.text.trim()) ??
+                                          wingsC.text.trim(),
+                                    if (unitsC.text.trim().isNotEmpty)
+                                      'expectedUnits':
+                                          int.tryParse(unitsC.text.trim()) ??
+                                              unitsC.text.trim(),
+                                    'trialEnabled': enableTrial,
+                                  },
+                                });
+                                // trialDays affects renewal date; we set it at create time only.
+                                // If user changes it here, we still send it for backend to handle if supported.
+                                // (Backend create handles it; keeping here for future compatibility.)
+                                setSheetState(() => saving = false);
+
+                                if (!ok) {
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Failed to save plan')),
+                                  );
+                                  return;
+                                }
+                                setSheetState(() => step = 2);
+                                return;
+                              }
+
+                              // STEP 2: create/update chairman (upload step data)
+                              if (step == 2) {
+                                if (societyId == null) return;
+                                final n = adminNameC.text.trim();
+                                final p = adminPhoneC.text.trim();
+                                final pass = adminPassC.text;
+                                bool ok = true;
+                                if (n.isEmpty) {
+                                  adminNameErr.value = 'Required';
+                                  ok = false;
+                                }
+                                if (p.isEmpty) {
+                                  adminPhoneErr.value = 'Required';
+                                  ok = false;
+                                }
+                                if (pass.isEmpty) {
+                                  adminPassErr.value = 'Required';
+                                  ok = false;
+                                } else if (pass.length < 8) {
+                                  adminPassErr.value = 'Min 8 characters';
+                                  ok = false;
+                                }
+                                if (!ok) return;
+
+                                setSheetState(() => saving = true);
+                                final saved = await notifier.upsertChairman(societyId!, {
+                                  'name': n,
+                                  'phone': p,
+                                  'email': adminEmailC.text.trim().isNotEmpty
+                                      ? adminEmailC.text.trim()
+                                      : null,
+                                  'password': pass,
+                                });
+                                setSheetState(() => saving = false);
+
+                                if (!saved) {
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Failed to save admin')),
+                                  );
+                                  return;
+                                }
+                                setSheetState(() => step = 3);
+                                return;
+                              }
+
+                              // STEP 3: finish
+                              Navigator.pop(ctx);
+                              await notifier.loadSocieties(page: 1);
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text('Society registered successfully'),
+                                  backgroundColor: AppColors.success,
+                                ),
+                              );
+                            },
+                          child: Text(
+                            saving
+                                ? 'Saving...'
+                                : (step == 3 ? 'Finish' : 'Next'),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SocietyCard extends StatelessWidget {
+  final Map<String, dynamic> society;
+  final VoidCallback onView;
+  final VoidCallback onEdit;
+  final VoidCallback onResetPassword;
+  final VoidCallback onToggleStatus;
+  final VoidCallback onSettings;
+
+  const _SocietyCard({
+    required this.society,
+    required this.onView,
+    required this.onEdit,
+    required this.onResetPassword,
+    required this.onToggleStatus,
+    required this.onSettings,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final name = society['name'] ?? '';
+    final planName =
+        society['plan']?['displayName'] ?? society['plan']?['name'] ?? 'No Plan';
+    final isActive = society['status'] == 'ACTIVE';
+    final contact = society['contactPhone'] ?? society['contactEmail'] ?? '-';
+    final units = society['unitCount'] ?? 0;
+    final users = society['userCount'] ?? 0;
+    final createdAt = society['createdAt'] != null
+        ? DateFormat('dd MMM yy').format(DateTime.parse(society['createdAt']))
+        : '-';
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFE2E8F0)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(name,
+                      style: AppTextStyles.h2, overflow: TextOverflow.ellipsis),
+                ),
+                _badge(planName, const Color(0xFF3B82F6)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(contact,
+                style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                _infoIcon(Icons.apartment_outlined, '$units'),
+                const SizedBox(width: 12),
+                _infoIcon(Icons.people_outline, '$users'),
+                const Spacer(),
+                _statusToggle(isActive),
+              ],
+            ),
+            const Divider(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Created: $createdAt', style: AppTextStyles.caption),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.visibility_outlined,
+                          size: 18, color: AppColors.primary),
+                      onPressed: onView,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                    const SizedBox(width: 12),
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined,
+                          size: 18, color: AppColors.primary),
+                      onPressed: onEdit,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                    const SizedBox(width: 12),
+                    IconButton(
+                      icon: const Icon(Icons.lock_reset,
+                          size: 18, color: AppColors.textMuted),
+                      onPressed: onResetPassword,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                    const SizedBox(width: 12),
+                    IconButton(
+                      icon: const Icon(Icons.tune_rounded,
+                          size: 18, color: AppColors.textMuted),
+                      tooltip: 'Society Settings',
+                      onPressed: onSettings,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _infoIcon(IconData icon, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: AppColors.textMuted),
+        const SizedBox(width: 4),
+        Text(label, style: AppTextStyles.labelMedium),
+      ],
+    );
+  }
+
+  Widget _badge(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        style: AppTextStyles.labelSmall.copyWith(color: color),
+      ),
+    );
+  }
+
+  Widget _statusToggle(bool isActive) {
+    return GestureDetector(
+      onTap: onToggleStatus,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color:
+              (isActive ? AppColors.success : AppColors.danger).withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: (isActive ? AppColors.success : AppColors.danger)
+                .withValues(alpha: 0.4),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isActive ? Icons.check_circle_outline : Icons.cancel_outlined,
+              size: 12,
+              color: isActive ? AppColors.success : AppColors.danger,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              isActive ? 'Active' : 'Suspended',
+              style: AppTextStyles.labelSmall.copyWith(
+                color: isActive ? AppColors.success : AppColors.danger,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatsRow extends StatelessWidget {
+  final bool isMobile;
+  final int total;
+  final int active;
+  final int suspended;
+
+  const _StatsRow({
+    required this.isMobile,
+    required this.total,
+    required this.active,
+    required this.suspended,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      _StatItem(
+          label: 'Total Societies',
+          value: total.toString(),
+          icon: Icons.location_city_rounded,
+          color: AppColors.primary),
+      _StatItem(
+          label: 'Active',
+          value: active.toString(),
+          icon: Icons.check_circle_rounded,
+          color: AppColors.success),
+      _StatItem(
+          label: 'Suspended',
+          value: suspended.toString(),
+          icon: Icons.block_rounded,
+          color: AppColors.danger),
+    ];
+
+    if (isMobile) {
+      return Column(
+        children: [
+          for (final it in items)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _StatCard(item: it),
+            ),
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        for (int i = 0; i < items.length; i++) ...[
+          Expanded(child: _StatCard(item: items[i])),
+          if (i != items.length - 1) const SizedBox(width: 12),
+        ],
+      ],
+    );
+  }
+}
+
+class _StatItem {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  const _StatItem({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+}
+
+class _StatCard extends StatelessWidget {
+  final _StatItem item;
+  const _StatCard({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFE2E8F0)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: item.color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(item.icon, size: 20, color: item.color),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.label,
+                    style: AppTextStyles.bodySmall
+                        .copyWith(color: AppColors.textMuted),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(item.value, style: AppTextStyles.h2),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetStepHeader extends StatelessWidget {
+  final int step;
+  final List<String> labels;
+  final void Function(int index)? onTap;
+  const _SheetStepHeader({
+    required this.step,
+    required this.labels,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (int i = 0; i < labels.length; i++) ...[
+          Expanded(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: onTap == null ? null : () => onTap!(i),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            height: 2,
+                            color: i == 0
+                                ? Colors.transparent
+                                : (i <= step
+                                    ? AppColors.primary
+                                    : AppColors.border),
+                          ),
+                        ),
+                        Container(
+                          width: 26,
+                          height: 26,
+                          decoration: BoxDecoration(
+                            color: i <= step ? AppColors.primary : AppColors.border,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              '${i + 1}',
+                              style: AppTextStyles.labelSmall.copyWith(
+                                color: i <= step
+                                    ? AppColors.textOnPrimary
+                                    : AppColors.textMuted,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Container(
+                            height: 2,
+                            color: i == labels.length - 1
+                                ? Colors.transparent
+                                : (i < step
+                                    ? AppColors.primary
+                                    : AppColors.border),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      labels[i],
+                      style: AppTextStyles.labelSmall.copyWith(
+                        color: i == step ? AppColors.primary : AppColors.textMuted,
+                        fontWeight: i == step ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (i != labels.length - 1) const SizedBox(width: 6),
+        ],
+      ],
     );
   }
 }

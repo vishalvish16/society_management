@@ -7,6 +7,8 @@ const PLAN_SELECT = {
   priceMonthly: true,
   priceYearly: true,
   maxUnits: true,
+  maxResidents: true,
+  maxWatchmen: true,
   maxSecretaries: true,
   features: true,
   isActive: true,
@@ -42,7 +44,7 @@ async function getPlanById(id) {
       ...PLAN_SELECT,
       _count: { select: { societies: true } },
       societies: {
-        where: { status: 'active' },
+        where: { status: 'ACTIVE' },
         select: { id: true, name: true, status: true },
         take: 20,
       },
@@ -53,21 +55,28 @@ async function getPlanById(id) {
 }
 
 /**
- * Create a new subscription plan.
+ * Create or update a subscription plan (upsert by name).
  * @param {object} data
  */
 async function createPlan(data) {
-  const { name, displayName, priceMonthly, priceYearly, maxUnits, maxSecretaries, features } = data;
-  return prisma.plan.create({
-    data: {
-      name,
-      displayName,
-      priceMonthly,
-      priceYearly: priceYearly || priceMonthly * 10,
-      maxUnits: maxUnits || -1,
-      maxSecretaries: maxSecretaries || 2,
-      features: features || {},
-    },
+  const { name, displayName, priceMonthly, priceYearly, maxUnits, maxResidents, maxWatchmen, maxSecretaries, features } = data;
+  
+  const payload = {
+    displayName,
+    priceMonthly,
+    priceYearly: priceYearly || priceMonthly * 10,
+    maxUnits: maxUnits || -1,
+    maxResidents: maxResidents || -1,
+    maxWatchmen: maxWatchmen || 2,
+    maxSecretaries: maxSecretaries || 2,
+    features: features || {},
+    isActive: true,
+  };
+
+  return prisma.plan.upsert({
+    where: { name },
+    update: payload,
+    create: { ...payload, name },
     select: PLAN_SELECT,
   });
 }
@@ -78,7 +87,7 @@ async function createPlan(data) {
  * @param {object} data
  */
 async function updatePlan(id, data) {
-  const allowed = ['displayName', 'priceMonthly', 'priceYearly', 'maxUnits', 'maxSecretaries', 'features', 'isActive'];
+  const allowed = ['displayName', 'priceMonthly', 'priceYearly', 'maxUnits', 'maxResidents', 'maxWatchmen', 'maxSecretaries', 'features', 'isActive'];
   const updateData = {};
   for (const key of allowed) {
     if (data[key] !== undefined) updateData[key] = data[key];
@@ -96,7 +105,7 @@ async function updatePlan(id, data) {
  */
 async function deactivatePlan(id) {
   const activeCount = await prisma.society.count({
-    where: { planId: id, status: 'active' },
+    where: { planId: id, status: 'ACTIVE' },
   });
 
   if (activeCount > 0) {

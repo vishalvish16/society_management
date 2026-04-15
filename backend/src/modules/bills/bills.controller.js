@@ -40,7 +40,7 @@ async function bulkGenerate(req, res) {
       return sendError(res, 'Month, defaultAmount, and dueDate are required', 400);
     }
 
-    const result = await billsService.bulkGenerateBills(req.user.societyId, month, Number(defaultAmount), new Date(dueDate));
+    const result = await billsService.bulkGenerateBills(req.user.societyId, month, Number(defaultAmount), new Date(dueDate), req.user.id);
     return sendSuccess(res, result, `Generated ${result.count} bills for ${month}`, 201);
   } catch (error) {
     console.error('Bulk generate bills error:', error.message);
@@ -60,11 +60,17 @@ async function recordPayment(req, res) {
       return sendError(res, 'paidAmount and paymentMethod are required', 400);
     }
 
+    const adminRoles = ['PRAMUKH', 'CHAIRMAN', 'SECRETARY'];
+    const isAdmin = adminRoles.includes(req.user.role);
+
+    // Non-admins can only pay bills for units they belong to
+    const residentUnitIds = isAdmin ? null : await billsService.getResidentUnitIds(req.user.id);
+
     const updated = await billsService.recordPayment(billId, {
       paidAmount: Number(paidAmount),
       paymentMethod,
       notes
-    }, req.user.societyId);
+    }, req.user.societyId, residentUnitIds);
 
     return sendSuccess(res, updated, 'Payment recorded successfully');
   } catch (error) {
@@ -73,9 +79,29 @@ async function recordPayment(req, res) {
   }
 }
 
+async function getMyBills(req, res) {
+  try {
+    const result = await billsService.getMyBills(req.user.id, req.user.societyId, req.query);
+    return sendSuccess(res, result, 'Your bills retrieved');
+  } catch (error) {
+    return sendError(res, error.message, error.status || 500);
+  }
+}
+
+async function getDefaulters(req, res) {
+  try {
+    const result = await billsService.getDefaulters(req.user.societyId, req.query);
+    return sendSuccess(res, result, 'Defaulters retrieved');
+  } catch (error) {
+    return sendError(res, error.message, error.status || 500);
+  }
+}
+
 module.exports = {
   getBills,
   getBillById,
   bulkGenerate,
-  recordPayment
+  recordPayment,
+  getMyBills,
+  getDefaulters,
 };

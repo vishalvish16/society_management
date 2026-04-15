@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'dart:ui';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
 
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -105,14 +106,14 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Column(
               children: [
-                const Icon(Icons.lock_reset_rounded, size: 64, color: Colors.white),
+                const Icon(Icons.lock_reset_rounded, size: 64, color: AppColors.textOnPrimary),
                 const SizedBox(height: 16),
-                const Text('Reset Password',
-                    style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
+                Text('Reset Password',
+                    style: AppTextStyles.displayMedium.copyWith(color: AppColors.textOnPrimary)),
                 const SizedBox(height: 8),
                 Text(
                   _otpSent ? 'Enter the OTP sent to your phone' : 'Enter your phone number to receive an OTP',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 14),
+                  style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textOnPrimary.withValues(alpha: 0.7)),
                 ),
                 const SizedBox(height: 32),
 
@@ -125,9 +126,9 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                       padding: const EdgeInsets.all(32),
                       constraints: const BoxConstraints(maxWidth: 420),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1),
+                        color: AppColors.textOnPrimary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                        border: Border.all(color: AppColors.textOnPrimary.withValues(alpha: 0.2)),
                       ),
                       child: Column(
                         children: [
@@ -151,7 +152,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 12),
                                 child: Text(_message!,
-                                    style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13),
+                                    style: AppTextStyles.bodySmall.copyWith(color: AppColors.textOnPrimary.withValues(alpha: 0.8)),
                                     textAlign: TextAlign.center),
                               ),
                             _GlassField(
@@ -184,7 +185,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                           TextButton(
                             onPressed: () => context.go('/'),
                             child: Text('Back to Login',
-                                style: TextStyle(color: Colors.white.withValues(alpha: 0.8))),
+                                style: AppTextStyles.labelLarge.copyWith(color: AppColors.textOnPrimary.withValues(alpha: 0.8))),
                           ),
                         ],
                       ),
@@ -203,15 +204,15 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     return ElevatedButton(
       onPressed: loading ? null : onPressed,
       style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.secondary,
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.primary,
+        foregroundColor: AppColors.textOnPrimary,
         minimumSize: const Size(double.infinity, 52),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       child: loading
           ? const SizedBox(
-              height: 22, width: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-          : Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              height: 22, width: 22, child: CircularProgressIndicator(color: AppColors.textOnPrimary, strokeWidth: 2))
+          : Text(label, style: AppTextStyles.buttonLarge),
     );
   }
 }
@@ -244,19 +245,21 @@ class _GlassField extends StatelessWidget {
       obscureText: obscureText,
       enabled: enabled,
       keyboardType: keyboardType,
-      style: TextStyle(color: enabled ? Colors.white : Colors.white54),
+      style: AppTextStyles.bodyMedium.copyWith(
+          color: enabled ? AppColors.textOnPrimary : AppColors.textOnPrimary.withValues(alpha: 0.5)),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Colors.white70, fontSize: 13),
-        prefixIcon: Icon(icon, color: Colors.white70),
+        labelStyle: AppTextStyles.labelSmall.copyWith(color: AppColors.textOnPrimary.withValues(alpha: 0.7)),
+        prefixIcon: Icon(icon, color: AppColors.textOnPrimary.withValues(alpha: 0.7)),
         suffixIcon: isPassword
             ? IconButton(
-                icon: Icon(obscureText ? Icons.visibility_off : Icons.visibility, color: Colors.white70),
+                icon: Icon(obscureText ? Icons.visibility_off : Icons.visibility,
+                    color: AppColors.textOnPrimary.withValues(alpha: 0.7)),
                 onPressed: onToggle,
               )
             : null,
         filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.1),
+        fillColor: AppColors.textOnPrimary.withValues(alpha: 0.1),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
         contentPadding: const EdgeInsets.all(18),
       ),

@@ -49,13 +49,12 @@ async function createPlan(req, res, next) {
       return sendError(res, 'name, displayName, and priceMonthly are required', 400);
     }
 
-    const validNames = ['basic', 'standard', 'premium'];
-    if (!validNames.includes(req.body.name.toLowerCase())) {
-      return sendError(res, `name must be one of: ${validNames.join(', ')}`, 400);
+    // Ensure name is lowercase for unique constraint
+    req.body.name = (req.body.name || req.body.displayName || '').toString().toLowerCase().trim();
+    
+    if (!req.body.name) {
+      return sendError(res, 'Plan name or code is required', 400);
     }
-
-    // Ensure name is lowercase for unique constraint/enum
-    req.body.name = req.body.name.toLowerCase();
 
     const plan = await plansService.createPlan(req.body);
     return sendSuccess(res, plan, 'Plan created', 201);

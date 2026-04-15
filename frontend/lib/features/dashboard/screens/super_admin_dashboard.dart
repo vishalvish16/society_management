@@ -10,7 +10,7 @@ class SuperAdminDashboard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final stats = [
       {'label': 'Total Societies', 'value': '24', 'icon': Icons.location_city_rounded, 'color': AppColors.primary},
-      {'label': 'Active Plans', 'value': '3', 'icon': Icons.workspace_premium_rounded, 'color': AppColors.secondary},
+      {'label': 'Active Plans', 'value': '3', 'icon': Icons.workspace_premium_rounded, 'color': AppColors.success},
       {'label': 'Monthly Revenue', 'value': '₹1.2L', 'icon': Icons.currency_rupee_rounded, 'color': AppColors.info},
       {'label': 'Expiring Soon', 'value': '4', 'icon': Icons.warning_amber_rounded, 'color': AppColors.warning},
     ];
@@ -51,7 +51,7 @@ class SuperAdminDashboard extends ConsumerWidget {
                   label: const Text('Add Society'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppColors.textOnPrimary,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
@@ -141,12 +141,12 @@ class _SocietyCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: isActive ? AppColors.secondary.withValues(alpha: 0.1) : AppColors.error.withValues(alpha: 0.1),
+              color: isActive ? AppColors.successSurface : AppColors.dangerSurface,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(isActive ? 'Active' : 'Suspended',
                 style: AppTextStyles.labelMedium.copyWith(
-                    color: isActive ? AppColors.secondary : AppColors.error)),
+                    color: isActive ? AppColors.success : AppColors.danger)),
           ),
           const SizedBox(width: 8),
           IconButton(icon: const Icon(Icons.more_vert_rounded), onPressed: () {}),

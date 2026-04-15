@@ -51,7 +51,7 @@ async function main() {
   const passwordHash = await bcrypt.hash('SuperAdmin@123', SALT_ROUNDS);
 
   await prisma.user.upsert({
-    where: { phone: '9999999999' },
+    where: { email: 'admin@societymanager.in' },
     update: {
       name: 'Super Admin',
       email: 'admin@societymanager.in',
@@ -70,6 +70,25 @@ async function main() {
     },
   });
   console.log('  Super Admin user upserted (email: admin@societymanager.in, password: SuperAdmin@123)');
+
+  // ─── 3. Seed Platform Settings ──────────────────────────────────────
+  const platformSettings = [
+    {
+      key: 'visitor_qr_max_hrs',
+      value: '3',
+      label: 'Max QR Expiry (hours)',
+      dataType: 'number',
+    },
+  ];
+
+  for (const setting of platformSettings) {
+    await prisma.platformSetting.upsert({
+      where: { key: setting.key },
+      update: {}, // never overwrite an SA-customised value on re-seed
+      create: { ...setting, updatedBy: null },
+    });
+  }
+  console.log('  Platform settings seeded (visitor_qr_max_hrs = 3)');
 
   console.log('Seeding complete.');
 }

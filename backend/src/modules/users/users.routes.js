@@ -12,8 +12,8 @@ router.use(authMiddleware);
 // GET /api/v1/users/me — own profile (any authenticated user)
 router.get('/me', usersController.getMe);
 
-// GET /api/v1/users — list users (pramukh/secretary only)
-router.get('/', roleGuard('PRAMUKH', 'SECRETARY', 'SUPER_ADMIN'), usersController.listUsers);
+// GET /api/v1/users — list users (CHAIRMAN/secretary only)
+router.get('/', roleGuard('PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'SUPER_ADMIN'), usersController.listUsers);
 
 // POST /api/v1/users — create resident/watchman (secretary only)
 // Dynamic plan limit check based on the role being created
@@ -32,7 +32,7 @@ router.post(
 // PATCH /api/v1/users/:id — update profile (secretary or self)
 router.patch('/:id', usersController.updateUser);
 
-// DELETE /api/v1/users/:id — soft-delete (pramukh only)
-router.delete('/:id', roleGuard('PRAMUKH', 'SUPER_ADMIN'), usersController.deleteUser);
+// DELETE /api/v1/users/:id — soft-delete (CHAIRMAN only)
+router.delete('/:id', roleGuard('PRAMUKH', 'CHAIRMAN', 'SUPER_ADMIN'), usersController.deleteUser);
 
 module.exports = router;

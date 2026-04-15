@@ -1,113 +1,101 @@
 const prisma = require('../../config/db');
+const { pushToTokens } = require('../../utils/push');
 
-/**
- * List notification history for a society.
- */
 async function listNotifications(societyId, filters = {}) {
   const { page = 1, limit = 20 } = filters;
-  const skip = (page - 1) * limit;
-
+  const skip = (parseInt(page) - 1) * parseInt(limit);
   const [notifications, total] = await Promise.all([
     prisma.notification.findMany({
       where: { societyId },
-      include: {
-        sender: { select: { name: true } }
-      },
+      include: { sentBy: { select: { id: true, name: true } } },
       skip,
       take: parseInt(limit, 10),
-      orderBy: { sentAt: 'desc' }
+      orderBy: { sentAt: 'desc' },
     }),
-    prisma.notification.count({ where: { societyId } })
+    prisma.notification.count({ where: { societyId } }),
   ]);
-
   return { notifications, total, page: parseInt(page, 10), limit: parseInt(limit, 10) };
 }
 
-/**
- * Send a notification to a target group.
- * @param {string|null} senderId - ID of the admin who sent it (null for system)
- * @param {string} societyId - The society ID
- * @param {{ targetType: string, targetId?: string, title: string, body: string, type: string }} data
- */
 async function sendNotification(senderId, societyId, data) {
-  const { targetType, targetId, title, body, type } = data;
+  const { targetType, targetId, title, body, type, route } = data;
+  const normalizedType = targetType?.toLowerCase();
+  if (!['all', 'role', 'unit', 'user'].includes(normalizedType)) {
+    throw Object.assign(new Error('targetType must be all, role, unit, or user'), { status: 400 });
+  }
 
   return prisma.$transaction(async (tx) => {
-    // 1. Record in database
     const notification = await tx.notification.create({
       data: {
         societyId,
-        sentBy: senderId,
-        targetType,
-        targetId,
+        sentById: senderId || null,
+        targetType: normalizedType,
+        targetId: targetId || null,
         title,
         body,
-        type
-      }
+        type,
+      },
     });
 
-    // 2. Resolve target users to get FCM tokens
+    // Resolve FCM tokens
     let users = [];
-    if (targetType === 'ALL') {
+    if (normalizedType === 'all') {
       users = await tx.user.findMany({
-        where: { societyId, fcmToken: { not: null }, deletedAt: null },
-        select: { fcmToken: true }
+        where: { societyId, fcmToken: { not: null }, deletedAt: null, isActive: true },
+        select: { id: true, fcmToken: true },
       });
-    } else if (targetType === 'ROLE') {
+    } else if (normalizedType === 'role') {
       users = await tx.user.findMany({
-        where: { societyId, role: targetId, fcmToken: { not: null }, deletedAt: null },
-        select: { fcmToken: true }
+        where: { societyId, role: targetId, fcmToken: { not: null }, deletedAt: null, isActive: true },
+        select: { id: true, fcmToken: true },
       });
-    } else if (targetType === 'UNIT') {
+    } else if (normalizedType === 'unit') {
       const residents = await tx.unitResident.findMany({
         where: { unitId: targetId, user: { societyId, fcmToken: { not: null }, deletedAt: null } },
-        include: { user: { select: { fcmToken: true } } }
+        include: { user: { select: { id: true, fcmToken: true } } },
       });
-      users = residents.map(r => r.user);
+      users = residents.map((r) => r.user);
+    } else if (normalizedType === 'user') {
+      const u = await tx.user.findUnique({
+        where: { id: targetId },
+        select: { id: true, fcmToken: true },
+      });
+      if (u?.fcmToken) users = [u];
     }
 
-    const tokens = users.map(u => u.fcmToken).filter(Boolean);
-
-    // 3. Trigger Push Notification (Simulated in this phase)
+    const tokens = users.map((u) => u.fcmToken).filter(Boolean);
     if (tokens.length > 0) {
-      console.log(`[PushService] Sending to ${tokens.length} tokens for ${societyId}: ${title}`);
-      // TODO: Implement FCM Admin SDK integration
+      const pushData = { type, notificationId: notification.id };
+      if (route) pushData.route = route;
+      // Fire-and-forget — don't block transaction
+      setImmediate(() => pushToTokens(tokens, { title, body, data: pushData }));
     }
 
     return notification;
   });
 }
 
-/**
- * Get recent notifications for a specific user.
- * (Looks at notifications where they are part of the target group).
- */
 async function getNotificationsForUser(userId, societyId) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { role: true, unitResidents: { select: { unitId: true } } }
+    select: { role: true, unitResidents: { select: { unitId: true } } },
   });
-
   if (!user) return [];
-
-  const unitIds = user.unitResidents.map(ur => ur.unitId);
+  const unitIds = user.unitResidents.map((ur) => ur.unitId);
 
   return prisma.notification.findMany({
     where: {
       societyId,
       OR: [
-        { targetType: 'ALL' },
-        { targetType: 'ROLE', targetId: user.role },
-        { targetType: 'UNIT', targetId: { in: unitIds } }
-      ]
+        { targetType: 'all' },
+        { targetType: 'role', targetId: user.role },
+        ...(unitIds.length ? [{ targetType: 'unit', targetId: { in: unitIds } }] : []),
+        { targetType: 'user', targetId: userId },
+      ],
     },
     orderBy: { sentAt: 'desc' },
-    take: 50
+    take: 50,
   });
 }
 
-module.exports = {
-  listNotifications,
-  sendNotification,
-  getNotificationsForUser
-};
+module.exports = { listNotifications, sendNotification, getNotificationsForUser };

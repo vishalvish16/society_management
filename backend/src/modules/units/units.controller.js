@@ -1,12 +1,31 @@
 const unitsService = require('./units.service');
+const prisma = require('../../config/db');
 const { sendSuccess, sendError } = require('../../utils/response');
+
+const UNIT_LOCKED_ROLES = new Set(['MEMBER', 'RESIDENT', 'VICE_CHAIRMAN', 'ASSISTANT_SECRETARY', 'TREASURER', 'ASSISTANT_TREASURER']);
 
 /**
  * GET /api/v1/units
  */
 async function getUnits(req, res) {
   try {
-    const filters = req.query;
+    const filters = { ...req.query };
+    const { id: requesterId, role: requesterRole } = req.user;
+
+    // Unit-locked roles only see their own unit
+    if (UNIT_LOCKED_ROLES.has(requesterRole)) {
+      const unitResident = await prisma.unitResident.findFirst({
+        where: { userId: requesterId },
+        select: { unitId: true },
+      });
+      if (unitResident?.unitId) {
+        filters.onlyId = unitResident.unitId;
+      } else {
+        // No unit assigned — return empty
+        return sendSuccess(res, { units: [], total: 0, page: 1, limit: parseInt(filters.limit || 20) }, 'Units retrieved successfully');
+      }
+    }
+
     const result = await unitsService.listUnits(req.user.societyId, filters);
     return sendSuccess(res, result, 'Units retrieved successfully');
   } catch (error) {
@@ -101,11 +120,41 @@ async function removeResident(req, res) {
   }
 }
 
+async function bulkCreateUnits(req, res) {
+  try {
+    const { wing, floor, startUnit, endUnit } = req.body;
+
+    if (!startUnit || !endUnit) {
+      return sendError(res, 'startUnit and endUnit are required', 400);
+    }
+
+    const start = parseInt(startUnit, 10);
+    const end = parseInt(endUnit, 10);
+
+    if (isNaN(start) || isNaN(end) || start > end) {
+      return sendError(res, 'Invalid range provided', 400);
+    }
+
+    const result = await unitsService.bulkCreate(req.user.societyId, {
+      wing,
+      floor: floor ? parseInt(floor, 10) : null,
+      startUnit: start,
+      endUnit: end
+    });
+
+    return sendSuccess(res, result, `${result.count} units created successfully`);
+  } catch (error) {
+    console.error('Bulk create units error:', error.message);
+    return sendError(res, error.message, error.status || 500);
+  }
+}
+
 module.exports = {
   getUnits,
   createUnit,
   updateUnit,
   deleteUnit,
   assignResident,
-  removeResident
+  removeResident,
+  bulkCreateUnits
 };

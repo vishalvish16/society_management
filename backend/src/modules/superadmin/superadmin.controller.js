@@ -29,4 +29,50 @@ async function getRecentSocieties(req, res, next) {
   }
 }
 
-module.exports = { getDashboard, getRevenue, getRecentSocieties };
+// ─── Platform Settings ────────────────────────────────────────────────────────
+
+/**
+ * GET /api/superadmin/settings
+ * Returns all platform-wide settings.
+ */
+async function getSettings(req, res, next) {
+  try {
+    const settings = await superadminService.getAllSettings();
+    return sendSuccess(res, settings, 'Platform settings retrieved');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * PATCH /api/superadmin/settings/:key
+ * Update a single platform setting.
+ * Body: { value: string|number }
+ */
+async function updateSetting(req, res, next) {
+  try {
+    const { key } = req.params;
+    const { value } = req.body;
+
+    if (value === undefined || value === null || String(value).trim() === '') {
+      const { sendError } = require('../../utils/response');
+      return sendError(res, 'value is required', 400);
+    }
+
+    // For visitor_qr_max_hrs: validate it's a positive integer ≥ 1
+    if (key === 'visitor_qr_max_hrs') {
+      const n = parseInt(value, 10);
+      if (!Number.isFinite(n) || n < 1) {
+        const { sendError } = require('../../utils/response');
+        return sendError(res, 'visitor_qr_max_hrs must be a positive integer', 400);
+      }
+    }
+
+    const updated = await superadminService.updateSetting(key, value, req.user.id);
+    return sendSuccess(res, updated, 'Setting updated');
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { getDashboard, getRevenue, getRecentSocieties, getSettings, updateSetting };

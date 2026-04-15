@@ -34,8 +34,8 @@ function createTestApp(allowedRoles) {
 describe('roleGuard middleware', () => {
   describe('access granted', () => {
     it('should pass when user has the correct role', async () => {
-      const app = createTestApp(['PRAMUKH', 'SECRETARY']);
-      const token = createMockToken('user-uuid-1', 'PRAMUKH');
+      const app = createTestApp(['CHAIRMAN', 'SECRETARY']);
+      const token = createMockToken('user-uuid-1', 'CHAIRMAN');
 
       const res = await request(app)
         .get('/test-role')
@@ -47,7 +47,7 @@ describe('roleGuard middleware', () => {
     });
 
     it('should pass when user has any of the allowed roles', async () => {
-      const app = createTestApp(['PRAMUKH', 'SECRETARY', 'SUPER_ADMIN']);
+      const app = createTestApp(['CHAIRMAN', 'SECRETARY', 'SUPER_ADMIN']);
       const token = createMockToken('user-uuid-1', 'SECRETARY');
 
       const res = await request(app)
@@ -61,7 +61,7 @@ describe('roleGuard middleware', () => {
 
   describe('access denied', () => {
     it('should return 403 when user has wrong role', async () => {
-      const app = createTestApp(['PRAMUKH', 'SECRETARY']);
+      const app = createTestApp(['CHAIRMAN', 'SECRETARY']);
       const token = createMockToken('user-uuid-1', 'RESIDENT');
 
       const res = await request(app)
@@ -73,8 +73,8 @@ describe('roleGuard middleware', () => {
       expect(res.body.message).toMatch(/insufficient permissions/i);
     });
 
-    it('should return 403 when WATCHMAN tries to access PRAMUKH-only route', async () => {
-      const app = createTestApp(['PRAMUKH']);
+    it('should return 403 when WATCHMAN tries to access CHAIRMAN-only route', async () => {
+      const app = createTestApp(['CHAIRMAN']);
       const token = createMockToken('user-uuid-1', 'WATCHMAN');
 
       const res = await request(app)
@@ -86,7 +86,7 @@ describe('roleGuard middleware', () => {
     });
 
     it('should return 401 when no token is provided', async () => {
-      const app = createTestApp(['PRAMUKH', 'SECRETARY']);
+      const app = createTestApp(['CHAIRMAN', 'SECRETARY']);
 
       const res = await request(app)
         .get('/test-role');
@@ -96,7 +96,7 @@ describe('roleGuard middleware', () => {
     });
 
     it('should return 401 when token is invalid', async () => {
-      const app = createTestApp(['PRAMUKH']);
+      const app = createTestApp(['CHAIRMAN']);
 
       const res = await request(app)
         .get('/test-role')

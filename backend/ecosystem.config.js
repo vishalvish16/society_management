@@ -1,7 +1,7 @@
 module.exports = {
   apps: [{
     name: "society-backend",
-    script: "./src/app.js",
+    script: "./src/server.js",
     instances: 1,
     exec_mode: "cluster",
     watch: false,

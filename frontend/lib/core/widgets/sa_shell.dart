@@ -20,7 +20,8 @@ class _SAShellState extends ConsumerState<SAShell> {
     _NavItem(icon: Icons.apartment_rounded, label: 'Societies', path: '/sa/societies'),
     _NavItem(icon: Icons.card_membership_rounded, label: 'Plans', path: '/sa/plans'),
     _NavItem(icon: Icons.subscriptions_rounded, label: 'Subscriptions', path: '/sa/subscriptions'),
-    _NavItem(icon: Icons.settings_rounded,      label: 'Settings',      path: '/sa/settings'),
+    _NavItem(icon: Icons.settings_rounded,       label: 'Settings',      path: '/sa/settings'),
+    _NavItem(icon: Icons.tune_rounded,           label: 'Platform',      path: '/sa/platform-settings'),
   ];
 
   void _onNavTap(int index) {

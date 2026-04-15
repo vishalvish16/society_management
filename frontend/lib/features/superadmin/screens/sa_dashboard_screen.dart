@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../providers/dashboard_provider.dart';
 
 class SADashboardScreen extends ConsumerWidget {
@@ -29,15 +30,14 @@ class SADashboardScreen extends ConsumerWidget {
               // Page Header
               Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Dashboard',
-                            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.textMain)),
-                        SizedBox(height: 4),
+                        Text('Dashboard', style: AppTextStyles.displayMedium),
+                        const SizedBox(height: 4),
                         Text('Platform overview and key metrics',
-                            style: TextStyle(fontSize: 14, color: AppColors.textMuted)),
+                            style: AppTextStyles.bodyMedium),
                       ],
                     ),
                   ),
@@ -65,7 +65,7 @@ class SADashboardScreen extends ConsumerWidget {
                           title: 'Monthly Revenue (MRR)',
                           value: currencyFormat.format(stats.mrr),
                           icon: Icons.trending_up_rounded,
-                          color: AppColors.secondary,
+                          color: AppColors.success,
                         ),
                         _StatCard(
                           title: 'Annual Revenue (ARR)',
@@ -95,7 +95,7 @@ class SADashboardScreen extends ConsumerWidget {
                           title: 'Active Subscriptions',
                           value: stats.activeSubscriptions.toString(),
                           icon: Icons.check_circle_rounded,
-                          color: AppColors.secondary,
+                          color: AppColors.success,
                         ),
                         _StatCard(
                           title: 'Trial Subscriptions',
@@ -107,7 +107,7 @@ class SADashboardScreen extends ConsumerWidget {
                           title: 'Expired',
                           value: stats.expiredSubscriptions.toString(),
                           icon: Icons.cancel_rounded,
-                          color: AppColors.error,
+                          color: AppColors.danger,
                         ),
                         _StatCard(
                           title: 'Total Units',
@@ -121,10 +121,9 @@ class SADashboardScreen extends ConsumerWidget {
 
                     // Plan Distribution
                     if (stats.planDistribution.isNotEmpty) ...[
-                      const Align(
+                      Align(
                         alignment: Alignment.centerLeft,
-                        child: Text('Plan Distribution',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textMain)),
+                        child: Text('Plan Distribution', style: AppTextStyles.h2),
                       ),
                       const SizedBox(height: 12),
                       _ResponsiveGrid(
@@ -149,8 +148,7 @@ class SADashboardScreen extends ConsumerWidget {
               ),
 
               // Recent Societies Table
-              const Text('Recent Societies',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textMain)),
+              Text('Recent Societies', style: AppTextStyles.h2),
               const SizedBox(height: 12),
 
               recentAsync.when(
@@ -163,44 +161,61 @@ class SADashboardScreen extends ConsumerWidget {
                     side: const BorderSide(color: Color(0xFFE2E8F0)),
                   ),
                   child: societies.isEmpty
-                      ? const Padding(
-                          padding: EdgeInsets.all(32),
-                          child: Center(child: Text('No societies yet', style: TextStyle(color: AppColors.textMuted))),
+                      ? Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Center(child: Text('No societies yet',
+                              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textMuted))),
                         )
                       : SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
-                          child: DataTable(
-                            headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
-                            columns: const [
-                              DataColumn(label: Text('Name', style: TextStyle(fontWeight: FontWeight.w600))),
-                              DataColumn(label: Text('Plan', style: TextStyle(fontWeight: FontWeight.w600))),
-                              DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.w600))),
-                              DataColumn(label: Text('Units', style: TextStyle(fontWeight: FontWeight.w600))),
-                              DataColumn(label: Text('Users', style: TextStyle(fontWeight: FontWeight.w600))),
-                              DataColumn(label: Text('Created', style: TextStyle(fontWeight: FontWeight.w600))),
-                            ],
-                            rows: societies.map<DataRow>((s) {
-                              final subs = (s['subscriptions'] as List?) ?? [];
-                              final activeSub = subs.isNotEmpty ? subs[0] : null;
-                              final planName = activeSub?['plan']?['name'] ?? 'No Plan';
-                              final subStatus = activeSub?['status'] ?? '-';
-                              final counts = s['_count'] ?? {};
-                              final isActive = s['isActive'] == true;
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(minWidth: 900),
+                            child: DataTable(
+                              columnSpacing: 24,
+                              horizontalMargin: 12,
+                              headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
+                              columns: [
+                                DataColumn(label: SizedBox(width: 160, child: Text('Name', style: AppTextStyles.labelLarge))),
+                                DataColumn(label: SizedBox(width: 100, child: Text('Plan', style: AppTextStyles.labelLarge))),
+                                DataColumn(label: SizedBox(width: 100, child: Text('Status', style: AppTextStyles.labelLarge))),
+                                DataColumn(label: SizedBox(width: 60, child: Text('Units', style: AppTextStyles.labelLarge))),
+                                DataColumn(label: SizedBox(width: 60, child: Text('Users', style: AppTextStyles.labelLarge))),
+                                DataColumn(label: SizedBox(width: 100, child: Text('Expiry', style: AppTextStyles.labelLarge))),
+                                DataColumn(label: SizedBox(width: 120, child: Text('Created', style: AppTextStyles.labelLarge))),
+                              ],
+                              rows: societies.map<DataRow>((s) {
+                                final plan = s['plan'];
+                                final planName = plan?['displayName'] ?? plan?['name'] ?? 'No Plan';
+                                final status = s['status']?.toString().toUpperCase() ?? '-';
+                                final counts = s['_count'] ?? {};
+                                final isActive = status == 'ACTIVE';
 
-                              return DataRow(cells: [
-                                DataCell(Text(s['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w500))),
-                                DataCell(_PlanBadge(planName: planName)),
-                                DataCell(_StatusBadge(status: isActive ? subStatus : 'INACTIVE')),
-                                DataCell(Text('${counts['units'] ?? 0}')),
-                                DataCell(Text('${counts['users'] ?? 0}')),
-                                DataCell(Text(
-                                  s['createdAt'] != null
-                                      ? DateFormat('dd MMM yyyy').format(DateTime.parse(s['createdAt']))
-                                      : '-',
-                                  style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
-                                )),
-                              ]);
-                            }).toList(),
+                                return DataRow(cells: [
+                                  DataCell(SizedBox(
+                                    width: 160,
+                                    child: Text(s['name'] ?? '',
+                                        style: AppTextStyles.bodyMedium,
+                                        overflow: TextOverflow.ellipsis),
+                                  )),
+                                  DataCell(_PlanBadge(planName: planName)),
+                                  DataCell(_StatusBadge(status: isActive ? 'ACTIVE' : (status == 'SUSPENDED' ? 'SUSPENDED' : status))),
+                                  DataCell(Text('${counts['units'] ?? 0}')),
+                                  DataCell(Text('${counts['users'] ?? 0}')),
+                                  DataCell(Text(
+                                    s['planRenewalDate'] != null
+                                        ? DateFormat('dd MMM yyyy').format(DateTime.parse(s['planRenewalDate']))
+                                        : '-',
+                                    style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
+                                  )),
+                                  DataCell(Text(
+                                    s['createdAt'] != null
+                                        ? DateFormat('dd MMM yyyy').format(DateTime.parse(s['createdAt']))
+                                        : '-',
+                                    style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
+                                  )),
+                                ]);
+                              }).toList(),
+                            ),
                           ),
                         ),
                 ),
@@ -270,11 +285,11 @@ class _StatCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(title,
-                      style: const TextStyle(fontSize: 12, color: AppColors.textMuted, fontWeight: FontWeight.w500),
+                      style: AppTextStyles.labelSmall.copyWith(color: AppColors.textMuted),
                       overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 4),
                   Text(value,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textMain),
+                      style: AppTextStyles.displayMedium,
                       overflow: TextOverflow.ellipsis),
                 ],
               ),
@@ -303,7 +318,18 @@ class _PlanBadge extends StatelessWidget {
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Text(planName, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              planName,
+              style: AppTextStyles.labelMedium.copyWith(color: color),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -317,14 +343,14 @@ class _StatusBadge extends StatelessWidget {
     Color color;
     switch (status) {
       case 'ACTIVE':
-        color = AppColors.secondary;
+        color = AppColors.success;
         break;
       case 'TRIAL':
-        color = const Color(0xFF3B82F6);
+        color = AppColors.info;
         break;
       case 'EXPIRED':
       case 'INACTIVE':
-        color = AppColors.error;
+        color = AppColors.danger;
         break;
       default:
         color = AppColors.textMuted;
@@ -335,7 +361,18 @@ class _StatusBadge extends StatelessWidget {
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Text(status, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              status,
+              style: AppTextStyles.labelMedium.copyWith(color: color),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -347,14 +384,14 @@ class _ErrorCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: AppColors.error.withValues(alpha: 0.05),
+      color: AppColors.dangerSurface,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            const Icon(Icons.error_outline, color: AppColors.error),
+            const Icon(Icons.error_outline, color: AppColors.danger),
             const SizedBox(width: 12),
-            Expanded(child: Text(message, style: const TextStyle(color: AppColors.error))),
+            Expanded(child: Text(message, style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText))),
           ],
         ),
       ),

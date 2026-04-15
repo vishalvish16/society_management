@@ -1,11 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const auth = require('../../middleware/auth-middleware');
+const auth = require('../../middleware/auth');
+const roleGuard = require('../../middleware/roleGuard');
 const c = require('./notices.controller');
 
-router.get('/',    auth, c.getNotices);
-router.post('/',   auth, c.createNotice);
-router.put('/:id', auth, c.updateNotice);
-router.delete('/:id', auth, c.deleteNotice);
+router.use(auth);
+
+router.get('/', c.getNotices);
+router.post('/', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), c.createNotice);
+router.patch('/:id', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), c.updateNotice);
+router.delete('/:id', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), c.deleteNotice);
 
 module.exports = router;

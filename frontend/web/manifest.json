@@ -1,11 +1,11 @@
 {
-    "name": "frontend",
-    "short_name": "frontend",
+    "name": "Vidyron Society",
+    "short_name": "Vidyron",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#ffffff",
+    "theme_color": "#1565C0",
+    "description": "Vidyron Society Management Software",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

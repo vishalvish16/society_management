@@ -28,7 +28,7 @@ async function createGatePass(req, res, next) {
         reason:    reason    || null,
         validFrom: new Date(validFrom),
         validTo:   new Date(validTo),
-        status:    'active',
+        status:    'ACTIVE',
       },
       select: {
         id: true, passCode: true, itemDescription: true, reason: true,
@@ -50,7 +50,7 @@ async function listGatePasses(req, res, next) {
     const { unitId, status, page = 1, limit = 20 } = req.query;
     const where = { societyId };
     if (unitId) where.unitId = unitId;
-    if (status) where.status = status;
+    if (status) where.status = status.toUpperCase();
 
     const [passes, total] = await Promise.all([
       prisma.gatePass.findMany({
@@ -87,13 +87,13 @@ async function scanGatePass(req, res, next) {
     if (gatePass.societyId !== req.user.societyId) return sendError(res, 'Pass not for this society', 403);
 
     const now = new Date();
-    if (gatePass.status !== 'active') return sendError(res, `Gate pass is ${gatePass.status}`, 400);
+    if (gatePass.status !== 'ACTIVE') return sendError(res, `Gate pass is ${gatePass.status}`, 400);
     if (now < new Date(gatePass.validFrom)) return sendError(res, 'Gate pass is not yet valid', 400);
     if (now > new Date(gatePass.validTo))   return sendError(res, 'Gate pass has expired', 400);
 
     const updated = await prisma.gatePass.update({
       where: { id: gatePass.id },
-      data: { status: 'used', scannedById: req.user.id, scannedAt: now },
+      data: { status: 'USED', scannedById: req.user.id, scannedAt: now },
       select: { id: true, passCode: true, status: true, scannedAt: true, itemDescription: true },
     });
 
@@ -110,7 +110,7 @@ async function cancelGatePass(req, res, next) {
 
     const gatePass = await prisma.gatePass.update({
       where: { id, societyId },
-      data: { status: 'cancelled' },
+      data: { status: 'CANCELLED' },
       select: { id: true, passCode: true, status: true },
     });
 
@@ -121,4 +121,32 @@ async function cancelGatePass(req, res, next) {
   }
 }
 
-module.exports = { createGatePass, listGatePasses, scanGatePass, cancelGatePass };
+async function listMyGatePasses(req, res, next) {
+  try {
+    const { societyId, id: userId } = req.user;
+    const { status, page = 1, limit = 20 } = req.query;
+    const where = { societyId, createdById: userId };
+    if (status) where.status = status.toUpperCase();
+
+    const [passes, total] = await Promise.all([
+      prisma.gatePass.findMany({
+        where,
+        select: {
+          id: true, passCode: true, itemDescription: true, reason: true,
+          validFrom: true, validTo: true, status: true, scannedAt: true, createdAt: true,
+          unit: { select: { id: true, fullCode: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (parseInt(page) - 1) * parseInt(limit),
+        take: parseInt(limit),
+      }),
+      prisma.gatePass.count({ where }),
+    ]);
+
+    return sendSuccess(res, { passes, total, page: parseInt(page), limit: parseInt(limit) }, 'Your gate passes retrieved');
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { createGatePass, listGatePasses, listMyGatePasses, scanGatePass, cancelGatePass };

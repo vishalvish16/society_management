@@ -17,8 +17,8 @@ async function getDashboardStats() {
     recentPayments,
   ] = await Promise.all([
     prisma.society.count(),
-    prisma.society.count({ where: { status: 'active' } }),
-    prisma.society.count({ where: { status: 'suspended' } }),
+    prisma.society.count({ where: { status: 'ACTIVE' } }),
+    prisma.society.count({ where: { status: 'SUSPENDED' } }),
     prisma.user.count({ where: { deletedAt: null, isActive: true } }),
     prisma.unit.count(),
     prisma.plan.count({ where: { isActive: true } }),
@@ -39,7 +39,7 @@ async function getDashboardStats() {
   // Plan distribution: count societies per plan
   const planDist = await prisma.society.groupBy({
     by: ['planId'],
-    where: { status: 'active' },
+    where: { status: 'ACTIVE' },
     _count: { id: true },
   });
 
@@ -63,7 +63,7 @@ async function getDashboardStats() {
   const thirtyDaysLater = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
   const expiringSoon = await prisma.society.count({
     where: {
-      status: 'active',
+      status: 'ACTIVE',
       planRenewalDate: { lte: thirtyDaysLater, gte: now },
     },
   });
@@ -158,3 +158,8 @@ async function getRecentSocieties() {
 }
 
 module.exports = { getDashboardStats, getRevenueTrends, getRecentSocieties };
+
+// re-export platform setting helpers so controller only needs one require
+const { getAllSettings, updateSetting } = require('../../utils/platformSettings');
+module.exports.getAllSettings  = getAllSettings;
+module.exports.updateSetting   = updateSetting;

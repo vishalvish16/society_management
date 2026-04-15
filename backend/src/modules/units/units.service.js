@@ -3,11 +3,11 @@ const prisma = require('../../config/db');
 /**
  * List all units in a society with filtering.
  * @param {string} societyId
- * @param {{ wing?: string, floor?: number, status?: string, page?: number, limit?: number }} filters
+ * @param {{ wing?: string, floor?: number, status?: string, page?: number, limit?: number, onlyId?: string }} filters
  * @returns {Promise<{ units: object[], total: number, page: number, limit: number }>}
  */
 async function listUnits(societyId, filters = {}) {
-  const { wing, floor, status, page = 1, limit = 20 } = filters;
+  const { wing, floor, status, page = 1, limit = 20, onlyId } = filters;
   const skip = (page - 1) * limit;
 
   const where = {
@@ -15,15 +15,20 @@ async function listUnits(societyId, filters = {}) {
     deletedAt: null,
   };
 
-  if (wing) where.wing = wing;
-  if (floor) where.floor = parseInt(floor, 10);
-  if (status) where.status = status;
+  // onlyId: restrict to a single specific unit (used for member-locked roles)
+  if (onlyId) {
+    where.id = onlyId;
+  } else {
+    if (wing) where.wing = wing;
+    if (floor) where.floor = parseInt(floor, 10);
+    if (status) where.status = status;
+  }
 
   const [units, total] = await Promise.all([
     prisma.unit.findMany({
       where,
       include: {
-        unitResidents: {
+        residents: {
           include: {
             user: {
               select: { id: true, name: true, phone: true, role: true }
@@ -132,7 +137,7 @@ async function updateUnit(unitId, data, societyId) {
 async function deleteUnit(unitId, societyId) {
   const unit = await prisma.unit.findUnique({ 
     where: { id: unitId },
-    include: { _count: { select: { unitResidents: true } } }
+    include: { _count: { select: { residents: true } } }
   });
 
   if (!unit || unit.deletedAt) {
@@ -143,7 +148,7 @@ async function deleteUnit(unitId, societyId) {
     throw Object.assign(new Error('Cannot delete units outside your society'), { status: 403 });
   }
 
-  if (unit._count.unitResidents > 0) {
+  if (unit._count.residents > 0) {
     throw Object.assign(new Error('Cannot delete an occupied unit. Unassign residents first.'), { status: 400 });
   }
 
@@ -236,11 +241,33 @@ async function removeResident(unitId, userId, societyId) {
   });
 }
 
+async function bulkCreate(societyId, { wing, floor, startUnit, endUnit }) {
+  const units = [];
+  for (let i = startUnit; i <= endUnit; i++) {
+    const unitNumber = i.toString();
+    const fullCode = `${wing || ''}${wing ? '-' : ''}${unitNumber}`;
+    units.push({
+      societyId,
+      wing: wing || null,
+      floor: floor || null,
+      unitNumber,
+      fullCode,
+      status: 'VACANT',
+    });
+  }
+
+  return prisma.unit.createMany({
+    data: units,
+    skipDuplicates: true,
+  });
+}
+
 module.exports = {
   listUnits,
   createUnit,
   updateUnit,
   deleteUnit,
   assignResident,
-  removeResident
+  removeResident,
+  bulkCreate
 };

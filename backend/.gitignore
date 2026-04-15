@@ -3,3 +3,7 @@ node_modules
 .env
 # Runtime infra health data
 data/
+
+# Firebase service account (contains private key — never commit)
+firebase-service-account.json
+society-management-syste-15a8e-firebase-adminsdk-fbsvc-*.json

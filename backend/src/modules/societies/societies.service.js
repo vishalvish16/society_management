@@ -41,8 +41,8 @@ async function listSocieties({ page = 1, limit = 20, search, status }) {
     where.name = { contains: search, mode: 'insensitive' };
   }
 
-  if (status === 'active') where.status = 'active';
-  if (status === 'inactive') where.status = 'suspended';
+  if (status === 'active') where.status = 'ACTIVE';
+  if (status === 'inactive') where.status = 'SUSPENDED';
 
   const [societies, total] = await Promise.all([
     prisma.society.findMany({
@@ -81,7 +81,7 @@ async function getSocietyById(id) {
       _count: { select: { users: true, units: true } },
       plan: { select: { id: true, name: true, displayName: true, priceMonthly: true, priceYearly: true, features: true } },
       users: {
-        where: { role: 'PRAMUKH', deletedAt: null },
+        where: { role: { in: ['PRAMUKH', 'CHAIRMAN'] }, deletedAt: null },
         select: USER_SELECT_NO_PASSWORD,
         take: 1,
       },
@@ -94,18 +94,18 @@ async function getSocietyById(id) {
     ...society,
     unitCount: society._count.units,
     userCount: society._count.users,
-    pramukh: society.users[0] || null,
+    chairman: society.users[0] || null,
     _count: undefined,
     users: undefined,
   };
 }
 
 /**
- * Create a society with optional pramukh user.
- * @param {{ name: string, address?: string, city?: string, contactPhone?: string, contactEmail?: string, planName?: string, pramukh?: { name: string, phone: string, email?: string, password: string } }} data
+ * Create a society with optional chairman user.
+ * @param {{ name: string, address?: string, city?: string, contactPhone?: string, contactEmail?: string, planName?: string, trialDays?: number, settings?: any, chairman?: { name: string, phone: string, email?: string, password: string } }} data
  */
 async function createSociety(data) {
-  const { name, address, city, contactPhone, contactEmail, planName, pramukh } = data;
+  const { name, address, city, contactPhone, contactEmail, planName, chairman, trialDays, settings } = data;
 
   return prisma.$transaction(async (tx) => {
     // Find plan
@@ -120,7 +120,10 @@ async function createSociety(data) {
     }
 
     const now = new Date();
-    const renewalDate = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    let renewalDate = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    if (trialDays && Number.isFinite(Number(trialDays)) && Number(trialDays) > 0) {
+      renewalDate = new Date(now.getTime() + Number(trialDays) * 24 * 60 * 60 * 1000);
+    }
 
     // 1. Create society
     const society = await tx.society.create({
@@ -133,29 +136,30 @@ async function createSociety(data) {
         planId: plan.id,
         planStartDate: now,
         planRenewalDate: renewalDate,
-        status: 'active',
+        status: 'ACTIVE',
+        settings: settings ?? undefined,
       },
       select: { ...SOCIETY_SELECT, plan: { select: { id: true, name: true, displayName: true } } },
     });
 
-    let pramukhUser = null;
-    // 2. Create pramukh user if provided
-    if (pramukh) {
-      const passwordHash = await bcrypt.hash(pramukh.password, SALT_ROUNDS);
-      pramukhUser = await tx.user.create({
+    let chairmanUser = null;
+    // 2. Create chairman user if provided
+    if (chairman) {
+      const passwordHash = await bcrypt.hash(chairman.password, SALT_ROUNDS);
+      chairmanUser = await tx.user.create({
         data: {
           societyId: society.id,
           role: 'PRAMUKH',
-          name: pramukh.name,
-          phone: pramukh.phone,
-          email: pramukh.email || null,
+          name: chairman.name,
+          phone: chairman.phone,
+          email: chairman.email || null,
           passwordHash,
         },
         select: USER_SELECT_NO_PASSWORD,
       });
     }
 
-    return { society, pramukh: pramukhUser };
+    return { society, chairman: chairmanUser };
   });
 }
 
@@ -175,8 +179,8 @@ async function updateSociety(id, data) {
 
   // Handle plan change
   if (data.planName) {
-    const plan = await prisma.plan.findUnique({ where: { name: data.planName } });
-    if (!plan) throw Object.assign(new Error('Plan not found'), { status: 400 });
+    const plan = await prisma.plan.findUnique({ where: { name: data.planName.toLowerCase() } });
+    if (!plan) throw Object.assign(new Error(`Plan '${data.planName}' not found. Run database seed first.`), { status: 400 });
     updateData.planId = plan.id;
     updateData.planStartDate = new Date();
     const renewal = new Date();
@@ -199,7 +203,7 @@ async function deactivateSociety(id) {
   return prisma.$transaction(async (tx) => {
     const society = await tx.society.update({
       where: { id },
-      data: { status: 'suspended' },
+      data: { status: 'SUSPENDED' },
       select: { id: true, name: true, status: true },
     });
 
@@ -212,14 +216,14 @@ async function deactivateSociety(id) {
   });
 }
 
-module.exports = { listSocieties, getSocietyById, createSociety, updateSociety, deactivateSociety, toggleSocietyStatus, resetPramukhPassword };
+module.exports = { listSocieties, getSocietyById, createSociety, updateSociety, deactivateSociety, toggleSocietyStatus, resetChairmanPassword, upsertSocietyChairman };
 
 async function toggleSocietyStatus(id) {
   return prisma.$transaction(async (tx) => {
     const current = await tx.society.findUnique({ where: { id }, select: { status: true } });
     if (!current) throw Object.assign(new Error('Society not found'), { status: 404 });
 
-    const newStatus = current.status === 'active' ? 'suspended' : 'active';
+    const newStatus = current.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
     const society = await tx.society.update({
       where: { id },
       data: { status: newStatus },
@@ -228,24 +232,97 @@ async function toggleSocietyStatus(id) {
 
     await tx.user.updateMany({
       where: { societyId: id, deletedAt: null },
-      data: { isActive: newStatus === 'active' },
+      data: { isActive: newStatus === 'ACTIVE' },
     });
 
     return society;
   });
 }
 
-async function resetPramukhPassword(id, newPassword) {
-  if (!newPassword || newPassword.length < 8) {
-    throw Object.assign(new Error('Password must be at least 8 characters'), { status: 400 });
+function _generatePassword(length = 10) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
+  let out = '';
+  for (let i = 0; i < length; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  return out;
+}
+
+async function resetChairmanPassword(id, newPassword, newName, mode) {
+  const autoMode = String(mode || '').toLowerCase() === 'auto';
+  if (!newName && !newPassword && !autoMode) {
+    throw Object.assign(new Error('At least name or password is required'), { status: 400 });
   }
-  const pramukh = await prisma.user.findFirst({
-    where: { societyId: id, role: 'PRAMUKH', deletedAt: null },
+
+  const chairman = await prisma.user.findFirst({
+    where: { societyId: id, role: { in: ['PRAMUKH', 'CHAIRMAN'] }, deletedAt: null },
     select: { id: true },
   });
-  if (!pramukh) throw Object.assign(new Error('No Pramukh user found for this society'), { status: 404 });
+  if (!chairman) throw Object.assign(new Error('No Chairman user found for this society'), { status: 404 });
 
-  const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
-  await prisma.user.update({ where: { id: pramukh.id }, data: { passwordHash } });
-  return { message: 'Password reset successfully' };
+  const data = {};
+  if (newName) data.name = newName;
+  let effectivePassword = newPassword;
+  if (autoMode && (!effectivePassword || String(effectivePassword).trim().isEmpty)) {
+    effectivePassword = _generatePassword(10);
+  }
+  if (effectivePassword) {
+    if (String(effectivePassword).length < 8) {
+      throw Object.assign(new Error('Password must be at least 8 characters'), { status: 400 });
+    }
+    data.passwordHash = await bcrypt.hash(String(effectivePassword), SALT_ROUNDS);
+  }
+
+  await prisma.user.update({ where: { id: chairman.id }, data });
+  // Intentionally do not return the generated password for security.
+  return { message: autoMode ? 'Chairman password auto-reset successfully' : 'Chairman updated successfully' };
+}
+
+async function upsertSocietyChairman(societyId, input) {
+  const { name, phone, email, password } = input || {};
+  if (!name || !phone) {
+    throw Object.assign(new Error('Chairman name and phone are required'), { status: 400 });
+  }
+
+  const society = await prisma.society.findUnique({ where: { id: societyId }, select: { id: true } });
+  if (!society) throw Object.assign(new Error('Society not found'), { status: 404 });
+
+  const existing = await prisma.user.findFirst({
+    where: { societyId, role: { in: ['PRAMUKH', 'CHAIRMAN'] }, deletedAt: null },
+    select: { id: true },
+  });
+
+  const data = {
+    name,
+    phone,
+    email: email || null,
+  };
+
+  if (password) {
+    if (password.length < 8) {
+      throw Object.assign(new Error('Password must be at least 8 characters'), { status: 400 });
+    }
+    data.passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+  }
+
+  if (existing) {
+    await prisma.user.update({ where: { id: existing.id }, data });
+    return { message: 'Chairman updated successfully' };
+  }
+
+  if (!password) {
+    throw Object.assign(new Error('Password is required to create chairman'), { status: 400 });
+  }
+
+  await prisma.user.create({
+    data: {
+      societyId,
+      role: 'PRAMUKH',
+      name,
+      phone,
+      email: email || null,
+      passwordHash: data.passwordHash,
+    },
+    select: USER_SELECT_NO_PASSWORD,
+  });
+
+  return { message: 'Chairman created successfully' };
 }

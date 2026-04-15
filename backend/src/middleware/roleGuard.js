@@ -3,7 +3,7 @@ const { sendError } = require('../utils/response');
 /**
  * Role-based access control middleware factory.
  * Returns middleware that checks whether req.user.role is in the allowed list.
- * @param {...string} roles - Allowed roles (e.g. 'PRAMUKH', 'SECRETARY')
+ * @param {...string} roles - Allowed roles (e.g. 'CHAIRMAN', 'SECRETARY')
  * @returns {import('express').RequestHandler}
  */
 function roleGuard(...roles) {

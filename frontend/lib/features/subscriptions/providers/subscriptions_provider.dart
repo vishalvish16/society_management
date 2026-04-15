@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/dio_client.dart';
+import '../../superadmin/providers/dashboard_provider.dart';
 
 class SubscriptionsState {
   final List<Map<String, dynamic>> subscriptions;
@@ -34,9 +35,15 @@ class SubscriptionsState {
 }
 
 class SubscriptionsNotifier extends StateNotifier<SubscriptionsState> {
-  SubscriptionsNotifier() : super(const SubscriptionsState());
+  final Ref _ref;
+  SubscriptionsNotifier(this._ref) : super(const SubscriptionsState());
 
   final _client = DioClient();
+
+  void _invalidateDashboard() {
+    _ref.invalidate(dashboardProvider);
+    _ref.invalidate(recentSocietiesProvider);
+  }
 
   Future<void> loadSubscriptions({int page = 1, String? status, String? societyId}) async {
     state = state.copyWith(isLoading: true, error: null);
@@ -63,16 +70,18 @@ class SubscriptionsNotifier extends StateNotifier<SubscriptionsState> {
     try {
       await _client.dio.post('/subscriptions', data: data);
       await loadSubscriptions(page: state.page);
+      _invalidateDashboard();
       return true;
     } catch (_) {
       return false;
     }
   }
 
-  Future<bool> renewSubscription(String id) async {
+  Future<bool> renewSubscription(String id, Map<String, dynamic> data) async {
     try {
-      await _client.dio.post('/subscriptions/$id/renew');
+      await _client.dio.post('/subscriptions/$id/renew', data: data);
       await loadSubscriptions(page: state.page);
+      _invalidateDashboard();
       return true;
     } catch (_) {
       return false;
@@ -83,6 +92,7 @@ class SubscriptionsNotifier extends StateNotifier<SubscriptionsState> {
     try {
       await _client.dio.post('/subscriptions/$id/cancel', data: {'reason': reason});
       await loadSubscriptions(page: state.page);
+      _invalidateDashboard();
       return true;
     } catch (_) {
       return false;
@@ -91,5 +101,5 @@ class SubscriptionsNotifier extends StateNotifier<SubscriptionsState> {
 }
 
 final subscriptionsProvider = StateNotifierProvider<SubscriptionsNotifier, SubscriptionsState>((ref) {
-  return SubscriptionsNotifier();
+  return SubscriptionsNotifier(ref);
 });

@@ -28,21 +28,21 @@ async function getSociety(req, res, next) {
 
 async function createSociety(req, res, next) {
   try {
-    const { name, address, city, contactPhone, contactEmail, planName, pramukh } = req.body;
+    const { name, address, city, contactPhone, contactEmail, planName, chairman, trialDays, settings } = req.body;
 
     if (!name) return sendError(res, 'Society name is required', 400);
 
-    if (pramukh) {
-      if (!pramukh.name || !pramukh.phone || !pramukh.password) {
-        return sendError(res, 'Pramukh name, phone, and password are required', 400);
+    if (chairman) {
+      if (!chairman.name || !chairman.phone || !chairman.password) {
+        return sendError(res, 'Chairman name, phone, and password are required', 400);
       }
-      if (pramukh.password.length < 8) {
+      if (chairman.password.length < 8) {
         return sendError(res, 'Password must be at least 8 characters', 400);
       }
     }
 
     const result = await societiesService.createSociety({
-      name, address, city, contactPhone, contactEmail, planName, pramukh,
+      name, address, city, contactPhone, contactEmail, planName, chairman, trialDays, settings,
     });
     return sendSuccess(res, result, 'Society created successfully', 201);
   } catch (err) {
@@ -77,7 +77,7 @@ async function deactivateSociety(req, res, next) {
   }
 }
 
-module.exports = { listSocieties, getSociety, createSociety, updateSociety, deactivateSociety, toggleSocietyStatus, resetSocietyPassword };
+module.exports = { listSocieties, getSociety, createSociety, updateSociety, deactivateSociety, toggleSocietyStatus, resetChairmanPassword, upsertChairman, getSocietySettings, updateSocietySettings };
 
 async function toggleSocietyStatus(req, res, next) {
   try {
@@ -89,11 +89,64 @@ async function toggleSocietyStatus(req, res, next) {
   }
 }
 
-async function resetSocietyPassword(req, res, next) {
+async function resetChairmanPassword(req, res, next) {
   try {
-    const { password } = req.body;
-    const result = await societiesService.resetPramukhPassword(req.params.id, password);
-    return sendSuccess(res, result, 'Pramukh password reset');
+    const { password, name, mode } = req.body;
+    const result = await societiesService.resetChairmanPassword(req.params.id, password, name, mode);
+    return sendSuccess(res, result, 'Chairman updated successfully');
+  } catch (err) {
+    if (err.status) return sendError(res, err.message, err.status);
+    next(err);
+  }
+}
+
+async function getSocietySettings(req, res, next) {
+  try {
+    const society = await societiesService.getSocietyById(req.params.id);
+    if (!society) return sendError(res, 'Society not found', 404);
+    return sendSuccess(res, society.settings ?? {}, 'Society settings retrieved');
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function updateSocietySettings(req, res, next) {
+  try {
+    const { visitor_qr_max_hrs } = req.body;
+    const patch = {};
+
+    if (visitor_qr_max_hrs !== undefined) {
+      const n = parseInt(visitor_qr_max_hrs, 10);
+      if (isNaN(n) || n < 1) return sendError(res, 'visitor_qr_max_hrs must be a positive integer', 400);
+      patch.visitor_qr_max_hrs = String(n);
+    }
+
+    // Merge with existing settings
+    const existing = await societiesService.getSocietyById(req.params.id);
+    if (!existing) return sendError(res, 'Society not found', 404);
+
+    const merged = { ...(existing.settings ?? {}), ...patch };
+    const updated = await societiesService.updateSociety(req.params.id, { settings: merged });
+    return sendSuccess(res, updated.settings ?? {}, 'Society settings updated');
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function upsertChairman(req, res, next) {
+  try {
+    const { name, phone, email, password } = req.body;
+    if (!name || !phone) return sendError(res, 'Chairman name and phone are required', 400);
+    if (password && password.length < 8) {
+      return sendError(res, 'Password must be at least 8 characters', 400);
+    }
+    const result = await societiesService.upsertSocietyChairman(req.params.id, {
+      name,
+      phone,
+      email,
+      password,
+    });
+    return sendSuccess(res, result, 'Chairman saved');
   } catch (err) {
     if (err.status) return sendError(res, err.message, err.status);
     next(err);

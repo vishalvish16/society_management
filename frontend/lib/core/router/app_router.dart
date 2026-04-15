@@ -5,6 +5,7 @@ import '../../features/auth/screens/forgot_password_screen.dart';
 import '../../features/dashboard/screens/dashboard_screen.dart';
 import '../../features/dashboard/screens/super_admin_dashboard.dart';
 import '../../features/superadmin/screens/sa_dashboard_screen.dart';
+import '../../features/superadmin/screens/sa_platform_settings_screen.dart';
 import '../../features/members/screens/members_screen.dart';
 import '../../features/bills/screens/bills_screen.dart';
 import '../../features/expenses/screens/expenses_screen.dart';
@@ -22,6 +23,7 @@ import '../../features/plans/screens/plans_screen.dart';
 import '../../features/societies/screens/societies_screen.dart';
 import '../../features/units/screens/units_screen.dart';
 import '../../features/subscriptions/screens/subscriptions_screen.dart';
+import '../../features/subscriptions/screens/subscription_report_screen.dart';
 import '../../features/settings/screens/settings_screen.dart';
 import '../widgets/sa_shell.dart';
 import '../widgets/sm_shell.dart';
@@ -43,12 +45,14 @@ final appRouter = GoRouter(
         GoRoute(path: '/sa/societies',     builder: (c, s) => SocietiesScreen()),
         GoRoute(path: '/sa/plans',         builder: (c, s) => PlansScreen()),
         GoRoute(path: '/sa/subscriptions', builder: (c, s) => SubscriptionsScreen()),
-        GoRoute(path: '/sa/settings',      builder: (c, s) => SettingsScreen()),
-        GoRoute(path: '/superadmin',       builder: (c, s) => SuperAdminDashboard()),
+        GoRoute(path: '/sa/subscriptions/report', builder: (c, s) => SubscriptionReportScreen()),
+        GoRoute(path: '/sa/settings',          builder: (c, s) => SettingsScreen()),
+        GoRoute(path: '/sa/platform-settings', builder: (c, s) => const SaPlatformSettingsScreen()),
+        GoRoute(path: '/superadmin',           builder: (c, s) => SuperAdminDashboard()),
       ],
     ),
 
-    // ── Pramukh / Secretary / Society routes (SMShell sidebar) ────
+    // ── Chairman / Secretary / Society routes (SMShell sidebar) ────
     ShellRoute(
       builder: (context, state, child) => SMShell(child: child),
       routes: [

@@ -8,12 +8,16 @@ const router = Router();
 // Bill routes (all protected)
 router.use(authMiddleware);
 
-// Publicly available (to valid residents of the society)
-router.get('/', billsController.getBills);
-router.get('/:id', billsController.getBillById);
+// Any authenticated user — returns bills for their own units
+router.get('/mine', billsController.getMyBills);
 
-// Admin-only (PRAMUKH, SECRETARY)
-router.post('/generate', roleGuard(['PRAMUKH', 'SECRETARY']), billsController.bulkGenerate);
-router.post('/:id/pay', roleGuard(['PRAMUKH', 'SECRETARY']), billsController.recordPayment);
+// Admin-only
+router.get('/defaulters', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), billsController.getDefaulters);
+router.get('/', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), billsController.getBills);
+router.post('/generate', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), billsController.bulkGenerate);
+
+// Any authenticated user can pay their own bill (service enforces ownership)
+router.post('/:id/pay', billsController.recordPayment);
+router.get('/:id', billsController.getBillById);
 
 module.exports = router;

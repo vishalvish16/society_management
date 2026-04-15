@@ -10,6 +10,7 @@ router.use(authMiddleware);
 router.use(roleGuard('SUPER_ADMIN'));
 
 router.get('/', subscriptionsController.listSubscriptions);
+router.get('/report', subscriptionsController.getSubscriptionReport);
 router.get('/:id', subscriptionsController.getSubscription);
 router.post('/', subscriptionsController.assignPlan);
 router.post('/:id/renew', subscriptionsController.renewSubscription);

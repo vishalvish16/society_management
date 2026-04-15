@@ -16,7 +16,7 @@ class _SMShellState extends ConsumerState<SMShell> {
   int _selectedIndex = 0;
   final _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  // Full nav for Pramukh / Secretary
+  // Full nav for Chairman / Secretary / Manager
   static const _allNavItems = [
     _NavItem(icon: Icons.dashboard_rounded,              label: 'Dashboard',     path: '/dashboard',     group: 'Main'),
     _NavItem(icon: Icons.apartment_rounded,              label: 'Units',         path: '/units',         group: 'Main'),
@@ -36,34 +36,43 @@ class _SMShellState extends ConsumerState<SMShell> {
     _NavItem(icon: Icons.settings_rounded,               label: 'Settings',      path: '/settings',      group: 'More'),
   ];
 
+  // Paths hidden for member/resident roles — they see their unit in sidebar instead
+  static const _memberHiddenPaths = {'/units'};
+
   // Bottom nav shows the most-used 5 items on mobile
   static const _mobileBottomItems = [
-    _NavItem(icon: Icons.dashboard_rounded,    label: 'Home',      path: '/dashboard'),
-    _NavItem(icon: Icons.people_rounded,       label: 'Members',   path: '/members'),
-    _NavItem(icon: Icons.receipt_long_rounded, label: 'Bills',     path: '/bills'),
+    _NavItem(icon: Icons.dashboard_rounded,      label: 'Home',    path: '/dashboard'),
+    _NavItem(icon: Icons.people_rounded,         label: 'Members', path: '/members'),
+    _NavItem(icon: Icons.receipt_long_rounded,   label: 'Bills',   path: '/bills'),
     _NavItem(icon: Icons.report_problem_rounded, label: 'Issues',  path: '/complaints'),
-    _NavItem(icon: Icons.menu_rounded,         label: 'More',      path: '__menu__'),
+    _NavItem(icon: Icons.menu_rounded,           label: 'More',    path: '__menu__'),
   ];
 
-  void _onNavTap(int index) {
-    final path = _allNavItems[index].path;
+  List<_NavItem> _visibleNavItems(bool isUnitLocked) {
+    if (!isUnitLocked) return _allNavItems;
+    return _allNavItems.where((n) => !_memberHiddenPaths.contains(n.path)).toList();
+  }
+
+  void _onNavTap(int index, List<_NavItem> navItems) {
+    final path = navItems[index].path;
     setState(() => _selectedIndex = index);
     context.go(path);
   }
 
-  void _onMobileBottomTap(int index) {
+  void _onMobileBottomTap(int index, List<_NavItem> navItems) {
     final item = _mobileBottomItems[index];
     if (item.path == '__menu__') {
       _scaffoldKey.currentState?.openDrawer();
       return;
     }
-    final mainIndex = _allNavItems.indexWhere((n) => n.path == item.path);
+    final mainIndex = navItems.indexWhere((n) => n.path == item.path);
     if (mainIndex >= 0) setState(() => _selectedIndex = mainIndex);
     context.go(item.path);
   }
 
-  int get _mobileBottomIndex {
-    final currentPath = _allNavItems[_selectedIndex].path;
+  int _mobileBottomIndex(List<_NavItem> navItems) {
+    if (_selectedIndex >= navItems.length) return 4;
+    final currentPath = navItems[_selectedIndex].path;
     final idx = _mobileBottomItems.indexWhere((i) => i.path == currentPath);
     return idx >= 0 ? idx : 4; // fallback to "More"
   }
@@ -71,10 +80,13 @@ class _SMShellState extends ConsumerState<SMShell> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final authState = ref.read(authProvider);
+    final isUnitLocked = authState.user?.isUnitLocked ?? false;
+    final navItems = _visibleNavItems(isUnitLocked);
     final location = GoRouterState.of(context).uri.toString();
-    for (int i = 0; i < _allNavItems.length; i++) {
-      if (location == _allNavItems[i].path ||
-          (location.startsWith(_allNavItems[i].path) && _allNavItems[i].path != '/')) {
+    for (int i = 0; i < navItems.length; i++) {
+      if (location == navItems[i].path ||
+          (location.startsWith(navItems[i].path) && navItems[i].path != '/')) {
         if (_selectedIndex != i) setState(() => _selectedIndex = i);
         break;
       }
@@ -84,11 +96,14 @@ class _SMShellState extends ConsumerState<SMShell> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    final isUnitLocked = authState.user?.isUnitLocked ?? false;
+    final navItems = _visibleNavItems(isUnitLocked);
+    final safeIndex = _selectedIndex.clamp(0, navItems.length - 1);
     final isWide = MediaQuery.of(context).size.width >= 900;
 
     return Scaffold(
       key: _scaffoldKey,
-      drawer: isWide ? null : _buildDrawer(authState),
+      drawer: isWide ? null : _buildDrawer(authState, navItems, isUnitLocked),
       // Mobile top app bar with hamburger
       appBar: isWide
           ? null
@@ -100,9 +115,36 @@ class _SMShellState extends ConsumerState<SMShell> {
                 icon: const Icon(Icons.menu_rounded),
                 onPressed: () => _scaffoldKey.currentState?.openDrawer(),
               ),
-              title: Text(
-                _allNavItems[_selectedIndex].label,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              title: Row(
+                children: [
+                  Text(
+                    navItems[safeIndex].label,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  // Unit chip for member/resident in the AppBar
+                  if (isUnitLocked && authState.user?.unitCode != null) ...[
+                    const SizedBox(width: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.5)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.apartment_rounded, size: 11, color: AppColors.primaryLight),
+                          const SizedBox(width: 4),
+                          Text(
+                            authState.user!.unitCode!,
+                            style: const TextStyle(fontSize: 11, color: AppColors.primaryLight, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
               ),
               actions: [
                 IconButton(
@@ -120,15 +162,15 @@ class _SMShellState extends ConsumerState<SMShell> {
             ),
       body: Row(
         children: [
-          if (isWide) _buildSidebar(authState),
+          if (isWide) _buildSidebar(authState, navItems, isUnitLocked),
           Expanded(child: widget.child),
         ],
       ),
       bottomNavigationBar: isWide
           ? null
           : NavigationBar(
-              selectedIndex: _mobileBottomIndex,
-              onDestinationSelected: _onMobileBottomTap,
+              selectedIndex: _mobileBottomIndex(navItems),
+              onDestinationSelected: (i) => _onMobileBottomTap(i, navItems),
               height: 64,
               destinations: _mobileBottomItems
                   .map((item) => NavigationDestination(
@@ -142,10 +184,10 @@ class _SMShellState extends ConsumerState<SMShell> {
 
   // ── Desktop sidebar ──────────────────────────────────────────────
 
-  Widget _buildSidebar(AuthState authState) {
+  Widget _buildSidebar(AuthState authState, List<_NavItem> navItems, bool isUnitLocked) {
     final groups = <String, List<int>>{};
-    for (int i = 0; i < _allNavItems.length; i++) {
-      groups.putIfAbsent(_allNavItems[i].group ?? '', () => []).add(i);
+    for (int i = 0; i < navItems.length; i++) {
+      groups.putIfAbsent(navItems[i].group ?? '', () => []).add(i);
     }
 
     return Container(
@@ -187,6 +229,43 @@ class _SMShellState extends ConsumerState<SMShell> {
               ],
             ),
           ),
+          // Unit badge for member/resident users
+          if (isUnitLocked && authState.user?.unitCode != null)
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 28, height: 28,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Icon(Icons.apartment_rounded, color: AppColors.primaryLight, size: 14),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('My Unit',
+                            style: TextStyle(color: Color(0xFF94A3B8), fontSize: 10, fontWeight: FontWeight.w600)),
+                        Text(
+                          authState.user!.unitCode!,
+                          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           const Divider(color: Color(0xFF1E293B), height: 1),
 
           // Nav groups
@@ -212,7 +291,7 @@ class _SMShellState extends ConsumerState<SMShell> {
                             ),
                           ),
                         ),
-                      ...entry.value.map((i) => _sidebarItem(i)),
+                      ...entry.value.map((i) => _sidebarItem(i, navItems)),
                     ],
                   );
                 }).toList(),
@@ -263,8 +342,8 @@ class _SMShellState extends ConsumerState<SMShell> {
     );
   }
 
-  Widget _sidebarItem(int i) {
-    final item = _allNavItems[i];
+  Widget _sidebarItem(int i, List<_NavItem> navItems) {
+    final item = navItems[i];
     final isSelected = _selectedIndex == i;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 1),
@@ -273,7 +352,7 @@ class _SMShellState extends ConsumerState<SMShell> {
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
           borderRadius: BorderRadius.circular(8),
-          onTap: () => _onNavTap(i),
+          onTap: () => _onNavTap(i, navItems),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
@@ -298,7 +377,7 @@ class _SMShellState extends ConsumerState<SMShell> {
 
   // ── Mobile drawer (full nav) ─────────────────────────────────────
 
-  Widget _buildDrawer(AuthState authState) {
+  Widget _buildDrawer(AuthState authState, List<_NavItem> navItems, bool isUnitLocked) {
     return Drawer(
       backgroundColor: const Color(0xFF0F172A),
       child: SafeArea(
@@ -338,20 +417,57 @@ class _SMShellState extends ConsumerState<SMShell> {
                 ],
               ),
             ),
+            // Unit badge in drawer for member/resident
+            if (isUnitLocked && authState.user?.unitCode != null)
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 28, height: 28,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Icon(Icons.apartment_rounded, color: AppColors.primaryLight, size: 14),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('My Unit',
+                              style: TextStyle(color: Color(0xFF94A3B8), fontSize: 10, fontWeight: FontWeight.w600)),
+                          Text(
+                            authState.user!.unitCode!,
+                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             const Divider(color: Color(0xFF1E293B), height: 1),
 
             // Nav items
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: _allNavItems.length,
+                itemCount: navItems.length,
                 itemBuilder: (ctx, i) {
-                  final item = _allNavItems[i];
+                  final item = navItems[i];
                   final isSelected = _selectedIndex == i;
 
                   // Group header
                   final showGroupHeader = i == 0 ||
-                      _allNavItems[i].group != _allNavItems[i - 1].group;
+                      navItems[i].group != navItems[i - 1].group;
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -385,7 +501,7 @@ class _SMShellState extends ConsumerState<SMShell> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         onTap: () {
                           Navigator.pop(context); // close drawer
-                          _onNavTap(i);
+                          _onNavTap(i, navItems);
                         },
                       ),
                     ],

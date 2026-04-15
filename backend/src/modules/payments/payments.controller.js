@@ -1,0 +1,158 @@
+const Razorpay = require('razorpay');
+const crypto = require('crypto');
+const prisma = require('../../config/db');
+const { sendSuccess, sendError } = require('../../utils/response');
+
+/**
+ * Get the Razorpay instance configured with the society's keys.
+ * Returns null if not configured.
+ */
+async function getRazorpayForSociety(societyId) {
+  const society = await prisma.society.findUnique({
+    where: { id: societyId },
+    select: { settings: true },
+  });
+  const settings = society?.settings || {};
+  const keyId = settings.razorpayKeyId;
+  const keySecret = settings.razorpayKeySecret;
+  if (!keyId || !keySecret) return null;
+  return new Razorpay({ key_id: keyId, key_secret: keySecret });
+}
+
+/**
+ * GET /api/payments/config
+ * Returns the public key_id and active gateway for the client.
+ * Safe to expose — key_secret is never sent.
+ */
+async function getPaymentConfig(req, res) {
+  try {
+    const society = await prisma.society.findUnique({
+      where: { id: req.user.societyId },
+      select: { settings: true },
+    });
+    const settings = society?.settings || {};
+    return sendSuccess(res, {
+      activeGateway: settings.activeGateway || null,
+      razorpayKeyId: settings.razorpayKeyId || null,
+      // never send razorpayKeySecret
+    }, 'Payment config retrieved');
+  } catch (err) {
+    return sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * POST /api/payments/create-order
+ * Creates a Razorpay order for a bill.
+ * Body: { billId }
+ */
+async function createOrder(req, res) {
+  try {
+    const { billId } = req.body;
+    if (!billId) return sendError(res, 'billId is required', 400);
+
+    const bill = await prisma.maintenanceBill.findUnique({
+      where: { id: billId },
+      include: { unit: { select: { fullCode: true } } },
+    });
+
+    if (!bill) return sendError(res, 'Bill not found', 404);
+    if (bill.societyId !== req.user.societyId)
+      return sendError(res, 'Access denied', 403);
+    if (bill.status === 'PAID') return sendError(res, 'Bill is already paid', 400);
+
+    const remaining = Number(bill.totalDue) - Number(bill.paidAmount);
+    if (remaining <= 0) return sendError(res, 'No outstanding amount', 400);
+
+    const razorpay = await getRazorpayForSociety(req.user.societyId);
+    if (!razorpay)
+      return sendError(res, 'Payment gateway not configured. Contact your admin.', 400);
+
+    const order = await razorpay.orders.create({
+      amount: Math.round(remaining * 100), // paise
+      currency: 'INR',
+      receipt: `bill_${billId.slice(0, 20)}`,
+      notes: {
+        billId,
+        unitCode: bill.unit?.fullCode ?? '',
+        societyId: req.user.societyId,
+      },
+    });
+
+    return sendSuccess(res, {
+      orderId: order.id,
+      amount: order.amount,        // in paise
+      currency: order.currency,
+      billId,
+      remaining,
+    }, 'Order created');
+  } catch (err) {
+    console.error('Create order error:', err.message);
+    return sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * POST /api/payments/verify
+ * Verifies Razorpay signature and records the payment.
+ * Body: { billId, razorpayOrderId, razorpayPaymentId, razorpaySignature, paidAmount }
+ */
+async function verifyPayment(req, res) {
+  try {
+    const { billId, razorpayOrderId, razorpayPaymentId, razorpaySignature, paidAmount } = req.body;
+
+    if (!billId || !razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+      return sendError(res, 'Missing payment verification fields', 400);
+    }
+
+    // Fetch the society's key secret for signature verification
+    const society = await prisma.society.findUnique({
+      where: { id: req.user.societyId },
+      select: { settings: true },
+    });
+    const keySecret = society?.settings?.razorpayKeySecret;
+    if (!keySecret) return sendError(res, 'Payment gateway not configured', 400);
+
+    // Verify HMAC signature
+    const expectedSignature = crypto
+      .createHmac('sha256', keySecret)
+      .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+      .digest('hex');
+
+    if (expectedSignature !== razorpaySignature) {
+      return sendError(res, 'Payment verification failed — invalid signature', 400);
+    }
+
+    // Signature valid — record the payment
+    const bill = await prisma.maintenanceBill.findUnique({ where: { id: billId } });
+    if (!bill) return sendError(res, 'Bill not found', 404);
+    if (bill.societyId !== req.user.societyId) return sendError(res, 'Access denied', 403);
+
+    const amount = paidAmount ? Number(paidAmount) : (Number(bill.totalDue) - Number(bill.paidAmount));
+    const newPaidAmount = Number(bill.paidAmount) + amount;
+    const remaining = Number(bill.totalDue) - newPaidAmount;
+    const newStatus = remaining <= 0 ? 'PAID' : 'PARTIAL';
+
+    const updated = await prisma.maintenanceBill.update({
+      where: { id: billId },
+      data: {
+        paidAmount: newPaidAmount,
+        paidAt: new Date(),
+        paymentMethod: 'ONLINE',
+        notes: `Razorpay | Order: ${razorpayOrderId} | Payment: ${razorpayPaymentId}`,
+        status: newStatus,
+      },
+    });
+
+    return sendSuccess(res, {
+      bill: updated,
+      razorpayPaymentId,
+      razorpayOrderId,
+    }, 'Payment verified and recorded');
+  } catch (err) {
+    console.error('Verify payment error:', err.message);
+    return sendError(res, err.message, 500);
+  }
+}
+
+module.exports = { getPaymentConfig, createOrder, verifyPayment };

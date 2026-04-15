@@ -28,7 +28,7 @@ function checkPlanLimit(feature) {
         },
       });
 
-      if (!society || society.status !== 'active') {
+      if (!society || society.status !== 'ACTIVE') {
         return sendError(res, 'Society is not active. Please contact your administrator.', 403);
       }
 

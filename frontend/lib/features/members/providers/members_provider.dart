@@ -1,4 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
+import '../../../core/providers/dio_provider.dart';
+import '../../../core/providers/auth_provider.dart';
 
 class Member {
   final String id;
@@ -6,29 +9,163 @@ class Member {
   final String phone;
   final String? email;
   final String role;
-  final String unit;
+  final String? unitId;
+  final String unitCode;
+  final bool isActive;
 
-  const Member({required this.id, required this.name, required this.phone,
-    this.email, required this.role, required this.unit});
+  const Member({
+    required this.id,
+    required this.name,
+    required this.phone,
+    this.email,
+    required this.role,
+    this.unitId,
+    required this.unitCode,
+    required this.isActive,
+  });
 
-  factory Member.fromJson(Map<String, dynamic> j) => Member(
-    id: j['id'] ?? '',
-    name: j['name'] ?? '',
-    phone: j['phone'] ?? '',
-    email: j['email'],
-    role: j['role'] ?? 'resident',
-    unit: (j['unitResidents'] as List?)?.isNotEmpty == true
-        ? (j['unitResidents'][0]['unit']?['fullCode'] ?? '')
-        : '',
-  );
+  factory Member.fromJson(Map<String, dynamic> j) {
+    final unitResident = (j['unitResidents'] as List?)?.isNotEmpty == true
+        ? j['unitResidents'][0]
+        : null;
+    return Member(
+      id: j['id'] ?? '',
+      name: j['name'] ?? '',
+      phone: j['phone'] ?? '',
+      email: j['email'],
+      role: j['role'] ?? 'RESIDENT',
+      unitId: unitResident?['unit']?['id'],
+      unitCode: unitResident?['unit']?['fullCode'] ?? '',
+      isActive: j['isActive'] ?? true,
+    );
+  }
 }
 
-final membersProvider = FutureProvider<List<Member>>((ref) async {
-  // TODO: wire to DioClient
-  await Future.delayed(const Duration(milliseconds: 500));
-  return [
-    Member(id: '1', name: 'Rajesh Kumar', phone: '9876543210', role: 'resident', unit: 'A-101'),
-    Member(id: '2', name: 'Priya Sharma', phone: '9876543211', role: 'resident', unit: 'B-202'),
-    Member(id: '3', name: 'Amit Patel', phone: '9876543212', role: 'secretary', unit: 'C-303'),
-  ];
+class MembersNotifier extends StateNotifier<AsyncValue<List<Member>>> {
+  final Ref ref;
+  final AuthState authState;
+
+  int _currentPage = 1;
+  static const int _limit = 20;
+  bool _hasMore = true;
+  bool _isLoadingMore = false;
+
+  MembersNotifier(this.ref, this.authState) : super(const AsyncValue.loading()) {
+    if (authState.isAuthenticated) {
+      loadMembers();
+    } else {
+      state = const AsyncValue.data([]);
+    }
+  }
+
+  bool get hasMore => _hasMore;
+  bool get isLoadingMore => _isLoadingMore;
+
+  Future<void> loadMembers({bool refresh = true}) async {
+    if (!authState.isAuthenticated) return;
+    
+    if (refresh) {
+      _currentPage = 1;
+      _hasMore = true;
+      state = const AsyncValue.loading();
+    }
+
+    if (_isLoadingMore && !refresh) return;
+    
+    if (!refresh) {
+      _isLoadingMore = true;
+    }
+
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.get('members', queryParameters: {
+        'page': _currentPage,
+        'limit': _limit,
+      });
+      
+      if (response.data['success'] == true) {
+        final List list = response.data['data']['members'] ?? [];
+        final List<Member> members = list.map((e) => Member.fromJson(e)).toList();
+        _hasMore = members.length >= _limit;
+        
+        if (refresh) {
+          state = AsyncValue.data(members);
+        } else {
+          final current = state.value ?? [];
+          state = AsyncValue.data([...current, ...members]);
+        }
+        
+        if (_hasMore) {
+          _currentPage++;
+        }
+      } else {
+        if (refresh) {
+          state = AsyncValue.error(response.data['message'] ?? 'Failed to load members', StackTrace.current);
+        }
+      }
+    } on DioException catch (e) {
+      if (refresh) {
+        state = AsyncValue.error(e.response?.data['message'] ?? e.message ?? 'Network error', StackTrace.current);
+      }
+    } catch (e) {
+      if (refresh) {
+        state = AsyncValue.error(e.toString(), StackTrace.current);
+      }
+    } finally {
+      if (!refresh) {
+        _isLoadingMore = false;
+        if (state.hasValue) {
+          state = AsyncValue.data(state.value!);
+        }
+      }
+    }
+  }
+
+  Future<void> loadNextPage() async {
+    if (!_hasMore || _isLoadingMore || state.isLoading) return;
+    await loadMembers(refresh: false);
+  }
+
+  Future<bool> createMember(Map<String, dynamic> data) async {
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.post('members', data: data);
+      if (response.data['success'] == true) {
+        loadMembers();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> updateMember(String id, Map<String, dynamic> data) async {
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.patch('members/$id', data: data);
+      if (response.data['success'] == true) {
+        loadMembers();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> resetPassword(String id, String password) async {
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.post('members/$id/reset-password', data: {'password': password});
+      return response.data['success'] == true;
+    } catch (e) {
+      return false;
+    }
+  }
+}
+
+final membersProvider = StateNotifierProvider<MembersNotifier, AsyncValue<List<Member>>>((ref) {
+  final authState = ref.watch(authProvider);
+  return MembersNotifier(ref, authState);
 });

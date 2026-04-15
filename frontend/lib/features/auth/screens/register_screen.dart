@@ -96,7 +96,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       ),
                       child: _loading
                           ? const SizedBox(width: 20, height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textOnPrimary))
                           : Text('Register', style: AppTextStyles.buttonLarge),
                     ),
                   ),

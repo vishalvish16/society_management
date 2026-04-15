@@ -13,4 +13,8 @@ router.get('/dashboard', superadminController.getDashboard);
 router.get('/revenue', superadminController.getRevenue);
 router.get('/societies/recent', superadminController.getRecentSocieties);
 
+// Platform settings
+router.get('/settings', superadminController.getSettings);
+router.patch('/settings/:key', superadminController.updateSetting);
+
 module.exports = router;

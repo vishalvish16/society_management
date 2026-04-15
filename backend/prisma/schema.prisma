@@ -12,22 +12,28 @@ datasource db {
 enum UserRole {
   SUPER_ADMIN
   PRAMUKH
+  CHAIRMAN
+  VICE_CHAIRMAN
   SECRETARY
+  ASSISTANT_SECRETARY
+  TREASURER
+  ASSISTANT_TREASURER
+  MEMBER
   RESIDENT
   WATCHMAN
 }
 
 enum UnitStatus {
-  occupied
-  vacant
-  renovation
+  OCCUPIED
+  VACANT
+  RENOVATION
 }
 
 enum BillStatus {
-  pending
-  partial
-  paid
-  overdue
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
 }
 
 enum PaymentMethod {
@@ -47,179 +53,169 @@ enum ExpenseCategory {
 }
 
 enum ExpenseStatus {
-  pending
-  approved
-  rejected
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum VisitorStatus {
-  pending
-  valid
-  used
-  expired
+  PENDING
+  VALID
+  USED
+  EXPIRED
 }
 
 enum ScanResult {
-  valid
-  invalid
-  expired
+  VALID
+  INVALID
+  EXPIRED
 }
 
 enum NotificationTargetType {
-  unit
-  role
-  all
+  UNIT
+  ROLE
+  ALL
 }
 
 enum NotificationType {
-  bill
-  payment
-  expense
-  visitor
-  announcement
-  manual
-  complaint
-  delivery
-  domestic_help
-  move_in_out
-  amenity
-  gate_pass
+  BILL
+  PAYMENT
+  EXPENSE
+  VISITOR
+  ANNOUNCEMENT
+  MANUAL
+  COMPLAINT
+  DELIVERY
+  DOMESTIC_HELP
+  MOVE_IN_OUT
+  AMENITY
+  GATE_PASS
 }
 
-enum PlanCode {
-  basic
-  standard
-  premium
-}
-
-enum PlanName {
-  basic
-  standard
-  premium
-}
 
 enum BillingCycle {
-  monthly
-  quarterly
-  yearly
+  MONTHLY
+  QUARTERLY
+  YEARLY
 }
 
 enum SubscriptionStatus {
-  trial
-  active
-  expired
-  cancelled
+  TRIAL
+  ACTIVE
+  EXPIRED
+  CANCELLED
 }
 
 enum SocietyStatus {
-  active
-  suspended
-  deleted
+  ACTIVE
+  SUSPENDED
+  DELETED
 }
 
 enum ComplaintStatus {
-  open
-  assigned
-  in_progress
-  resolved
-  closed
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
 }
 
 enum ComplaintCategory {
-  plumbing
-  electrical
-  lift
-  parking
-  cleaning
-  security
-  other
+  MAINTENANCE
+  SECURITY
+  CLEANLINESS
+  NOISE
+  PARKING
+  OTHER
 }
 
 enum AttendanceStatus {
-  present
-  absent
-  half_day
-  leave
+  PRESENT
+  ABSENT
+  HALF_DAY
+  LEAVE
 }
 
 enum DomesticHelpType {
-  maid
-  cook
-  driver
-  nurse
-  sweeper
-  gardener
-  other
+  MAID
+  COOK
+  DRIVER
+  NURSE
+  SWEEPER
+  GARDENER
+  OTHER
 }
 
 enum DomesticHelpStatus {
-  active
-  suspended
-  removed
+  ACTIVE
+  SUSPENDED
+  REMOVED
 }
 
 enum DeliveryStatus {
-  pending
-  allowed
-  denied
-  collected
-  left_at_gate
+  PENDING
+  ALLOWED
+  DENIED
+  COLLECTED
+  LEFT_AT_GATE
 }
 
 enum VehicleType {
-  car
-  two_wheeler
-  cycle
-  other
+  CAR
+  TWO_WHEELER
+  CYCLE
+  OTHER
 }
 
 enum AmenityStatus {
-  active
-  inactive
-  under_maintenance
+  ACTIVE
+  INACTIVE
+  UNDER_MAINTENANCE
 }
 
 enum BookingStatus {
-  pending
-  confirmed
-  cancelled
-  completed
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
 }
 
 enum GatePassStatus {
-  active
-  used
-  expired
-  cancelled
+  ACTIVE
+  USED
+  EXPIRED
+  CANCELLED
 }
 
 enum MoveRequestType {
-  move_in
-  move_out
+  MOVE_IN
+  MOVE_OUT
 }
 
 enum MoveRequestStatus {
-  pending
-  dues_cleared
-  approved
-  rejected
-  completed
+  PENDING
+  DUES_CLEARED
+  APPROVED
+  REJECTED
+  COMPLETED
 }
 
 enum ResidentType {
-  owner
-  tenant
+  OWNER
+  TENANT
 }
 
 // ─── Models ──────────────────────────────────────────────────────────
 
 model Plan {
   id             String    @id @default(uuid())
-  name           PlanName  @unique
+  name           String    @unique
   displayName    String
   priceMonthly   Decimal   @db.Decimal(10, 2)
   priceYearly    Decimal   @db.Decimal(10, 2)
   maxUnits       Int // -1 = unlimited
+  maxResidents   Int? // -1 = unlimited
+  maxWatchmen    Int? // -1 = unlimited
   maxSecretaries Int // -1 = unlimited
   features       Json // { visitor_qr, expense_approval, attachments_count, whatsapp, pdf_receipts }
   isActive       Boolean   @default(true)
@@ -227,6 +223,7 @@ model Plan {
   updatedAt      DateTime  @updatedAt
   societies      Society[]
 
+  subscriptionPayments SubscriptionPayment[]
   @@map("plans")
 }
 
@@ -242,7 +239,7 @@ model Society {
   plan            Plan          @relation(fields: [planId], references: [id])
   planStartDate   DateTime
   planRenewalDate DateTime
-  status          SocietyStatus @default(active)
+  status          SocietyStatus @default(ACTIVE)
   settings        Json?
   // settings shape: { late_fee_type, late_fee_amount, due_day, qr_expiry_mins,
   //                   unit_prefix, gstin, gst_rate, gst_applicable,
@@ -286,7 +283,7 @@ model DomesticHelp {
   phone          String?
   photoUrl       String?
   entryCode      String             @unique // 6-digit numeric
-  status         DomesticHelpStatus @default(active)
+  status         DomesticHelpStatus @default(ACTIVE)
   allowedDays    Json? // [1,2,3,4,5] weekdays allowed
   allowedFrom    String? // "07:00"
   allowedTo      String? // "21:00"
@@ -323,7 +320,7 @@ model Delivery {
   agentName   String
   company     String?
   description String?
-  status      DeliveryStatus @default(pending)
+  status      DeliveryStatus @default(PENDING)
   notifiedAt  DateTime?
   respondedAt DateTime?
   respondedBy String?
@@ -384,11 +381,11 @@ model MoveRequest {
   unit               Unit              @relation(fields: [unitId], references: [id])
   requestedById      String
   type               MoveRequestType
-  status             MoveRequestStatus @default(pending)
+  status             MoveRequestStatus @default(PENDING)
   residentName       String
   residentPhone      String
   residentEmail      String?
-  residentType       ResidentType      @default(tenant)
+  residentType       ResidentType      @default(TENANT)
   rentalAgreementUrl String?
   idProofUrl         String?
   vehicleNumbers     Json?
@@ -423,7 +420,7 @@ model Amenity {
   bookingFee      Decimal          @default(0) @db.Decimal(10, 2)
   maxAdvanceDays  Int              @default(7)
   photoUrl        String?
-  status          AmenityStatus    @default(active)
+  status          AmenityStatus    @default(ACTIVE)
   closurePeriods  Json? // [{from,to,reason}]
   rules           String?
   requireApproval Boolean          @default(false)
@@ -447,7 +444,7 @@ model AmenityBooking {
   bookingDate     DateTime      @db.Date
   startTime       String
   endTime         String
-  status          BookingStatus @default(pending)
+  status          BookingStatus @default(PENDING)
   guestCount      Int?
   purpose         String?
   feeCharged      Decimal       @default(0) @db.Decimal(10, 2)
@@ -477,7 +474,7 @@ model GatePass {
   reason          String?
   validFrom       DateTime
   validTo         DateTime
-  status          GatePassStatus @default(active)
+  status          GatePassStatus @default(ACTIVE)
   scannedById     String?
   scannedAt       DateTime?
   notes           String?
@@ -540,7 +537,7 @@ model Unit {
   unitNumber String
   subUnit    String?
   fullCode   String // auto-generated: wing+floor+unit+subUnit
-  status     UnitStatus @default(occupied)
+  status     UnitStatus @default(OCCUPIED)
   areaSqft   Decimal?   @db.Decimal(8, 2)
   notes      String?
   deletedAt  DateTime?
@@ -588,7 +585,7 @@ model MaintenanceBill {
   amount            Decimal        @db.Decimal(10, 2)
   lateFee           Decimal        @default(0) @db.Decimal(10, 2)
   totalDue          Decimal        @db.Decimal(10, 2)
-  status            BillStatus     @default(pending)
+  status            BillStatus     @default(PENDING)
   dueDate           DateTime
   paidAmount        Decimal        @default(0) @db.Decimal(10, 2)
   paidAt            DateTime?
@@ -622,7 +619,7 @@ model Expense {
   gstAmount       Decimal         @default(0) @db.Decimal(10, 2)
   totalAmount     Decimal         @db.Decimal(10, 2)
   expenseDate     DateTime
-  status          ExpenseStatus   @default(pending)
+  status          ExpenseStatus   @default(PENDING)
   approvedById    String?
   approvedAt      DateTime?
   rejectionReason String?
@@ -660,13 +657,14 @@ model Visitor {
   inviter         User          @relation("InvitedVisitors", fields: [invitedById], references: [id])
   visitorName     String
   visitorPhone    String
+  visitorEmail    String?
   expectedArrival DateTime?
   noteForWatchman String?
   qrToken         String        @unique @default(uuid())
   qrExpiresAt     DateTime
   qrImageUrl      String?
   whatsappSentAt  DateTime?
-  status          VisitorStatus @default(pending)
+  status          VisitorStatus @default(PENDING)
   createdAt       DateTime      @default(now())
   log             VisitorLog[]
 
@@ -744,7 +742,7 @@ model Complaint {
   category     ComplaintCategory
   title        String
   description  String?
-  status       ComplaintStatus   @default(open)
+  status       ComplaintStatus   @default(OPEN)
   assignedToId String?
   assignedTo   User?             @relation("AssignedTo", fields: [assignedToId], references: [id])
   resolvedAt   DateTime?
@@ -792,6 +790,7 @@ model SubscriptionPayment {
   societyId     String
   society       Society  @relation(fields: [societyId], references: [id])
   planId        String
+  plan          Plan     @relation(fields: [planId], references: [id])
   amount        Decimal  @db.Decimal(10, 2)
   periodStart   DateTime
   periodEnd     DateTime
@@ -816,4 +815,19 @@ model RazorpayPayment {
   createdAt DateTime @default(now())
 
   @@map("razorpay_payments")
+}
+
+/// Platform-wide settings managed only by SUPER_ADMIN.
+/// Stored as key/value pairs so new settings can be added without schema changes.
+/// Known keys:
+///   visitor_qr_max_hrs  – maximum hours a visitor QR code can be valid (default 3)
+model PlatformSetting {
+  key       String   @id          // e.g. "visitor_qr_max_hrs"
+  value     String                // stored as string; parse per key
+  label     String                // human-readable label shown in SA UI
+  dataType  String   @default("number")  // "number" | "boolean" | "string"
+  updatedAt DateTime @updatedAt
+  updatedBy String?               // userId of last SA who changed it
+
+  @@map("platform_settings")
 }

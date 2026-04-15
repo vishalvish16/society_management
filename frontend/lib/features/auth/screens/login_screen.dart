@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_dimensions.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/providers/biometric_provider.dart';
+import '../../../shared/widgets/app_text_field.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -14,151 +17,314 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _phoneCtrl = TextEditingController();
+  final _identifierCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   bool _obscure = true;
+  bool _rememberMe = false;
+
+  static const _kRememberMe = 'remember_me';
+  static const _kRememberMeIdentifier = 'remember_me_identifier';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRemembered();
+    // Auto-trigger biometric on open if enabled
+    WidgetsBinding.instance.addPostFrameCallback((_) => _tryBiometricAuto());
+  }
+
+  Future<void> _loadRemembered() async {
+    final bioClient = ref.read(authProvider.notifier).client; // Need access to storage
+    final rememberStr = await bioClient.storage.read(key: _kRememberMe);
+    if (rememberStr == 'true') {
+      final identifier = await bioClient.storage.read(key: _kRememberMeIdentifier);
+      if (identifier != null && mounted) {
+        setState(() {
+          _identifierCtrl.text = identifier;
+          _rememberMe = true;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
-    _phoneCtrl.dispose();
+    _identifierCtrl.dispose();
     _passCtrl.dispose();
     super.dispose();
   }
 
   void _routeByRole(String role) {
-    switch (role.toUpperCase()) {
-      case 'SUPER_ADMIN':
-        context.go('/sa-dashboard');
-      case 'PRAMUKH':
-      case 'SECRETARY':
-        context.go('/dashboard');
-      case 'WATCHMAN':
-        context.go('/visitors');
-      default:
-        context.go('/dashboard');
+    if (role.toUpperCase() == 'SUPER_ADMIN') {
+      context.go('/sa-dashboard');
+    } else {
+      context.go('/dashboard');
     }
   }
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
     final success = await ref.read(authProvider.notifier).login(
-      _phoneCtrl.text.trim(),
+      _identifierCtrl.text.trim(),
       _passCtrl.text,
     );
     if (!mounted) return;
     if (success) {
-      final role = ref.read(authProvider).user?.role ?? '';
-      _routeByRole(role);
-    } else {
-      final error = ref.read(authProvider).error ?? 'Login failed';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error), backgroundColor: AppColors.error, behavior: SnackBarBehavior.floating),
-      );
+      final bioClient = ref.read(authProvider.notifier).client;
+      if (_rememberMe) {
+        await bioClient.storage.write(key: _kRememberMe, value: 'true');
+        await bioClient.storage.write(key: _kRememberMeIdentifier, value: _identifierCtrl.text.trim());
+      } else {
+        await bioClient.storage.write(key: _kRememberMe, value: 'false');
+        await bioClient.storage.delete(key: _kRememberMeIdentifier);
+      }
+      _routeByRole(ref.read(authProvider).user?.role ?? '');
     }
+  }
+
+  Future<void> _tryBiometricAuto() async {
+    final bio = ref.read(biometricProvider);
+    if (!bio.isEnabled || bio.isChecking) return;
+    await _doBiometricLogin();
+  }
+
+  Future<void> _doBiometricLogin() async {
+    final creds = await ref.read(biometricProvider.notifier).authenticate();
+    if (creds == null || !mounted) return;
+    final (identifier, password) = creds;
+    final success =
+        await ref.read(authProvider.notifier).login(identifier, password);
+    if (!mounted) return;
+    if (success) _routeByRole(ref.read(authProvider).user?.role ?? '');
   }
 
   @override
   Widget build(BuildContext context) {
-    final isLoading = ref.watch(authProvider).isLoading;
+    final authState = ref.watch(authProvider);
+    final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: Color(0xFFE2E8F0)),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Container(
-                        width: 56, height: 56,
-                        decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(12)),
-                        child: const Icon(Icons.apartment_rounded, color: Colors.white, size: 28),
-                      ),
-                      const SizedBox(height: 24),
-                      Text('Welcome back', style: AppTextStyles.titleLarge),
-                      const SizedBox(height: 4),
-                      Text('Sign in to your society account', style: AppTextStyles.bodyMedium),
-                      const SizedBox(height: 32),
-                      TextFormField(
-                        controller: _phoneCtrl,
-                        keyboardType: TextInputType.phone,
-                        decoration: _inputDec('Phone or Email', Icons.person_outline),
-                        validator: (v) => (v == null || v.isEmpty) ? 'Enter phone or email' : null,
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _passCtrl,
-                        obscureText: _obscure,
-                        decoration: _inputDec('Password', Icons.lock_outline).copyWith(
-                          suffixIcon: IconButton(
-                            icon: Icon(_obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: AppColors.textMuted),
-                            onPressed: () => setState(() => _obscure = !_obscure),
-                          ),
-                        ),
-                        validator: (v) => (v == null || v.isEmpty) ? 'Enter password' : null,
-                        onFieldSubmitted: (_) { if (!isLoading) _login(); },
-                      ),
-                      const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: () => context.go('/forgot'),
-                          child: Text('Forgot password?', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.primary)),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        height: 48,
-                        child: ElevatedButton(
-                          onPressed: isLoading ? null : _login,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.6),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                          child: isLoading
-                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                              : Text('Sign In', style: AppTextStyles.buttonLarge),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Text("Don't have an account? ", style: AppTextStyles.bodyMedium),
-                        TextButton(
-                          onPressed: () => context.go('/register'),
-                          style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero),
-                          child: Text('Register', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.primary, fontWeight: FontWeight.w600)),
-                        ),
-                      ]),
-                    ],
+      body: SafeArea(child: isWide ? _buildWeb(authState) : _buildMobile(authState)),
+    );
+  }
+
+  Widget _buildWeb(AuthState authState) {
+    return Row(
+      children: [
+        Expanded(
+          flex: 4,
+          child: Container(
+            color: AppColors.primary,
+            padding: const EdgeInsets.all(48),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 56, height: 56,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight,
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+                  ),
+                  child: const Icon(Icons.apartment_rounded,
+                      color: AppColors.textOnPrimary, size: 32),
+                ),
+                const SizedBox(height: AppDimensions.xxl),
+                Text('Society Manager',
+                    style: AppTextStyles.displayLarge
+                        .copyWith(color: AppColors.textOnPrimary)),
+                const SizedBox(height: AppDimensions.md),
+                Text(
+                  'Complete society management\nfor modern residential communities.',
+                  style: AppTextStyles.h2.copyWith(
+                    color: AppColors.textOnPrimary.withValues(alpha: 0.8),
                   ),
                 ),
+                const SizedBox(height: AppDimensions.xxxl),
+                _pill(Icons.receipt_long_rounded, 'Billing & Payments'),
+                const SizedBox(height: AppDimensions.sm),
+                _pill(Icons.security_rounded, 'Visitor & Gate Management'),
+                const SizedBox(height: AppDimensions.sm),
+                _pill(Icons.people_rounded, 'Resident Management'),
+              ],
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 6,
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(48),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: _buildForm(authState, isMobile: false),
               ),
             ),
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _pill(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, color: AppColors.textOnPrimary.withValues(alpha: 0.8), size: 16),
+        const SizedBox(width: AppDimensions.sm),
+        Text(text,
+            style: AppTextStyles.bodyMedium.copyWith(
+              color: AppColors.textOnPrimary.withValues(alpha: 0.8),
+            )),
+      ],
+    );
+  }
+
+  Widget _buildMobile(AuthState authState) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppDimensions.screenPadding),
+      child: Column(
+        children: [
+          const SizedBox(height: AppDimensions.xxxl),
+          // App icon
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+            child: Image.asset('assets/app_icon.png', width: 72, height: 72,
+                errorBuilder: (context, error, stack) => Container(
+                  width: 72, height: 72,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+                  ),
+                  child: const Icon(Icons.apartment_rounded,
+                      color: AppColors.textOnPrimary, size: 40),
+                )),
+          ),
+          const SizedBox(height: AppDimensions.lg),
+          Text('Vidyron Society', style: AppTextStyles.displayMedium),
+          const SizedBox(height: AppDimensions.xs),
+          Text('Sign in to your account',
+              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textMuted)),
+          const SizedBox(height: AppDimensions.xxxl),
+          _buildForm(authState, isMobile: true),
+        ],
       ),
     );
   }
 
-  InputDecoration _inputDec(String label, IconData icon) => InputDecoration(
-    labelText: label,
-    prefixIcon: Icon(icon, color: AppColors.textMuted, size: 20),
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
-    filled: true, fillColor: AppColors.surface,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-  );
+  Widget _buildForm(AuthState authState, {required bool isMobile}) {
+    final bioState = ref.watch(biometricProvider);
+    final showBiometric = isMobile && bioState.isAvailable && bioState.isEnabled;
+
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppTextField(
+            label: 'Phone or Email',
+            controller: _identifierCtrl,
+            hint: 'Enter your phone or email',
+            keyboardType: TextInputType.emailAddress,
+            validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+          ),
+          const SizedBox(height: AppDimensions.lg),
+          AppTextField(
+            label: 'Password',
+            controller: _passCtrl,
+            hint: 'Enter your password',
+            obscureText: _obscure,
+            validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                color: AppColors.textMuted,
+              ),
+              onPressed: () => setState(() => _obscure = !_obscure),
+            ),
+          ),
+          const SizedBox(height: AppDimensions.md),
+          Row(
+            children: [
+              SizedBox(
+                height: 24,
+                width: 24,
+                child: Checkbox(
+                  value: _rememberMe,
+                  onChanged: (val) => setState(() => _rememberMe = val ?? false),
+                  activeColor: AppColors.primary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppDimensions.sm),
+              GestureDetector(
+                onTap: () => setState(() => _rememberMe = !_rememberMe),
+                child: Text('Remember Me', style: AppTextStyles.bodySmall),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppDimensions.lg),
+          if (authState.error != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppDimensions.lg),
+              child: Container(
+                padding: const EdgeInsets.all(AppDimensions.md),
+                decoration: BoxDecoration(
+                  color: AppColors.dangerSurface,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                  border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline, color: AppColors.danger, size: 16),
+                    const SizedBox(width: AppDimensions.sm),
+                    Expanded(
+                      child: Text(authState.error!,
+                          style: AppTextStyles.bodySmall
+                              .copyWith(color: AppColors.dangerText)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          // ── Sign In button ──────────────────────────────────────
+          ElevatedButton(
+            onPressed: authState.isLoading ? null : _login,
+            child: authState.isLoading
+                ? const SizedBox(
+                    height: 20, width: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: AppColors.textOnPrimary))
+                : Text('Sign In', style: AppTextStyles.buttonLarge),
+          ),
+
+          // ── Biometric button (mobile only) ──────────────────────
+          if (showBiometric) ...[
+            const SizedBox(height: AppDimensions.md),
+            OutlinedButton.icon(
+              onPressed: authState.isLoading ? null : _doBiometricLogin,
+              icon: const Icon(Icons.fingerprint_rounded, size: 22),
+              label: const Text('Sign in with Biometrics'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primary),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                ),
+              ),
+            ),
+          ],
+
+          const SizedBox(height: AppDimensions.lg),
+          TextButton(
+            onPressed: () => context.go('/forgot'),
+            child: Text('Forgot Password?',
+                style: AppTextStyles.labelLarge.copyWith(color: AppColors.primary)),
+          ),
+        ],
+      ),
+    );
+  }
 }

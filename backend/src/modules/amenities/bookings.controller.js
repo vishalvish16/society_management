@@ -91,4 +91,33 @@ async function updateBookingStatus(req, res, next) {
   }
 }
 
-module.exports = { createBooking, listBookings, updateBookingStatus };
+async function listMyBookings(req, res, next) {
+  try {
+    const { societyId, id: bookedById } = req.user;
+    const { status, page = 1, limit = 20 } = req.query;
+    const where = { societyId, bookedById };
+    if (status) where.status = status;
+
+    const [bookings, total] = await Promise.all([
+      prisma.amenityBooking.findMany({
+        where,
+        select: {
+          id: true, bookingDate: true, startTime: true, endTime: true,
+          status: true, guestCount: true, purpose: true, feeCharged: true, createdAt: true,
+          amenity: { select: { id: true, name: true } },
+          unit:    { select: { id: true, fullCode: true } },
+        },
+        orderBy: { bookingDate: 'desc' },
+        skip: (parseInt(page) - 1) * parseInt(limit),
+        take: parseInt(limit),
+      }),
+      prisma.amenityBooking.count({ where }),
+    ]);
+
+    return sendSuccess(res, { bookings, total, page: parseInt(page), limit: parseInt(limit) }, 'Your bookings retrieved');
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { createBooking, listBookings, listMyBookings, updateBookingStatus };

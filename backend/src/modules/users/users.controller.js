@@ -18,7 +18,7 @@ async function getMe(req, res) {
 
 /**
  * GET /api/v1/users
- * List users in the authenticated user's society. Pramukh and Secretary only.
+ * List users in the authenticated user's society. Chairman and Secretary only.
  */
 async function listUsers(req, res) {
   try {
@@ -87,23 +87,23 @@ async function updateUser(req, res) {
     const { id } = req.params;
     const isSelf = id === req.user.id;
     const isSecretary = req.user.role === 'SECRETARY';
-    const isPramukh = req.user.role === 'PRAMUKH';
+    const isChairman = req.user.role === 'PRAMUKH' || req.user.role === 'CHAIRMAN';
     const isSuperAdmin = req.user.role === 'SUPER_ADMIN';
 
-    if (!isSelf && !isSecretary && !isPramukh && !isSuperAdmin) {
+    if (!isSelf && !isSecretary && !isChairman && !isSuperAdmin) {
       return sendError(res, 'You can only update your own profile', 403);
     }
 
     // Self-updates are limited to name, email, phone, fcmToken
     const data = {};
-    if (isSelf && !isSecretary && !isPramukh && !isSuperAdmin) {
+    if (isSelf && !isSecretary && !isChairman && !isSuperAdmin) {
       const { name, email, phone, fcmToken } = req.body;
       if (name !== undefined) data.name = name;
       if (email !== undefined) data.email = email;
       if (phone !== undefined) data.phone = phone;
       if (fcmToken !== undefined) data.fcmToken = fcmToken;
     } else {
-      // Secretary/Pramukh/SuperAdmin can update more fields
+      // Secretary/Chairman/SuperAdmin can update more fields
       const { name, email, phone, fcmToken, isActive } = req.body;
       if (name !== undefined) data.name = name;
       if (email !== undefined) data.email = email;
@@ -123,7 +123,7 @@ async function updateUser(req, res) {
 
 /**
  * DELETE /api/v1/users/:id
- * Soft-delete a user. Pramukh only.
+ * Soft-delete a user. Chairman only.
  */
 async function deleteUser(req, res) {
   try {

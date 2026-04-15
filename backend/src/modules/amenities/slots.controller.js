@@ -23,7 +23,7 @@ async function getAvailableSlots(req, res, next) {
       return sendError(res, 'Amenity not found', 404);
     }
 
-    if (amenity.status !== 'active') {
+    if (amenity.status !== 'ACTIVE') {
       return sendError(res, 'Amenity is not available for booking', 400);
     }
 

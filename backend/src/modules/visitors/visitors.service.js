@@ -1,6 +1,80 @@
 const crypto = require('crypto');
 
-const prisma = require('../../config/db');
+const prisma                                      = require('../../config/db');
+const { pushToUnit }                              = require('../../utils/push');
+const { sendVisitorQrMail }                       = require('../../utils/mailer');
+const WhatsApp                                    = require('../../utils/whatsapp');
+const { generateQrBuffer, buildVisitorQrPayload } = require('../../utils/qrGenerator');
+const { getVisitorQrMaxHrs }                      = require('../../utils/platformSettings');
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+function fmtDate(d) {
+  if (!d) return null;
+  return new Intl.DateTimeFormat('en-IN', {
+    day:    '2-digit',
+    month:  'short',
+    year:   'numeric',
+    hour:   '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  }).format(new Date(d));
+}
+
+/**
+ * Fire-and-forget: generate QR and dispatch via email + WhatsApp.
+ * All errors are caught and logged — never propagate to the caller.
+ */
+async function _dispatchVisitorQr(visitor, unit, host, society) {
+  try {
+    const qrPayload   = buildVisitorQrPayload(visitor.qrToken);
+    const qrBuffer    = await generateQrBuffer(qrPayload);
+    const expiresStr  = fmtDate(visitor.qrExpiresAt);
+    const arrivalStr  = fmtDate(visitor.expectedArrival);
+    const societyName = society?.name  || 'Your Society';
+    const hostName    = host?.name     || 'Resident';
+    const unitCode    = unit?.fullCode || '-';
+
+    // ── Email ────────────────────────────────────────────────────────────────
+    // Only send if the visitor provided an email address
+    if (visitor.visitorEmail) {
+      setImmediate(() =>
+        sendVisitorQrMail({
+          to:              visitor.visitorEmail,
+          visitorName:     visitor.visitorName,
+          societyName,
+          unitCode,
+          hostName,
+          expectedArrival: arrivalStr,
+          qrExpiresAt:     expiresStr,
+          qrImageBuffer:   qrBuffer,
+          qrToken:         visitor.qrToken,
+        }).catch((e) => console.error('[Visitor] Email dispatch error:', e.message))
+      );
+    }
+
+    // ── WhatsApp ─────────────────────────────────────────────────────────────
+    if (visitor.visitorPhone) {
+      setImmediate(() =>
+        WhatsApp.sendVisitorQr({
+          phone:           visitor.visitorPhone,
+          visitorName:     visitor.visitorName,
+          societyName,
+          unitCode,
+          hostName,
+          expectedArrival: arrivalStr,
+          qrExpiresAt:     expiresStr,
+          qrToken:         visitor.qrToken,
+          // qrImageUrl: set this if you host the QR image publicly
+        }).catch((e) => console.error('[Visitor] WhatsApp dispatch error:', e.message))
+      );
+    }
+  } catch (err) {
+    console.error('[Visitor] QR dispatch error:', err.message);
+  }
+}
+
+// ─── List visitors ────────────────────────────────────────────────────────────
 
 /**
  * List visitors for a society or specific unit.
@@ -9,10 +83,7 @@ async function listVisitors(societyId, filters = {}) {
   const { unitId, status, page = 1, limit = 20 } = filters;
   const skip = (page - 1) * limit;
 
-  const where = {
-    societyId,
-  };
-
+  const where = { societyId };
   if (unitId) where.unitId = unitId;
   if (status) where.status = status;
 
@@ -20,114 +91,196 @@ async function listVisitors(societyId, filters = {}) {
     prisma.visitor.findMany({
       where,
       include: {
-        unit: { select: { fullCode: true } },
+        unit:    { select: { fullCode: true } },
         inviter: { select: { name: true } },
-        log: { include: { scanner: { select: { name: true } } } }
+        log:     { include: { scanner: { select: { name: true } } } },
       },
       skip,
-      take: parseInt(limit, 10),
-      orderBy: { createdAt: 'desc' }
+      take:    parseInt(limit, 10),
+      orderBy: { createdAt: 'desc' },
     }),
-    prisma.visitor.count({ where })
+    prisma.visitor.count({ where }),
   ]);
 
   return { visitors, total, page: parseInt(page, 10), limit: parseInt(limit, 10) };
 }
 
+// ─── Invite visitor ───────────────────────────────────────────────────────────
+
 /**
- * Create a new visitor invitation.
- * Generates a unique QR token valid for 24 hours by default.
+ * Create a new visitor invitation, generate a QR token, and
+ * send the QR code to the visitor via email + WhatsApp.
+ *
+ * @param {string} userId
+ * @param {string} societyId
+ * @param {Object} data
+ * @param {string} data.unitId
+ * @param {string} data.visitorName
+ * @param {string} data.visitorPhone
+ * @param {string} [data.visitorEmail]     Optional — triggers email dispatch
+ * @param {string} [data.expectedArrival]  ISO date string
+ * @param {number} [data.expiryHours=24]
+ * @param {string} [data.noteForWatchman]
  */
 async function inviteVisitor(userId, societyId, data) {
-  const { unitId, visitorName, visitorPhone, expectedArrival, expiryHours = 24 } = data;
+  const {
+    unitId,
+    visitorName,
+    visitorPhone,
+    visitorEmail,
+    expectedArrival,
+    expiryHours = 24,
+    noteForWatchman,
+  } = data;
 
-  // Verify unit belongs to society and user has access (TODO: deeper check for resident-unit link)
-  const unit = await prisma.unit.findUnique({ where: { id: unitId } });
+  // Verify unit belongs to society
+  const unit = await prisma.unit.findUnique({
+    where:  { id: unitId },
+    select: { id: true, fullCode: true, societyId: true },
+  });
   if (!unit || unit.societyId !== societyId) {
     throw Object.assign(new Error('Unit not found in your society'), { status: 404 });
   }
 
-  const qrToken = crypto.randomUUID();
+  // Cap requested expiry: society override → platform default
+  const platformMaxHrs = await getVisitorQrMaxHrs();
+  const society        = await prisma.society.findUnique({ where: { id: societyId }, select: { settings: true } });
+  const societyMaxHrs  = society?.settings?.visitor_qr_max_hrs
+    ? parseInt(society.settings.visitor_qr_max_hrs, 10)
+    : null;
+  const effectiveMaxHrs = (Number.isFinite(societyMaxHrs) && societyMaxHrs > 0)
+    ? societyMaxHrs
+    : platformMaxHrs;
+  const clampedHours = Math.min(Math.max(1, parseInt(expiryHours, 10) || effectiveMaxHrs), effectiveMaxHrs);
 
+  const qrToken     = crypto.randomUUID();
   const qrExpiresAt = new Date();
-  qrExpiresAt.setHours(qrExpiresAt.getHours() + expiryHours);
+  qrExpiresAt.setHours(qrExpiresAt.getHours() + clampedHours);
 
-  return prisma.visitor.create({
+  const visitor = await prisma.visitor.create({
     data: {
       societyId,
       unitId,
-      invitedBy: userId,
+      invitedById:     userId,
       visitorName,
       visitorPhone,
+      visitorEmail:    visitorEmail || null,
+      noteForWatchman: noteForWatchman || null,
       expectedArrival: expectedArrival ? new Date(expectedArrival) : null,
       qrToken,
       qrExpiresAt,
-      status: 'PENDING'
+      status: 'PENDING',
+    },
+  });
+
+  // Fetch host + society for notification content (non-blocking)
+  setImmediate(async () => {
+    try {
+      const [host, society] = await Promise.all([
+        prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
+        prisma.society.findUnique({ where: { id: societyId }, select: { name: true } }),
+      ]);
+      await _dispatchVisitorQr(visitor, unit, host, society);
+    } catch (e) {
+      console.error('[Visitor] Post-create dispatch error:', e.message);
     }
   });
+
+  return visitor;
 }
+
+// ─── Validate QR token ────────────────────────────────────────────────────────
 
 /**
  * Validate a QR token scanned by a watchman.
  */
-async function validateToken(qrToken, scannerId, societyId, deviceInfo = {}) {
+async function validateToken(qrToken, scannerId, societyId, _deviceInfo = {}) {
   const visitor = await prisma.visitor.findUnique({
-    where: { qrToken },
-    include: { unit: true }
+    where:   { qrToken },
+    include: { unit: true },
   });
 
-  if (!visitor) {
-    return { success: false, result: 'INVALID', message: 'Token not found' };
-  }
+  if (!visitor) return { success: false, result: 'INVALID', message: 'Token not found' };
 
   if (visitor.societyId !== societyId) {
     return { success: false, result: 'INVALID', message: 'Token belongs to another society' };
   }
 
   if (visitor.status === 'USED') {
-    return { success: false, result: 'USED', message: 'Token already used' };
+    return { success: false, result: 'used', message: 'Token already used' };
   }
 
   if (new Date() > visitor.qrExpiresAt) {
-    await prisma.visitor.update({
-      where: { id: visitor.id },
-      data: { status: 'EXPIRED' }
-    });
-    return { success: false, result: 'EXPIRED', message: 'Token has expired' };
+    await prisma.visitor.update({ where: { id: visitor.id }, data: { status: 'EXPIRED' } });
+    return { success: false, result: 'expired', message: 'Token has expired' };
   }
 
-  // Record logs in transaction
   return prisma.$transaction(async (tx) => {
-    // 1. Create log
     await tx.visitorLog.create({
-      data: {
-        visitorId: visitor.id,
-        scannedBy: scannerId,
-        scanResult: 'VALID',
-        deviceInfo
-      }
+      data: { visitorId: visitor.id, scannedById: scannerId, scanResult: 'VALID' },
     });
 
-    // 2. Update visitor status
-    const updated = await tx.visitor.update({
+    await tx.visitor.update({
       where: { id: visitor.id },
-      data: { status: 'USED' },
-      include: { unit: true, inviter: { select: { fcmToken: true, name: true } } }
+      data:  { status: 'USED' },
     });
 
-    return { 
-      success: true, 
-      result: 'VALID', 
-      visitor: {
-        name: visitor.visitorName,
-        unit: visitor.unit.fullCode
-      }
+    setImmediate(() =>
+      pushToUnit(visitor.unitId, {
+        title: '🚪 Visitor Arrived',
+        body:  `${visitor.visitorName} has checked in at the gate for ${visitor.unit.fullCode}.`,
+        data:  { type: 'VISITOR_CHECKIN', route: '/visitors', id: visitor.id },
+      }, { excludeUserId: scannerId })
+    );
+
+    return {
+      success: true,
+      result:  'VALID',
+      visitor: { name: visitor.visitorName, unit: visitor.unit.fullCode },
     };
+  });
+}
+
+// ─── Walk-in entry ────────────────────────────────────────────────────────────
+
+/**
+ * Record a walk-in visitor entry (no advance invitation).
+ * Only used by watchmen or admins — NO QR dispatch.
+ */
+async function logWalkinEntry(userId, societyId, data) {
+  const { unitId, visitorName, visitorPhone, noteForWatchman } = data;
+
+  const unit = await prisma.unit.findUnique({ where: { id: unitId } });
+  if (!unit || unit.societyId !== societyId) {
+    throw Object.assign(new Error('Unit not found in your society'), { status: 404 });
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const visitor = await tx.visitor.create({
+      data: {
+        societyId,
+        unitId,
+        invitedById:     userId,
+        visitorName,
+        visitorPhone,
+        noteForWatchman: noteForWatchman || null,
+        qrToken:         crypto.randomUUID(),
+        qrExpiresAt:     new Date(),   // immediate expiry — walk-in
+        status:          'USED',
+      },
+    });
+
+    await tx.visitorLog.create({
+      data: { visitorId: visitor.id, scannedById: userId, scanResult: 'VALID' },
+    });
+
+    return visitor;
   });
 }
 
 module.exports = {
   listVisitors,
   inviteVisitor,
-  validateToken
+  validateToken,
+  logWalkinEntry,
 };

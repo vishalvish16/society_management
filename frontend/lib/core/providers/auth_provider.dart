@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import '../api/dio_client.dart';
 import '../models/user_model.dart';
+import '../services/notification_service.dart';
 
 class AuthState {
   final UserModel? user;
@@ -39,12 +40,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
   AuthNotifier() : super(const AuthState());
 
   final _client = DioClient();
+  DioClient get client => _client;
 
   Future<bool> login(String identifier, String password) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final response = await _client.dio.post(
-        '/auth/login',
+        'auth/login',
         data: {'identifier': identifier, 'password': password},
       );
 
@@ -62,6 +64,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
           token: token,
           isAuthenticated: true,
         );
+
+        // Register FCM token now that we have a valid auth token
+        NotificationService().registerTokenAfterLogin();
+
         return true;
       }
 
@@ -83,7 +89,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<String?> forgotPassword(String phone) async {
     try {
       final response = await _client.dio.post(
-        '/auth/forgot-password',
+        'auth/forgot-password',
         data: {'phone': phone},
       );
       return response.data['message'];
@@ -95,7 +101,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<bool> verifyOtpAndReset(String phone, String otp, String newPassword) async {
     try {
       final response = await _client.dio.post(
-        '/auth/verify-otp',
+        'auth/verify-otp',
         data: {'phone': phone, 'otp': otp, 'newPassword': newPassword},
       );
       return response.data['success'] == true;
@@ -104,14 +110,36 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  Future<String?> changePassword(String currentPassword, String newPassword) async {
+    try {
+      final response = await _client.dio.post(
+        'auth/change-password',
+        data: {'currentPassword': currentPassword, 'newPassword': newPassword},
+      );
+      if (response.data['success'] == true) {
+        return null; // Success
+      }
+      return response.data['message'] ?? 'Failed to change password';
+    } on DioException catch (e) {
+      return e.response?.data?['message'] ?? 'Failed to change password';
+    } catch (_) {
+      return 'An unexpected error occurred';
+    }
+  }
+
   Future<void> logout() async {
     try {
       final token = await _client.storage.read(key: 'accessToken');
       if (token != null) {
-        await _client.dio.post('/auth/logout');
+        await _client.dio.post('auth/logout');
       }
     } catch (_) {}
-    await _client.storage.deleteAll();
+    
+    // Selectively delete only session-related keys, NOT 'Remember Me' or Biometric settings
+    await _client.storage.delete(key: 'accessToken');
+    await _client.storage.delete(key: 'userRole');
+    await _client.storage.delete(key: 'userId');
+    
     state = const AuthState();
   }
 
@@ -120,13 +148,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (token == null) return;
 
     try {
-      final response = await _client.dio.get('/users/me');
+      final response = await _client.dio.get('users/me');
       if (response.statusCode == 200 && response.data['success'] == true) {
         final user = UserModel.fromJson(response.data['data']);
         state = AuthState(user: user, token: token, isAuthenticated: true);
+        // Re-register FCM token on auto-login (token may have rotated)
+        NotificationService().registerTokenAfterLogin();
       }
     } catch (_) {
-      await _client.storage.deleteAll();
+       await _client.storage.delete(key: 'accessToken');
+       await _client.storage.delete(key: 'userRole');
+       await _client.storage.delete(key: 'userId');
     }
   }
 }

@@ -1,12 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { authenticateToken, validateAndSanitizeQuery } = require('../../middleware/auth.middleware');
-const slotController = require('./slots.controller');
+const auth = require('../../middleware/auth');
+const c = require('./slots.controller');
 
-router.post(
-  '/',
-  [authenticateToken],
-  slotController.createSlot
-);
+router.use(auth);
+
+router.get('/', c.getAvailableSlots);
 
 module.exports = router;

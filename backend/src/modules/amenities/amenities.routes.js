@@ -1,10 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../../middleware/auth');
+const roleGuard = require('../../middleware/roleGuard');
 const c = require('./amenities.controller');
 
-router.get('/',    auth, c.getAllAmenities);
-router.post('/',   auth, c.createAmenity);
-router.delete('/:id', auth, c.deleteAmenityById);
+router.use(auth);
+
+// Bookings mine — must be before /:id routes
+router.use('/bookings', require('./bookings.routes'));
+
+router.get('/', c.getAllAmenities);
+router.post('/', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), c.createAmenity);
+router.get('/:id/slots', c.getAvailableSlots);
+router.get('/:id/bookings', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), c.getAmenityBookings);
+router.patch('/:id', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), c.updateAmenity);
+router.delete('/:id', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), c.deleteAmenityById);
 
 module.exports = router;
