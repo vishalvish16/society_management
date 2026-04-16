@@ -7,7 +7,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_empty_state.dart';
 import '../../../shared/widgets/app_loading_shimmer.dart';
-import '../../../shared/widgets/show_app_dialog.dart';
+import '../../../shared/widgets/show_app_sheet.dart';
 import '../providers/notifications_provider.dart';
 
 class NotificationsScreen extends ConsumerWidget {

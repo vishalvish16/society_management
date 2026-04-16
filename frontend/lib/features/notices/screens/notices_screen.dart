@@ -8,7 +8,7 @@ import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_empty_state.dart';
 import '../../../shared/widgets/app_loading_shimmer.dart';
 import '../providers/notices_provider.dart';
-import '../../../shared/widgets/show_app_dialog.dart';
+import '../../../shared/widgets/show_app_sheet.dart';
 
 class NoticesScreen extends ConsumerWidget {
   const NoticesScreen({super.key});
@@ -91,21 +91,11 @@ class NoticesScreen extends ConsumerWidget {
       builder: (_) => _NoticeFormSheet(
         existing: existing,
         onSubmit: (data) async {
-          bool ok;
           if (existing != null) {
-            ok = await ref.read(noticesProvider.notifier).updateNotice(
+            return await ref.read(noticesProvider.notifier).updateNotice(
                 existing['id'] as String, data);
           } else {
-            ok = await ref.read(noticesProvider.notifier).createNotice(data);
-          }
-          if (context.mounted) {
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(ok
-                  ? (existing != null ? 'Notice updated.' : 'Notice posted.')
-                  : 'Failed to save notice.'),
-              backgroundColor: ok ? AppColors.success : AppColors.danger,
-            ));
+            return await ref.read(noticesProvider.notifier).createNotice(data);
           }
         },
       ),
@@ -120,11 +110,11 @@ class NoticesScreen extends ConsumerWidget {
       confirmLabel: 'Delete',
     );
     if (ok && context.mounted) {
-      final success = await ref.read(noticesProvider.notifier).deleteNotice(id);
+      final error = await ref.read(noticesProvider.notifier).deleteNotice(id);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(success ? 'Notice deleted.' : 'Failed to delete notice.'),
-          backgroundColor: success ? AppColors.success : AppColors.danger,
+          content: Text(error ?? 'Notice deleted.'),
+          backgroundColor: error == null ? AppColors.success : AppColors.danger,
         ));
       }
     }
@@ -228,7 +218,7 @@ class _NoticeCard extends StatelessWidget {
 
 class _NoticeFormSheet extends StatefulWidget {
   final Map<String, dynamic>? existing;
-  final Future<void> Function(Map<String, dynamic>) onSubmit;
+  final Future<String?> Function(Map<String, dynamic>) onSubmit;
 
   const _NoticeFormSheet({this.existing, required this.onSubmit});
 
@@ -242,6 +232,7 @@ class _NoticeFormSheetState extends State<_NoticeFormSheet> {
   bool _isPinned = false;
   DateTime? _expiresAt;
   bool _submitting = false;
+  String? _errorMsg;
 
   @override
   void initState() {
@@ -351,6 +342,21 @@ class _NoticeFormSheetState extends State<_NoticeFormSheet> {
                 ),
               ),
             ),
+            if (_errorMsg != null) ...[
+              const SizedBox(height: AppDimensions.md),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppDimensions.sm),
+                decoration: BoxDecoration(
+                  color: AppColors.dangerSurface,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                ),
+                child: Text(
+                  _errorMsg!,
+                  style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText),
+                ),
+              ),
+            ],
             const SizedBox(height: AppDimensions.xl),
             SizedBox(
               width: double.infinity,
@@ -429,13 +435,13 @@ class _NoticeFormSheetState extends State<_NoticeFormSheet> {
 
   Future<void> _submit() async {
     if (_titleCtrl.text.trim().isEmpty || _bodyCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Title and body are required.'),
-        backgroundColor: AppColors.warning,
-      ));
+      setState(() => _errorMsg = 'Title and body are required.');
       return;
     }
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+      _errorMsg = null;
+    });
     final data = <String, dynamic>{
       'title': _titleCtrl.text.trim(),
       'body': _bodyCtrl.text.trim(),
@@ -444,7 +450,21 @@ class _NoticeFormSheetState extends State<_NoticeFormSheet> {
     if (_expiresAt != null) {
       data['expiresAt'] = _expiresAt!.toIso8601String();
     }
-    await widget.onSubmit(data);
-    if (mounted) setState(() => _submitting = false);
+    
+    final error = await widget.onSubmit(data);
+    if (mounted) {
+      if (error == null) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(widget.existing != null ? 'Notice updated.' : 'Notice posted.'),
+          backgroundColor: AppColors.success,
+        ));
+      } else {
+        setState(() {
+          _submitting = false;
+          _errorMsg = error;
+        });
+      }
+    }
   }
 }

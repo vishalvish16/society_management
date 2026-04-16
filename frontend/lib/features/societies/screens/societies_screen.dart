@@ -6,7 +6,9 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/providers/dio_provider.dart';
 import '../providers/societies_provider.dart';
+import '../../visitors/providers/visitor_config_provider.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
+import '../../../shared/widgets/show_app_sheet.dart';
 import '../../../shared/widgets/show_app_dialog.dart';
 
 class SocietiesScreen extends ConsumerStatefulWidget {
@@ -23,7 +25,9 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => ref.read(societiesProvider.notifier).loadSocieties());
+    Future.microtask(
+      () => ref.read(societiesProvider.notifier).loadSocieties(),
+    );
   }
 
   @override
@@ -33,7 +37,9 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
   }
 
   void _search() {
-    ref.read(societiesProvider.notifier).loadSocieties(
+    ref
+        .read(societiesProvider.notifier)
+        .loadSocieties(
           search: _searchController.text.trim(),
           status: _statusFilter.isNotEmpty ? _statusFilter : null,
         );
@@ -43,10 +49,12 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(societiesProvider);
     final isMobile = MediaQuery.of(context).size.width < 800;
-    final activeCount =
-        state.societies.where((s) => s['status'] == 'ACTIVE').length;
-    final suspendedCount =
-        state.societies.where((s) => s['status'] == 'SUSPENDED').length;
+    final activeCount = state.societies
+        .where((s) => s['status'] == 'ACTIVE')
+        .length;
+    final suspendedCount = state.societies
+        .where((s) => s['status'] == 'SUSPENDED')
+        .length;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -62,8 +70,10 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                     children: [
                       Text('Societies', style: AppTextStyles.displayMedium),
                       const SizedBox(height: 4),
-                      Text('Manage all registered societies',
-                          style: AppTextStyles.bodyMedium),
+                      Text(
+                        'Manage all registered societies',
+                        style: AppTextStyles.bodyMedium,
+                      ),
                       const SizedBox(height: 16),
                       SizedBox(
                         width: double.infinity,
@@ -81,10 +91,15 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Societies', style: AppTextStyles.displayMedium),
+                            Text(
+                              'Societies',
+                              style: AppTextStyles.displayMedium,
+                            ),
                             const SizedBox(height: 4),
-                            Text('Manage all registered societies',
-                                style: AppTextStyles.bodyMedium),
+                            Text(
+                              'Manage all registered societies',
+                              style: AppTextStyles.bodyMedium,
+                            ),
                           ],
                         ),
                       ),
@@ -124,8 +139,11 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                                 )
                               : null,
                           border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                          ),
                         ),
                         onSubmitted: (_) => _search(),
                       ),
@@ -134,14 +152,25 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                         value: _statusFilter,
                         decoration: InputDecoration(
                           border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10)),
-                          contentPadding:
-                              const EdgeInsets.symmetric(horizontal: 12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                          ),
                         ),
                         items: const [
-                          DropdownMenuItem(value: '', child: Text('All Status')),
-                          DropdownMenuItem(value: 'ACTIVE', child: Text('Active')),
-                          DropdownMenuItem(value: 'SUSPENDED', child: Text('Suspended')),
+                          DropdownMenuItem(
+                            value: '',
+                            child: Text('All Status'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'ACTIVE',
+                            child: Text('Active'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'SUSPENDED',
+                            child: Text('Suspended'),
+                          ),
                         ],
                         onChanged: (val) {
                           setState(() => _statusFilter = val ?? '');
@@ -169,9 +198,11 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                                   )
                                 : null,
                             border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10)),
-                            contentPadding:
-                                const EdgeInsets.symmetric(horizontal: 16),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                            ),
                           ),
                           onSubmitted: (_) => _search(),
                         ),
@@ -183,15 +214,25 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                           value: _statusFilter,
                           decoration: InputDecoration(
                             border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10)),
-                            contentPadding:
-                                const EdgeInsets.symmetric(horizontal: 12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                            ),
                           ),
                           items: const [
-                            DropdownMenuItem(value: '', child: Text('All Status')),
-                            DropdownMenuItem(value: 'ACTIVE', child: Text('Active')),
                             DropdownMenuItem(
-                                value: 'SUSPENDED', child: Text('Suspended')),
+                              value: '',
+                              child: Text('All Status'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'ACTIVE',
+                              child: Text('Active'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'SUSPENDED',
+                              child: Text('Suspended'),
+                            ),
                           ],
                           onChanged: (val) {
                             setState(() => _statusFilter = val ?? '');
@@ -204,8 +245,12 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
             const SizedBox(height: 16),
 
             // Total count
-            Text('${state.total} societies found',
-                style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
+            Text(
+              '${state.total} societies found',
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.textMuted,
+              ),
+            ),
             const SizedBox(height: 12),
 
             // Content
@@ -213,46 +258,62 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
               child: state.isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : state.error != null
-                      ? Center(
-                          child: Text(state.error!,
-                              style: AppTextStyles.bodyMedium
-                                  .copyWith(color: AppColors.danger)))
-                      : state.societies.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.apartment_outlined,
-                                      size: 64, color: AppColors.textMuted),
-                                  const SizedBox(height: 12),
-                                  Text('No societies found',
-                                      style: AppTextStyles.bodyMedium
-                                          .copyWith(color: AppColors.textMuted)),
-                                ],
-                              ),
-                            )
-                          : isMobile
-                              ? ListView.builder(
-                                  padding: const EdgeInsets.only(bottom: 24),
-                                  itemCount: state.societies.length,
-                                  itemBuilder: (context, index) {
-                                    final s = state.societies[index];
-                                    return _SocietyCard(
-                                      society: s,
-                                      onView: () => _showDetailDialog(s['id']),
-                                      onEdit: () =>
-                                          _showCreateDialog(context, society: s),
-                                      onResetPassword: () =>
-                                          _showResetPasswordDialog(
-                                              s['id'], s['name'], s['chairman']?['name']),
-                                      onToggleStatus: () => _confirmToggleStatus(
-                                          s['id'], s['status'] == 'ACTIVE'),
-                                      onSettings: () => _showSocietySettingsDialog(
-                                          s['id'], s['name'], s['settings']),
-                                    );
-                                  },
-                                )
-                              : _buildDesktopTable(state),
+                  ? Center(
+                      child: Text(
+                        state.error!,
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          color: AppColors.danger,
+                        ),
+                      ),
+                    )
+                  : state.societies.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.apartment_outlined,
+                            size: 64,
+                            color: AppColors.textMuted,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'No societies found',
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : isMobile
+                  ? ListView.builder(
+                      padding: const EdgeInsets.only(bottom: 24),
+                      itemCount: state.societies.length,
+                      itemBuilder: (context, index) {
+                        final s = state.societies[index];
+                        return _SocietyCard(
+                          society: s,
+                          onView: () => _showDetailDialog(s['id']),
+                          onEdit: () => _showCreateDialog(context, society: s),
+                          onResetPassword: () => _showResetPasswordDialog(
+                            s['id'],
+                            s['name'],
+                            s['chairman']?['name'],
+                          ),
+                          onToggleStatus: () => _confirmToggleStatus(
+                            s['id'],
+                            s['status'] == 'ACTIVE',
+                          ),
+                          onSettings: () => _showSocietySettingsDialog(
+                            s['id'],
+                            s['name'],
+                            s['settings'],
+                          ),
+                        );
+                      },
+                    )
+                  : _buildDesktopTable(state),
             ),
 
             // Pagination
@@ -264,32 +325,36 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                   children: [
                     TextButton(
                       onPressed: state.page > 1
-                          ? () =>
-                              ref.read(societiesProvider.notifier).loadSocieties(
-                                    page: state.page - 1,
-                                    search: _searchController.text,
-                                    status: _statusFilter.isNotEmpty
-                                        ? _statusFilter
-                                        : null,
-                                  )
+                          ? () => ref
+                                .read(societiesProvider.notifier)
+                                .loadSocieties(
+                                  page: state.page - 1,
+                                  search: _searchController.text,
+                                  status: _statusFilter.isNotEmpty
+                                      ? _statusFilter
+                                      : null,
+                                )
                           : null,
                       child: const Text('Previous'),
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child:
-                          Text('Page ${state.page}', style: AppTextStyles.labelLarge),
+                      child: Text(
+                        'Page ${state.page}',
+                        style: AppTextStyles.labelLarge,
+                      ),
                     ),
                     TextButton(
                       onPressed: state.page * 20 < state.total
-                          ? () =>
-                              ref.read(societiesProvider.notifier).loadSocieties(
-                                    page: state.page + 1,
-                                    search: _searchController.text,
-                                    status: _statusFilter.isNotEmpty
-                                        ? _statusFilter
-                                        : null,
-                                  )
+                          ? () => ref
+                                .read(societiesProvider.notifier)
+                                .loadSocieties(
+                                  page: state.page + 1,
+                                  search: _searchController.text,
+                                  status: _statusFilter.isNotEmpty
+                                      ? _statusFilter
+                                      : null,
+                                )
                           : null,
                       child: const Text('Next'),
                     ),
@@ -306,7 +371,9 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: ConstrainedBox(
-        constraints: BoxConstraints(minWidth: 1000), // Force minimum width for horizontal scroll
+        constraints: BoxConstraints(
+          minWidth: 1000,
+        ), // Force minimum width for horizontal scroll
         child: SingleChildScrollView(
           scrollDirection: Axis.vertical,
           child: Card(
@@ -321,77 +388,159 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
               horizontalMargin: 12,
               headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
               columns: [
-                DataColumn(label: SizedBox(width: 150, child: Text('Name', style: AppTextStyles.labelLarge))),
-                DataColumn(label: SizedBox(width: 120, child: Text('Contact', style: AppTextStyles.labelLarge))),
-                DataColumn(label: SizedBox(width: 80, child: Text('Plan', style: AppTextStyles.labelLarge))),
-                DataColumn(label: SizedBox(width: 60, child: Text('Units', style: AppTextStyles.labelLarge))),
-                DataColumn(label: SizedBox(width: 60, child: Text('Users', style: AppTextStyles.labelLarge))),
-                DataColumn(label: SizedBox(width: 110, child: Text('Status', style: AppTextStyles.labelLarge))),
-                DataColumn(label: SizedBox(width: 90, child: Text('Created', style: AppTextStyles.labelLarge))),
-                DataColumn(label: SizedBox(width: 80, child: Text('Actions', style: AppTextStyles.labelLarge))),
+                DataColumn(
+                  label: SizedBox(
+                    width: 150,
+                    child: Text('Name', style: AppTextStyles.labelLarge),
+                  ),
+                ),
+                DataColumn(
+                  label: SizedBox(
+                    width: 120,
+                    child: Text('Contact', style: AppTextStyles.labelLarge),
+                  ),
+                ),
+                DataColumn(
+                  label: SizedBox(
+                    width: 80,
+                    child: Text('Plan', style: AppTextStyles.labelLarge),
+                  ),
+                ),
+                DataColumn(
+                  label: SizedBox(
+                    width: 60,
+                    child: Text('Units', style: AppTextStyles.labelLarge),
+                  ),
+                ),
+                DataColumn(
+                  label: SizedBox(
+                    width: 60,
+                    child: Text('Users', style: AppTextStyles.labelLarge),
+                  ),
+                ),
+                DataColumn(
+                  label: SizedBox(
+                    width: 110,
+                    child: Text('Status', style: AppTextStyles.labelLarge),
+                  ),
+                ),
+                DataColumn(
+                  label: SizedBox(
+                    width: 90,
+                    child: Text('Created', style: AppTextStyles.labelLarge),
+                  ),
+                ),
+                DataColumn(
+                  label: SizedBox(
+                    width: 80,
+                    child: Text('Actions', style: AppTextStyles.labelLarge),
+                  ),
+                ),
               ],
               rows: state.societies.map<DataRow>((s) {
-                final planName = s['plan']?['displayName'] ?? s['plan']?['name'] ?? 'No Plan';
+                final planName =
+                    s['plan']?['displayName'] ??
+                    s['plan']?['name'] ??
+                    'No Plan';
                 final isActive = s['status'] == 'ACTIVE';
 
-                return DataRow(cells: [
-                  DataCell(Text(s['name'] ?? '', style: AppTextStyles.bodyMedium, overflow: TextOverflow.ellipsis)),
-                  DataCell(Text(s['contactPhone'] ?? s['contactEmail'] ?? '-',
-                      style: AppTextStyles.bodySmall, overflow: TextOverflow.ellipsis)),
-                  DataCell(_badge(planName, const Color(0xFF3B82F6))),
-                  DataCell(Text('${s['unitCount'] ?? 0}')),
-                  DataCell(Text('${s['userCount'] ?? 0}')),
-                  DataCell(_statusToggle(s['id'], isActive)),
-                  DataCell(Text(
-                    s['createdAt'] != null
-                        ? DateFormat('dd MMM yy')
-                            .format(DateTime.parse(s['createdAt']))
-                        : '-',
-                    style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
-                  )),
-                  DataCell(Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.visibility_outlined,
-                            size: 18, color: AppColors.primary),
-                        tooltip: 'View',
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: () => _showDetailDialog(s['id']),
+                return DataRow(
+                  cells: [
+                    DataCell(
+                      Text(
+                        s['name'] ?? '',
+                        style: AppTextStyles.bodyMedium,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(width: 10),
-                      IconButton(
-                        icon: const Icon(Icons.edit_outlined,
-                            size: 18, color: AppColors.primary),
-                        tooltip: 'Edit Society',
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: () => _showCreateDialog(context, society: s),
+                    ),
+                    DataCell(
+                      Text(
+                        s['contactPhone'] ?? s['contactEmail'] ?? '-',
+                        style: AppTextStyles.bodySmall,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        icon: const Icon(Icons.lock_reset,
-                            size: 18, color: AppColors.textMuted),
-                        tooltip: 'Reset Chairman Password',
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: () => _showResetPasswordDialog(
-                            s['id'], s['name'], s['chairman']?['name']),
+                    ),
+                    DataCell(_badge(planName, const Color(0xFF3B82F6))),
+                    DataCell(Text('${s['unitCount'] ?? 0}')),
+                    DataCell(Text('${s['userCount'] ?? 0}')),
+                    DataCell(_statusToggle(s['id'], isActive)),
+                    DataCell(
+                      Text(
+                        s['createdAt'] != null
+                            ? DateFormat(
+                                'dd MMM yy',
+                              ).format(DateTime.parse(s['createdAt']))
+                            : '-',
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: AppColors.textMuted,
+                        ),
                       ),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        icon: const Icon(Icons.tune_rounded,
-                            size: 18, color: AppColors.textMuted),
-                        tooltip: 'Society Settings',
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: () => _showSocietySettingsDialog(
-                            s['id'], s['name'], s['settings']),
+                    ),
+                    DataCell(
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(
+                              Icons.visibility_outlined,
+                              size: 18,
+                              color: AppColors.primary,
+                            ),
+                            tooltip: 'View',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            onPressed: () => _showDetailDialog(s['id']),
+                          ),
+                          const SizedBox(width: 10),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.edit_outlined,
+                              size: 18,
+                              color: AppColors.primary,
+                            ),
+                            tooltip: 'Edit Society',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            onPressed: () =>
+                                _showCreateDialog(context, society: s),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.lock_reset,
+                              size: 18,
+                              color: AppColors.textMuted,
+                            ),
+                            tooltip: 'Reset Chairman Password',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            onPressed: () => _showResetPasswordDialog(
+                              s['id'],
+                              s['name'],
+                              s['chairman']?['name'],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.tune_rounded,
+                              size: 18,
+                              color: AppColors.textMuted,
+                            ),
+                            tooltip: 'Society Settings',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            onPressed: () => _showSocietySettingsDialog(
+                              s['id'],
+                              s['name'],
+                              s['settings'],
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  )),
-                ]);
+                    ),
+                  ],
+                );
               }).toList(),
             ),
           ),
@@ -407,12 +556,14 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color:
-              (isActive ? AppColors.success : AppColors.danger).withValues(alpha: 0.1),
+          color: (isActive ? AppColors.success : AppColors.danger).withValues(
+            alpha: 0.1,
+          ),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: (isActive ? AppColors.success : AppColors.danger)
-                .withValues(alpha: 0.4),
+            color: (isActive ? AppColors.success : AppColors.danger).withValues(
+              alpha: 0.4,
+            ),
           ),
         ),
         child: Row(
@@ -464,11 +615,14 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor:
-                  isCurrentlyActive ? AppColors.danger : AppColors.success,
+              backgroundColor: isCurrentlyActive
+                  ? AppColors.danger
+                  : AppColors.success,
             ),
             onPressed: () async {
               Navigator.pop(ctx);
@@ -481,7 +635,11 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
     );
   }
 
-  void _showResetPasswordDialog(String id, String? societyName, String? currentChairmanName) {
+  void _showResetPasswordDialog(
+    String id,
+    String? societyName,
+    String? currentChairmanName,
+  ) {
     final passCtrl = TextEditingController();
     final nameCtrl = TextEditingController(text: currentChairmanName);
     String mode = 'auto'; // auto | manual
@@ -489,155 +647,207 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
     showAppDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Reset Admin Password'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
+        builder: (ctx, setDialogState) {
+          String? errorMsg;
+          bool saving = false;
+          return AlertDialog(
+            title: const Text('Reset Admin Password'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
                   'Update credentials for "${currentChairmanName ?? 'Chairman'}" of "${societyName ?? ''}".',
-                  style:
-                      AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => setDialogState(() => mode = 'auto'),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(
-                          color: mode == 'auto'
-                              ? AppColors.primary
-                              : const Color(0xFFE2E8F0),
-                        ),
-                      ),
-                      child: Text(
-                        'Auto-generate',
-                        style: TextStyle(
+                  style: AppTextStyles.bodySmall.copyWith(
+                    color: AppColors.textMuted,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => setDialogState(() => mode = 'auto'),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(
                             color: mode == 'auto'
                                 ? AppColors.primary
-                                : AppColors.textMuted),
+                                : const Color(0xFFE2E8F0),
+                          ),
+                        ),
+                        child: Text(
+                          'Auto-generate',
+                          style: TextStyle(
+                            color: mode == 'auto'
+                                ? AppColors.primary
+                                : AppColors.textMuted,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => setDialogState(() => mode = 'manual'),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(
+                            color: mode == 'manual'
+                                ? AppColors.primary
+                                : const Color(0xFFE2E8F0),
+                          ),
+                        ),
+                        child: Text(
+                          'Set manually',
+                          style: TextStyle(
+                            color: mode == 'manual'
+                                ? AppColors.primary
+                                : AppColors.textMuted,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: nameCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Chairman Name',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (mode == 'manual')
+                  TextField(
+                    controller: passCtrl,
+                    obscureText: obscure,
+                    decoration: InputDecoration(
+                      labelText: 'New Password',
+                      hintText: 'Minimum 8 characters',
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          obscure
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                        ),
+                        onPressed: () =>
+                            setDialogState(() => obscure = !obscure),
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.successSurface,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: AppColors.success.withValues(alpha: 0.25),
+                      ),
+                    ),
+                    child: Text(
+                      'A new password will be auto-generated and applied.',
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.success,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => setDialogState(() => mode = 'manual'),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(
-                          color: mode == 'manual'
-                              ? AppColors.primary
-                              : const Color(0xFFE2E8F0),
-                        ),
-                      ),
-                      child: Text(
-                        'Set manually',
-                        style: TextStyle(
-                            color: mode == 'manual'
-                                ? AppColors.primary
-                                : AppColors.textMuted),
-                      ),
+                if (errorMsg != null) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    errorMsg!,
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.danger,
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: nameCtrl,
-                decoration: InputDecoration(
-                  labelText: 'Chairman Name',
-                  border:
-                      OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (mode == 'manual')
-                TextField(
-                  controller: passCtrl,
-                  obscureText: obscure,
-                  decoration: InputDecoration(
-                    labelText: 'New Password',
-                    hintText: 'Minimum 8 characters',
-                    suffixIcon: IconButton(
-                      icon: Icon(obscure
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined),
-                      onPressed: () => setDialogState(() => obscure = !obscure),
-                    ),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                  ),
-                )
-              else
-                Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.successSurface,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: AppColors.success.withValues(alpha: 0.25)),
-                  ),
-                  child: Text(
-                    'A new password will be auto-generated and applied.',
-                    style: AppTextStyles.bodySmall
-                        .copyWith(color: AppColors.success),
-                  ),
-                ),
-            ],
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-            FilledButton(
-              onPressed: () async {
-                if (mode == 'manual' &&
-                    passCtrl.text.isNotEmpty &&
-                    passCtrl.text.length < 8) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Password must be at least 8 characters')),
-                  );
-                  return;
-                }
-                if (mode == 'manual' &&
-                    passCtrl.text.isEmpty &&
-                    nameCtrl.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Provide either a new name or password')),
-                  );
-                  return;
-                }
-                final notifier = ref.read(societiesProvider.notifier);
-                final success = await notifier.resetPassword(
-                  id,
-                  mode == 'manual' ? passCtrl.text : null,
-                  name: nameCtrl.text,
-                  mode: mode,
-                );
-                if (ctx.mounted) {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                        content: Text(success
-                            ? 'Chairman updated successfully'
-                            : 'Failed to update chairman')),
-                  );
-                }
-              },
-              child: const Text('Update'),
+              ],
             ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  if (mode == 'manual' &&
+                      passCtrl.text.isNotEmpty &&
+                      passCtrl.text.length < 8) {
+                    setDialogState(
+                      () => errorMsg = 'Password must be at least 8 characters',
+                    );
+                    return;
+                  }
+                  if (mode == 'manual' &&
+                      passCtrl.text.isEmpty &&
+                      nameCtrl.text.trim().isEmpty) {
+                    setDialogState(
+                      () => errorMsg = 'Provide either a new name or password',
+                    );
+                    return;
+                  }
+                  setDialogState(() {
+                    saving = true;
+                    errorMsg = null;
+                  });
+
+                  final error = await ref
+                      .read(societiesProvider.notifier)
+                      .resetPassword(
+                        id,
+                        passCtrl.text,
+                        name: nameCtrl.text.trim(),
+                        mode: mode,
+                      );
+
+                  if (ctx.mounted) {
+                    if (error == null) {
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Credentials updated successfully'),
+                          backgroundColor: AppColors.success,
+                        ),
+                      );
+                    } else {
+                      setDialogState(() {
+                        saving = false;
+                        errorMsg = error;
+                      });
+                    }
+                  }
+                },
+                child: saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text('Update'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  void _showCreateDialog(BuildContext context, {Map<String, dynamic>? society}) {
+  void _showCreateDialog(
+    BuildContext context, {
+    Map<String, dynamic>? society,
+  }) {
     final isEdit = society != null;
     final nameC = TextEditingController(text: society?['name'] ?? '');
     final addressC = TextEditingController(text: society?['address'] ?? '');
@@ -656,156 +866,243 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
 
     showAppDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(isEdit ? 'Edit Society' : 'Create New Society'),
-        content: SizedBox(
-          width: 500,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Society Details', style: AppTextStyles.h3),
-                const SizedBox(height: 12),
-                TextField(
-                    controller: nameC,
-                    decoration: const InputDecoration(labelText: 'Society Name *')),
-                const SizedBox(height: 10),
-                TextField(
-                    controller: addressC,
-                    decoration: const InputDecoration(labelText: 'Address')),
-                const SizedBox(height: 10),
-                TextField(
-                    controller: cityC,
-                    decoration: const InputDecoration(labelText: 'City')),
-                const SizedBox(height: 10),
-                Row(children: [
-                  Expanded(
-                      child: TextField(
-                          controller: phoneC,
-                          decoration: const InputDecoration(labelText: 'Phone'))),
-                  const SizedBox(width: 10),
-                  Expanded(
-                      child: TextField(
-                          controller: emailC,
-                          decoration: const InputDecoration(labelText: 'Email'))),
-                ]),
-                const SizedBox(height: 10),
-                AppSearchableDropdown<String>(
-                  label: 'Plan',
-                  value: selectedPlan,
-                  items: const [
-                    AppDropdownItem(value: 'basic', label: 'Basic'),
-                    AppDropdownItem(value: 'standard', label: 'Standard'),
-                    AppDropdownItem(value: 'premium', label: 'Premium'),
-                  ],
-                  onChanged: (v) {
-                    selectedPlan = v ?? 'basic';
-                    planChanged = true;
-                  },
-                ),
-                if (!isEdit) ...[
-                  const SizedBox(height: 20),
-                  Text('Chairman (Admin) Account', style: AppTextStyles.h3),
-                  const SizedBox(height: 12),
-                  Row(children: [
-                    Expanded(
-                        child: TextField(
-                            controller: pNameC,
-                            decoration: const InputDecoration(labelText: 'Name *'))),
-                    const SizedBox(width: 10),
-                    Expanded(
-                        child: TextField(
-                            controller: pPhoneC,
-                            decoration:
-                                const InputDecoration(labelText: 'Phone *'))),
-                  ]),
-                  const SizedBox(height: 10),
-                  Row(children: [
-                    Expanded(
-                        child: TextField(
-                            controller: pEmailC,
-                            decoration: const InputDecoration(labelText: 'Email'))),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: pPassC,
-                        obscureText: true,
-                        decoration: const InputDecoration(labelText: 'Password *'),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) {
+          String? errorMsg;
+          bool saving = false;
+
+          return AlertDialog(
+            title: Text(isEdit ? 'Edit Society' : 'Create New Society'),
+            content: SizedBox(
+              width: 500,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Society Details', style: AppTextStyles.h3),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: nameC,
+                      decoration: const InputDecoration(
+                        labelText: 'Society Name *',
                       ),
                     ),
-                  ]),
-                ],
-              ],
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: addressC,
+                      decoration: const InputDecoration(labelText: 'Address'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: cityC,
+                      decoration: const InputDecoration(labelText: 'City *'),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: phoneC,
+                            decoration: const InputDecoration(
+                              labelText: 'Phone',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: emailC,
+                            decoration: const InputDecoration(
+                              labelText: 'Email',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    AppSearchableDropdown<String>(
+                      label: 'Plan',
+                      value: selectedPlan,
+                      items: const [
+                        AppDropdownItem(value: 'basic', label: 'Basic'),
+                        AppDropdownItem(value: 'standard', label: 'Standard'),
+                        AppDropdownItem(value: 'premium', label: 'Premium'),
+                      ],
+                      onChanged: (v) {
+                        selectedPlan = v ?? 'basic';
+                        planChanged = true;
+                      },
+                    ),
+                    if (!isEdit) ...[
+                      const SizedBox(height: 20),
+                      Text('Chairman (Admin) Account', style: AppTextStyles.h3),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: pNameC,
+                              decoration: const InputDecoration(
+                                labelText: 'Name *',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextField(
+                              controller: pPhoneC,
+                              decoration: const InputDecoration(
+                                labelText: 'Phone *',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: pEmailC,
+                              decoration: const InputDecoration(
+                                labelText: 'Email',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextField(
+                              controller: pPassC,
+                              obscureText: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Password *',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    if (errorMsg != null) ...[
+                      const SizedBox(height: 20),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.dangerSurface,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: AppColors.danger.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: Text(
+                          errorMsg!,
+                          style: AppTextStyles.bodySmall.copyWith(
+                            color: AppColors.danger,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () async {
-              if (nameC.text.isEmpty) return;
-              final data = <String, dynamic>{
-                'name': nameC.text.trim(),
-                'address': addressC.text.trim(),
-                'city': cityC.text.trim(),
-                'contactPhone': phoneC.text.trim(),
-                'contactEmail': emailC.text.trim(),
-              };
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: saving
+                    ? null
+                    : () async {
+                        if (nameC.text.isEmpty) {
+                          setS(() => errorMsg = 'Society name is required');
+                          return;
+                        }
+                        if (cityC.text.isEmpty) {
+                          setS(() => errorMsg = 'City is required');
+                          return;
+                        }
+                        if (!isEdit &&
+                            (pNameC.text.isEmpty ||
+                                pPhoneC.text.isEmpty ||
+                                pPassC.text.isEmpty)) {
+                          setS(() => errorMsg = 'Admin details are required');
+                          return;
+                        }
 
-              // Only send planName if explicitly changed or it's a new society
-              if (!isEdit || planChanged) {
-                data['planName'] = selectedPlan;
-              }
+                        setS(() {
+                          saving = true;
+                          errorMsg = null;
+                        });
 
-              if (!isEdit &&
-                  pNameC.text.isNotEmpty &&
-                  pPhoneC.text.isNotEmpty &&
-                  pPassC.text.isNotEmpty) {
-                data['chairman'] = {
-                  'name': pNameC.text.trim(),
-                  'phone': pPhoneC.text.trim(),
-                  'email':
-                      pEmailC.text.trim().isNotEmpty ? pEmailC.text.trim() : null,
-                  'password': pPassC.text,
-                };
-              }
+                        final data = <String, dynamic>{
+                          'name': nameC.text.trim(),
+                          'address': addressC.text.trim(),
+                          'city': cityC.text.trim(),
+                          'contactPhone': phoneC.text.trim(),
+                          'contactEmail': emailC.text.trim(),
+                        };
 
-              Navigator.pop(ctx);
-              if (isEdit) {
-                final ok = await ref
-                    .read(societiesProvider.notifier)
-                    .updateSociety(society['id'], data);
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(ok
-                          ? 'Society updated successfully'
-                          : 'Failed to update society'),
-                      backgroundColor: ok ? AppColors.success : AppColors.danger,
-                    ),
-                  );
-                }
-              } else {
-                final ok = await ref
-                    .read(societiesProvider.notifier)
-                    .createSociety(data);
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(ok
-                          ? 'Society created successfully'
-                          : 'Failed to create society'),
-                      backgroundColor: ok ? AppColors.success : AppColors.danger,
-                    ),
-                  );
-                }
-              }
-            },
-            child: Text(isEdit ? 'Update Society' : 'Create Society'),
-          ),
-        ],
+                        if (!isEdit || planChanged) {
+                          data['planName'] = selectedPlan;
+                        }
+
+                        if (!isEdit) {
+                          data['chairman'] = {
+                            'name': pNameC.text.trim(),
+                            'phone': pPhoneC.text.trim(),
+                            'email': pEmailC.text.trim().isNotEmpty
+                                ? pEmailC.text.trim()
+                                : null,
+                            'password': pPassC.text,
+                          };
+                        }
+
+                        final error = isEdit
+                            ? await ref
+                                  .read(societiesProvider.notifier)
+                                  .updateSociety(society['id'], data)
+                            : await ref
+                                  .read(societiesProvider.notifier)
+                                  .createSociety(data);
+
+                        if (ctx.mounted) {
+                          if (error == null) {
+                            Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  isEdit
+                                      ? 'Society updated successfully'
+                                      : 'Society created successfully',
+                                ),
+                                backgroundColor: AppColors.success,
+                              ),
+                            );
+                          } else {
+                            setS(() {
+                              saving = false;
+                              errorMsg = error;
+                            });
+                          }
+                        }
+                      },
+                child: saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(isEdit ? 'Update Society' : 'Create Society'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -878,7 +1175,9 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
           OutlinedButton.icon(
             onPressed: () {
               Navigator.pop(ctx);
@@ -907,9 +1206,12 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
         children: [
           SizedBox(
             width: 120,
-            child: Text(k,
-                style:
-                    AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
+            child: Text(
+              k,
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.textMuted,
+              ),
+            ),
           ),
           Expanded(child: Text(v, style: AppTextStyles.bodyMedium)),
         ],
@@ -918,8 +1220,13 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
   }
 
   void _showSocietySettingsDialog(
-      String societyId, String societyName, dynamic currentSettings) {
-    final settings = (currentSettings is Map) ? Map<String, dynamic>.from(currentSettings) : <String, dynamic>{};
+    String societyId,
+    String societyName,
+    dynamic currentSettings,
+  ) {
+    final settings = (currentSettings is Map)
+        ? Map<String, dynamic>.from(currentSettings)
+        : <String, dynamic>{};
     final qrCtrl = TextEditingController(
       text: settings['visitor_qr_max_hrs']?.toString() ?? '',
     );
@@ -935,8 +1242,12 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text('Society Settings', style: AppTextStyles.h2),
-              Text(societyName,
-                  style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
+              Text(
+                societyName,
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.textMuted,
+                ),
+              ),
             ],
           ),
           content: SizedBox(
@@ -954,30 +1265,58 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                         color: AppColors.primarySurface,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(Icons.qr_code_2_rounded,
-                          color: AppColors.primary, size: 18),
+                      child: const Icon(
+                        Icons.qr_code_2_rounded,
+                        color: AppColors.primary,
+                        size: 18,
+                      ),
                     ),
                     const SizedBox(width: 10),
-                    Text('Visitor QR Max Expiry', style: AppTextStyles.labelMedium),
+                    Text(
+                      'Visitor QR Max Expiry',
+                      style: AppTextStyles.labelMedium,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  'Override the platform default for this society. Leave blank to use the platform default.',
-                  style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: qrCtrl,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: InputDecoration(
-                    labelText: 'Max hours (e.g. 12)',
-                    suffixText: 'hrs',
-                    errorText: errorText,
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                  ),
+                Consumer(
+                  builder: (context, ref, child) {
+                    final config = ref.watch(visitorConfigProvider);
+                    final platformMax = config.when(
+                      data: (d) =>
+                          (d['visitorQrMaxHrs'] as num?)?.toString() ?? '...',
+                      loading: () => '...',
+                      error: (_, __) => '...',
+                    );
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Override the platform default ($platformMax hrs) for this society. Leave blank to use the platform default.',
+                          style: AppTextStyles.bodySmall.copyWith(
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: qrCtrl,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          decoration: InputDecoration(
+                            labelText:
+                                'Max hours (Platform Limit: $platformMax hrs)',
+                            suffixText: 'hrs',
+                            errorText: errorText,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -998,25 +1337,45 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                           setS(() => errorText = 'Must be a positive integer');
                           return;
                         }
+                        
+                        // Validation: Cannot exceed platform limit
+                        final platConfig = ref.read(visitorConfigProvider).asData?.value;
+                        final platMax = platConfig?['visitorQrMaxHrs'] as num?;
+                        if (platMax != null && n > platMax) {
+                          setS(() => errorText = 'Cannot exceed platform limit of $platMax hrs');
+                          return;
+                        }
                       }
-                      setS(() { saving = true; errorText = null; });
-                      try {
-                        final dio = ref.read(dioProvider);
-                        final messenger = ScaffoldMessenger.of(context);
-                        final body = <String, dynamic>{};
-                        if (raw.isNotEmpty) body['visitor_qr_max_hrs'] = int.parse(raw);
-                        await dio.patch('societies/$societyId/settings', data: body);
-                        if (ctx.mounted) {
+                      setS(() {
+                        saving = true;
+                        errorText = null;
+                      });
+
+                      final body = <String, dynamic>{};
+                      if (raw.isNotEmpty)
+                        body['visitor_qr_max_hrs'] = int.parse(raw);
+                      else
+                        body['visitor_qr_max_hrs'] = null; // Reset to default
+
+                      final error = await ref
+                          .read(societiesProvider.notifier)
+                          .updateSettings(societyId, body);
+
+                      if (ctx.mounted) {
+                        if (error == null) {
                           Navigator.pop(ctx);
-                          messenger.showSnackBar(
+                          ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Society settings saved'),
                               backgroundColor: AppColors.success,
                             ),
                           );
+                        } else {
+                          setS(() {
+                            saving = false;
+                            errorText = error;
+                          });
                         }
-                      } catch (e) {
-                        setS(() { saving = false; errorText = 'Save failed'; });
                       }
                     },
               child: saving
@@ -1024,7 +1383,9 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : const Text('Save'),
             ),
@@ -1063,6 +1424,7 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
     int step = 0;
     bool saving = false;
     String? societyId;
+    String? errorMsg;
 
     void clearErrors() {
       nameErr.value = null;
@@ -1132,8 +1494,9 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                             const SizedBox(height: 10),
                             TextField(
                               controller: addressC,
-                              decoration:
-                                  const InputDecoration(labelText: 'Address'),
+                              decoration: const InputDecoration(
+                                labelText: 'Address',
+                              ),
                             ),
                             const SizedBox(height: 10),
                             ValueListenableBuilder<String?>(
@@ -1155,7 +1518,8 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                                     controller: wingsC,
                                     keyboardType: TextInputType.number,
                                     decoration: const InputDecoration(
-                                        labelText: 'No. of Wings'),
+                                      labelText: 'No. of Wings',
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(width: 10),
@@ -1164,7 +1528,8 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                                     controller: unitsC,
                                     keyboardType: TextInputType.number,
                                     decoration: const InputDecoration(
-                                        labelText: 'Expected Units'),
+                                      labelText: 'Expected Units',
+                                    ),
                                   ),
                                 ),
                               ],
@@ -1176,7 +1541,8 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                                   child: TextField(
                                     controller: phoneC,
                                     decoration: const InputDecoration(
-                                        labelText: 'Contact Phone'),
+                                      labelText: 'Contact Phone',
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(width: 10),
@@ -1184,7 +1550,8 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                                   child: TextField(
                                     controller: emailC,
                                     decoration: const InputDecoration(
-                                        labelText: 'Contact Email'),
+                                      labelText: 'Contact Email',
+                                    ),
                                   ),
                                 ),
                               ],
@@ -1197,12 +1564,17 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                               items: const [
                                 AppDropdownItem(value: 'basic', label: 'Basic'),
                                 AppDropdownItem(
-                                    value: 'standard', label: 'Standard'),
+                                  value: 'standard',
+                                  label: 'Standard',
+                                ),
                                 AppDropdownItem(
-                                    value: 'premium', label: 'Premium'),
+                                  value: 'premium',
+                                  label: 'Premium',
+                                ),
                               ],
                               onChanged: (v) => setSheetState(
-                                  () => selectedPlan = v ?? 'standard'),
+                                () => selectedPlan = v ?? 'standard',
+                              ),
                             ),
                             const SizedBox(height: 10),
                             CheckboxListTile(
@@ -1254,7 +1626,8 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                             TextField(
                               controller: adminEmailC,
                               decoration: const InputDecoration(
-                                  labelText: 'Email Address'),
+                                labelText: 'Email Address',
+                              ),
                             ),
                             const SizedBox(height: 10),
                             ValueListenableBuilder<String?>(
@@ -1272,10 +1645,18 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                             ),
                           ],
                           if (step == 3) ...[
-                            _kv('Society',
-                                nameC.text.trim().isEmpty ? '—' : nameC.text.trim()),
-                            _kv('City',
-                                cityC.text.trim().isEmpty ? '—' : cityC.text.trim()),
+                            _kv(
+                              'Society',
+                              nameC.text.trim().isEmpty
+                                  ? '—'
+                                  : nameC.text.trim(),
+                            ),
+                            _kv(
+                              'City',
+                              cityC.text.trim().isEmpty
+                                  ? '—'
+                                  : cityC.text.trim(),
+                            ),
                             _kv('Plan', selectedPlan),
                             _kv(
                               'Trial',
@@ -1284,20 +1665,42 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                                   : 'No',
                             ),
                             _kv(
-                                'Admin',
-                                adminNameC.text.trim().isEmpty
-                                    ? '—'
-                                    : adminNameC.text.trim()),
+                              'Admin',
+                              adminNameC.text.trim().isEmpty
+                                  ? '—'
+                                  : adminNameC.text.trim(),
+                            ),
                             _kv(
-                                'Admin Phone',
-                                adminPhoneC.text.trim().isEmpty
-                                    ? '—'
-                                    : adminPhoneC.text.trim()),
+                              'Admin Phone',
+                              adminPhoneC.text.trim().isEmpty
+                                  ? '—'
+                                  : adminPhoneC.text.trim(),
+                            ),
                           ],
                         ],
                       ),
                     ),
                   ),
+                  if (errorMsg != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.dangerSurface,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppColors.danger.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: Text(
+                        errorMsg!,
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: AppColors.danger,
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   Row(
                     children: [
@@ -1321,154 +1724,175 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                           onPressed: saving
                               ? null
                               : () async {
-                              clearErrors();
-                              final notifier = ref.read(societiesProvider.notifier);
-
-                              // STEP 0: create society draft (upload details)
-                              if (step == 0) {
-                                final name = nameC.text.trim();
-                                final city = cityC.text.trim();
-                                bool ok = true;
-                                if (name.isEmpty) {
-                                  nameErr.value = 'Required';
-                                  ok = false;
-                                }
-                                if (city.isEmpty) {
-                                  cityErr.value = 'Required';
-                                  ok = false;
-                                }
-                                if (!ok) return;
-
-                                setSheetState(() => saving = true);
-                                final id = await notifier.createSocietyDraft({
-                                  'name': name,
-                                  'address': addressC.text.trim(),
-                                  'city': city,
-                                  'contactPhone': phoneC.text.trim(),
-                                  'contactEmail': emailC.text.trim(),
-                                  'settings': {
-                                    if (wingsC.text.trim().isNotEmpty)
-                                      'wings': int.tryParse(wingsC.text.trim()) ??
-                                          wingsC.text.trim(),
-                                    if (unitsC.text.trim().isNotEmpty)
-                                      'expectedUnits':
-                                          int.tryParse(unitsC.text.trim()) ??
-                                              unitsC.text.trim(),
-                                  },
-                                });
-                                setSheetState(() => saving = false);
-
-                                if (id == null) {
-                                  if (!context.mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                        content: Text('Failed to save society details')),
+                                  clearErrors();
+                                  final notifier = ref.read(
+                                    societiesProvider.notifier,
                                   );
-                                  return;
-                                }
-                                societyId = id;
-                                setSheetState(() => step = 1);
-                                return;
-                              }
 
-                              // STEP 1: update plan/trial (upload step data)
-                              if (step == 1) {
-                                if (societyId == null) return;
-                                if (enableTrial) {
-                                  final td = int.tryParse(trialDaysC.text.trim());
-                                  if (td == null || td <= 0) {
-                                    trialDaysErr.value = 'Enter valid days';
+                                  // STEP 0: create society draft (upload details)
+                                  if (step == 0) {
+                                    final name = nameC.text.trim();
+                                    final city = cityC.text.trim();
+                                    bool ok = true;
+                                    if (name.isEmpty) {
+                                      nameErr.value = 'Required';
+                                      ok = false;
+                                    }
+                                    if (city.isEmpty) {
+                                      cityErr.value = 'Required';
+                                      ok = false;
+                                    }
+                                    if (!ok) return;
+
+                                    setSheetState(() {
+                                      saving = true;
+                                      errorMsg = null;
+                                    });
+                                    final results = await notifier
+                                        .createSocietyWithId({
+                                          'name': name,
+                                          'address': addressC.text.trim(),
+                                          'city': city,
+                                          'contactPhone': phoneC.text.trim(),
+                                          'contactEmail': emailC.text.trim(),
+                                          'settings': {
+                                            if (wingsC.text.trim().isNotEmpty)
+                                              'wings':
+                                                  int.tryParse(
+                                                    wingsC.text.trim(),
+                                                  ) ??
+                                                  wingsC.text.trim(),
+                                            if (unitsC.text.trim().isNotEmpty)
+                                              'expectedUnits':
+                                                  int.tryParse(
+                                                    unitsC.text.trim(),
+                                                  ) ??
+                                                  unitsC.text.trim(),
+                                          },
+                                        });
+                                    final id = results.$1;
+                                    final error = results.$2;
+
+                                    setSheetState(() => saving = false);
+
+                                    if (error != null) {
+                                      setSheetState(() => errorMsg = error);
+                                      return;
+                                    }
+                                    societyId = id;
+                                    setSheetState(() => step = 1);
                                     return;
                                   }
-                                }
 
-                                setSheetState(() => saving = true);
-                                final ok = await notifier.updateSociety(societyId!, {
-                                  'planName': selectedPlan,
-                                  'settings': {
-                                    if (wingsC.text.trim().isNotEmpty)
-                                      'wings': int.tryParse(wingsC.text.trim()) ??
-                                          wingsC.text.trim(),
-                                    if (unitsC.text.trim().isNotEmpty)
-                                      'expectedUnits':
-                                          int.tryParse(unitsC.text.trim()) ??
-                                              unitsC.text.trim(),
-                                    'trialEnabled': enableTrial,
-                                  },
-                                });
-                                // trialDays affects renewal date; we set it at create time only.
-                                // If user changes it here, we still send it for backend to handle if supported.
-                                // (Backend create handles it; keeping here for future compatibility.)
-                                setSheetState(() => saving = false);
+                                  // STEP 1: update plan/trial (upload step data)
+                                  if (step == 1) {
+                                    if (societyId == null) return;
+                                    if (enableTrial) {
+                                      final td = int.tryParse(
+                                        trialDaysC.text.trim(),
+                                      );
+                                      if (td == null || td <= 0) {
+                                        trialDaysErr.value = 'Enter valid days';
+                                        return;
+                                      }
+                                    }
 
-                                if (!ok) {
+                                    setSheetState(() {
+                                      saving = true;
+                                      errorMsg = null;
+                                    });
+                                    final error = await notifier.updateSociety(
+                                      societyId!,
+                                      {
+                                        'planName': selectedPlan,
+                                        'settings': {
+                                          if (wingsC.text.trim().isNotEmpty)
+                                            'wings':
+                                                int.tryParse(
+                                                  wingsC.text.trim(),
+                                                ) ??
+                                                wingsC.text.trim(),
+                                          if (unitsC.text.trim().isNotEmpty)
+                                            'expectedUnits':
+                                                int.tryParse(
+                                                  unitsC.text.trim(),
+                                                ) ??
+                                                unitsC.text.trim(),
+                                          'trialEnabled': enableTrial,
+                                        },
+                                      },
+                                    );
+                                    setSheetState(() => saving = false);
+
+                                    if (error != null) {
+                                      setSheetState(() => errorMsg = error);
+                                      return;
+                                    }
+                                    setSheetState(() => step = 2);
+                                    return;
+                                  }
+
+                                  // STEP 2: create/update chairman (upload step data)
+                                  if (step == 2) {
+                                    if (societyId == null) return;
+                                    final n = adminNameC.text.trim();
+                                    final p = adminPhoneC.text.trim();
+                                    final pass = adminPassC.text;
+                                    bool ok = true;
+                                    if (n.isEmpty) {
+                                      adminNameErr.value = 'Required';
+                                      ok = false;
+                                    }
+                                    if (p.isEmpty) {
+                                      adminPhoneErr.value = 'Required';
+                                      ok = false;
+                                    }
+                                    if (pass.isEmpty) {
+                                      adminPassErr.value = 'Required';
+                                      ok = false;
+                                    } else if (pass.length < 8) {
+                                      adminPassErr.value = 'Min 8 characters';
+                                      ok = false;
+                                    }
+                                    if (!ok) return;
+
+                                    setSheetState(() {
+                                      saving = true;
+                                      errorMsg = null;
+                                    });
+                                    final error = await notifier
+                                        .upsertChairman(societyId!, {
+                                          'name': n,
+                                          'phone': p,
+                                          'email':
+                                              adminEmailC.text.trim().isNotEmpty
+                                              ? adminEmailC.text.trim()
+                                              : null,
+                                          'password': pass,
+                                        });
+                                    setSheetState(() => saving = false);
+
+                                    if (error != null) {
+                                      setSheetState(() => errorMsg = error);
+                                      return;
+                                    }
+                                    setSheetState(() => step = 3);
+                                    return;
+                                  }
+
+                                  // STEP 3: finish
+                                  Navigator.pop(ctx);
+                                  await notifier.loadSocieties(page: 1);
                                   if (!context.mounted) return;
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Failed to save plan')),
+                                    SnackBar(
+                                      content: const Text(
+                                        'Society registered successfully',
+                                      ),
+                                      backgroundColor: AppColors.success,
+                                    ),
                                   );
-                                  return;
-                                }
-                                setSheetState(() => step = 2);
-                                return;
-                              }
-
-                              // STEP 2: create/update chairman (upload step data)
-                              if (step == 2) {
-                                if (societyId == null) return;
-                                final n = adminNameC.text.trim();
-                                final p = adminPhoneC.text.trim();
-                                final pass = adminPassC.text;
-                                bool ok = true;
-                                if (n.isEmpty) {
-                                  adminNameErr.value = 'Required';
-                                  ok = false;
-                                }
-                                if (p.isEmpty) {
-                                  adminPhoneErr.value = 'Required';
-                                  ok = false;
-                                }
-                                if (pass.isEmpty) {
-                                  adminPassErr.value = 'Required';
-                                  ok = false;
-                                } else if (pass.length < 8) {
-                                  adminPassErr.value = 'Min 8 characters';
-                                  ok = false;
-                                }
-                                if (!ok) return;
-
-                                setSheetState(() => saving = true);
-                                final saved = await notifier.upsertChairman(societyId!, {
-                                  'name': n,
-                                  'phone': p,
-                                  'email': adminEmailC.text.trim().isNotEmpty
-                                      ? adminEmailC.text.trim()
-                                      : null,
-                                  'password': pass,
-                                });
-                                setSheetState(() => saving = false);
-
-                                if (!saved) {
-                                  if (!context.mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Failed to save admin')),
-                                  );
-                                  return;
-                                }
-                                setSheetState(() => step = 3);
-                                return;
-                              }
-
-                              // STEP 3: finish
-                              Navigator.pop(ctx);
-                              await notifier.loadSocieties(page: 1);
-                              if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: const Text('Society registered successfully'),
-                                  backgroundColor: AppColors.success,
-                                ),
-                              );
-                            },
+                                },
                           child: Text(
                             saving
                                 ? 'Saving...'
@@ -1509,7 +1933,9 @@ class _SocietyCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = society['name'] ?? '';
     final planName =
-        society['plan']?['displayName'] ?? society['plan']?['name'] ?? 'No Plan';
+        society['plan']?['displayName'] ??
+        society['plan']?['name'] ??
+        'No Plan';
     final isActive = society['status'] == 'ACTIVE';
     final contact = society['contactPhone'] ?? society['contactEmail'] ?? '-';
     final units = society['unitCount'] ?? 0;
@@ -1534,15 +1960,22 @@ class _SocietyCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
-                  child: Text(name,
-                      style: AppTextStyles.h2, overflow: TextOverflow.ellipsis),
+                  child: Text(
+                    name,
+                    style: AppTextStyles.h2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 _badge(planName, const Color(0xFF3B82F6)),
               ],
             ),
             const SizedBox(height: 8),
-            Text(contact,
-                style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
+            Text(
+              contact,
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.textMuted,
+              ),
+            ),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -1561,32 +1994,44 @@ class _SocietyCard extends StatelessWidget {
                 Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.visibility_outlined,
-                          size: 18, color: AppColors.primary),
+                      icon: const Icon(
+                        Icons.visibility_outlined,
+                        size: 18,
+                        color: AppColors.primary,
+                      ),
                       onPressed: onView,
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                     ),
                     const SizedBox(width: 12),
                     IconButton(
-                      icon: const Icon(Icons.edit_outlined,
-                          size: 18, color: AppColors.primary),
+                      icon: const Icon(
+                        Icons.edit_outlined,
+                        size: 18,
+                        color: AppColors.primary,
+                      ),
                       onPressed: onEdit,
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                     ),
                     const SizedBox(width: 12),
                     IconButton(
-                      icon: const Icon(Icons.lock_reset,
-                          size: 18, color: AppColors.textMuted),
+                      icon: const Icon(
+                        Icons.lock_reset,
+                        size: 18,
+                        color: AppColors.textMuted,
+                      ),
                       onPressed: onResetPassword,
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                     ),
                     const SizedBox(width: 12),
                     IconButton(
-                      icon: const Icon(Icons.tune_rounded,
-                          size: 18, color: AppColors.textMuted),
+                      icon: const Icon(
+                        Icons.tune_rounded,
+                        size: 18,
+                        color: AppColors.textMuted,
+                      ),
                       tooltip: 'Society Settings',
                       onPressed: onSettings,
                       padding: EdgeInsets.zero,
@@ -1620,10 +2065,7 @@ class _SocietyCard extends StatelessWidget {
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Text(
-        text,
-        style: AppTextStyles.labelSmall.copyWith(color: color),
-      ),
+      child: Text(text, style: AppTextStyles.labelSmall.copyWith(color: color)),
     );
   }
 
@@ -1633,12 +2075,14 @@ class _SocietyCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color:
-              (isActive ? AppColors.success : AppColors.danger).withValues(alpha: 0.1),
+          color: (isActive ? AppColors.success : AppColors.danger).withValues(
+            alpha: 0.1,
+          ),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: (isActive ? AppColors.success : AppColors.danger)
-                .withValues(alpha: 0.4),
+            color: (isActive ? AppColors.success : AppColors.danger).withValues(
+              alpha: 0.4,
+            ),
           ),
         ),
         child: Row(
@@ -1680,20 +2124,23 @@ class _StatsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = [
       _StatItem(
-          label: 'Total Societies',
-          value: total.toString(),
-          icon: Icons.location_city_rounded,
-          color: AppColors.primary),
+        label: 'Total Societies',
+        value: total.toString(),
+        icon: Icons.location_city_rounded,
+        color: AppColors.primary,
+      ),
       _StatItem(
-          label: 'Active',
-          value: active.toString(),
-          icon: Icons.check_circle_rounded,
-          color: AppColors.success),
+        label: 'Active',
+        value: active.toString(),
+        icon: Icons.check_circle_rounded,
+        color: AppColors.success,
+      ),
       _StatItem(
-          label: 'Suspended',
-          value: suspended.toString(),
-          icon: Icons.block_rounded,
-          color: AppColors.danger),
+        label: 'Suspended',
+        value: suspended.toString(),
+        icon: Icons.block_rounded,
+        color: AppColors.danger,
+      ),
     ];
 
     if (isMobile) {
@@ -1765,8 +2212,9 @@ class _StatCard extends StatelessWidget {
                 children: [
                   Text(
                     item.label,
-                    style: AppTextStyles.bodySmall
-                        .copyWith(color: AppColors.textMuted),
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textMuted,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(item.value, style: AppTextStyles.h2),
@@ -1812,15 +2260,17 @@ class _SheetStepHeader extends StatelessWidget {
                             color: i == 0
                                 ? Colors.transparent
                                 : (i <= step
-                                    ? AppColors.primary
-                                    : AppColors.border),
+                                      ? AppColors.primary
+                                      : AppColors.border),
                           ),
                         ),
                         Container(
                           width: 26,
                           height: 26,
                           decoration: BoxDecoration(
-                            color: i <= step ? AppColors.primary : AppColors.border,
+                            color: i <= step
+                                ? AppColors.primary
+                                : AppColors.border,
                             shape: BoxShape.circle,
                           ),
                           child: Center(
@@ -1840,8 +2290,8 @@ class _SheetStepHeader extends StatelessWidget {
                             color: i == labels.length - 1
                                 ? Colors.transparent
                                 : (i < step
-                                    ? AppColors.primary
-                                    : AppColors.border),
+                                      ? AppColors.primary
+                                      : AppColors.border),
                           ),
                         ),
                       ],
@@ -1850,8 +2300,12 @@ class _SheetStepHeader extends StatelessWidget {
                     Text(
                       labels[i],
                       style: AppTextStyles.labelSmall.copyWith(
-                        color: i == step ? AppColors.primary : AppColors.textMuted,
-                        fontWeight: i == step ? FontWeight.w600 : FontWeight.w400,
+                        color: i == step
+                            ? AppColors.primary
+                            : AppColors.textMuted,
+                        fontWeight: i == step
+                            ? FontWeight.w600
+                            : FontWeight.w400,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),

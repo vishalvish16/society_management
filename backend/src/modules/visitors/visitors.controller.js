@@ -21,14 +21,14 @@ async function getVisitors(req, res) {
  */
 async function inviteVisitor(req, res) {
   try {
-    const { unitId, visitorName, visitorPhone, visitorEmail, expectedArrival, expiryHours, noteForWatchman } = req.body;
+    const { unitId, visitorName, visitorPhone, visitorEmail, numberOfAdults, description, expectedArrival, expiryHours, noteForWatchman } = req.body;
 
     if (!unitId || !visitorName || !visitorPhone) {
       return sendError(res, 'Unit ID, visitor name, and phone are required', 400);
     }
 
     const invitation = await visitorsService.inviteVisitor(req.user.id, req.user.societyId, {
-      unitId, visitorName, visitorPhone, visitorEmail, expectedArrival, expiryHours, noteForWatchman,
+      unitId, visitorName, visitorPhone, visitorEmail, numberOfAdults, description, expectedArrival, expiryHours, noteForWatchman,
     });
 
     return sendSuccess(res, invitation, 'Visitor invitation created', 201);
@@ -136,14 +136,14 @@ async function getMyVisitors(req, res) {
 
 async function logWalkin(req, res) {
   try {
-    const { unitId, visitorName, visitorPhone, noteForWatchman } = req.body;
+    const { unitId, visitorName, visitorPhone, numberOfAdults, description, noteForWatchman } = req.body;
 
     if (!unitId || !visitorName || !visitorPhone) {
       return sendError(res, 'Unit ID, visitor name, and phone are required', 400);
     }
 
     const log = await visitorsService.logWalkinEntry(req.user.id, req.user.societyId, {
-      unitId, visitorName, visitorPhone, noteForWatchman
+      unitId, visitorName, visitorPhone, numberOfAdults, description, noteForWatchman
     });
 
     return sendSuccess(res, log, 'Visitor entry logged successfully', 201);
@@ -158,11 +158,30 @@ async function logWalkin(req, res) {
  * Returns platform-level visitor configuration (max QR expiry hours).
  * Any authenticated user can read this so the invite form can enforce the cap.
  */
-async function getVisitorConfig(_req, res) {
+async function getVisitorConfig(req, res) {
   try {
-    const maxHrs = await getVisitorQrMaxHrs();
-    return sendSuccess(res, { visitorQrMaxHrs: maxHrs });
+    const { societyId } = req.user;
+    const prisma = require('../../config/db');
+
+    // 1. Get Platform Default
+    let effectiveMaxHrs = await getVisitorQrMaxHrs();
+
+    // 2. If user is in a society, check for society-level override
+    if (societyId) {
+      const society = await prisma.society.findUnique({
+        where: { id: societyId },
+        select: { settings: true }
+      });
+
+      const societyLimit = society?.settings?.visitor_qr_max_hrs;
+      if (societyLimit && !isNaN(parseInt(societyLimit))) {
+        effectiveMaxHrs = parseInt(societyLimit);
+      }
+    }
+
+    return sendSuccess(res, { visitorQrMaxHrs: effectiveMaxHrs });
   } catch (error) {
+    console.error('Get visitor config error:', error.message);
     return sendError(res, error.message, 500);
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/dio_client.dart';
+import 'package:dio/dio.dart';
 
 class DeliveryState {
   final List<Map<String, dynamic>> deliveries;
@@ -43,33 +44,48 @@ class DeliveryNotifier extends StateNotifier<DeliveryState> {
     }
   }
 
-  Future<bool> logDelivery(Map<String, dynamic> data) async {
+  Future<String?> logDelivery(Map<String, dynamic> data) async {
     try {
-      await _client.dio.post('/deliveries', data: data);
-      await loadDeliveries();
-      return true;
-    } catch (_) {
-      return false;
+      final res = await _client.dio.post('/deliveries', data: data);
+      if (res.data['success'] == true) {
+        await loadDeliveries();
+        return null;
+      }
+      return res.data['message'] ?? 'Failed to log delivery';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to log delivery';
+    } catch (e) {
+      return e.toString();
     }
   }
 
-  Future<bool> markCollected(String id) async {
+  Future<String?> markCollected(String id) async {
     try {
-      await _client.dio.patch('/deliveries/$id/collect');
-      await loadDeliveries();
-      return true;
-    } catch (_) {
-      return false;
+      final res = await _client.dio.patch('/deliveries/$id/collect');
+      if (res.data['success'] == true) {
+        await loadDeliveries();
+        return null;
+      }
+      return res.data['message'] ?? 'Failed to mark as collected';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to mark as collected';
+    } catch (e) {
+      return e.toString();
     }
   }
 
-  Future<bool> respondDelivery(String id, String action) async {
+  Future<String?> respondDelivery(String id, String action) async {
     try {
-      await _client.dio.patch('/deliveries/$id/respond', data: {'action': action});
-      await loadDeliveries();
-      return true;
-    } catch (_) {
-      return false;
+      final res = await _client.dio.patch('/deliveries/$id/respond', data: {'action': action});
+      if (res.data['success'] == true) {
+        await loadDeliveries();
+        return null;
+      }
+      return res.data['message'] ?? 'Failed to respond to delivery';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to respond to delivery';
+    } catch (e) {
+      return e.toString();
     }
   }
 }

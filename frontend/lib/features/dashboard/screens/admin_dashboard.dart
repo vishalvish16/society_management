@@ -1,22 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimensions.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_loading_shimmer.dart';
+import '../../bills/providers/my_pending_bills_provider.dart';
+import '../../bills/screens/upi_pay_sheet.dart';
 import '../providers/dashboard_provider.dart';
 
 /// Dashboard for PRAMUKH, CHAIRMAN, VICE_CHAIRMAN, SECRETARY,
 /// ASSISTANT_SECRETARY, TREASURER, ASSISTANT_TREASURER
-class AdminDashboard extends ConsumerWidget {
+class AdminDashboard extends ConsumerStatefulWidget {
   final String role;
   const AdminDashboard({super.key, required this.role});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AdminDashboard> createState() => _AdminDashboardState();
+}
+
+class _AdminDashboardState extends ConsumerState<AdminDashboard> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(myPendingBillsProvider.notifier).fetch();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final statsAsync = ref.watch(societyDashboardProvider);
+    final pendingBills = ref.watch(myPendingBillsProvider);
+    final user = ref.watch(authProvider).user;
     final isWeb = MediaQuery.of(context).size.width >= 720;
 
     return statsAsync.when(
@@ -26,13 +45,28 @@ class AdminDashboard extends ConsumerWidget {
         onRetry: () => ref.invalidate(societyDashboardProvider),
       ),
       data: (stats) => RefreshIndicator(
-        onRefresh: () async => ref.refresh(societyDashboardProvider.future),
+        onRefresh: () async {
+          await Future.wait([
+            ref.refresh(societyDashboardProvider.future),
+            ref.read(myPendingBillsProvider.notifier).fetch(),
+          ]);
+        },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(AppDimensions.screenPadding),
           child: isWeb
-              ? _WebAdminLayout(stats: stats, role: role)
-              : _MobileAdminLayout(stats: stats, role: role),
+              ? _WebAdminLayout(
+                  stats: stats,
+                  role: widget.role,
+                  pendingBills: pendingBills,
+                  user: user,
+                )
+              : _MobileAdminLayout(
+                  stats: stats,
+                  role: widget.role,
+                  pendingBills: pendingBills,
+                  user: user,
+                ),
         ),
       ),
     );
@@ -44,13 +78,26 @@ class AdminDashboard extends ConsumerWidget {
 class _WebAdminLayout extends StatelessWidget {
   final Map<String, dynamic> stats;
   final String role;
-  const _WebAdminLayout({required this.stats, required this.role});
+  final AsyncValue<List<Map<String, dynamic>>> pendingBills;
+  final dynamic user;
+  const _WebAdminLayout({
+    required this.stats,
+    required this.role,
+    required this.pendingBills,
+    required this.user,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Personal pending bills banner (only if user has a unit)
+        if (user?.unitCode != null) ...[
+          _AdminPendingBillsBanner(pendingBills: pendingBills),
+          const SizedBox(height: AppDimensions.md),
+        ],
+
         // KPI row (4 across)
         _KpiRow(stats: stats, crossAxisCount: 4),
         const SizedBox(height: AppDimensions.xxl),
@@ -78,13 +125,26 @@ class _WebAdminLayout extends StatelessWidget {
 class _MobileAdminLayout extends StatelessWidget {
   final Map<String, dynamic> stats;
   final String role;
-  const _MobileAdminLayout({required this.stats, required this.role});
+  final AsyncValue<List<Map<String, dynamic>>> pendingBills;
+  final dynamic user;
+  const _MobileAdminLayout({
+    required this.stats,
+    required this.role,
+    required this.pendingBills,
+    required this.user,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Personal pending bills banner (only if user has a unit)
+        if (user?.unitCode != null) ...[
+          _AdminPendingBillsBanner(pendingBills: pendingBills),
+          const SizedBox(height: AppDimensions.md),
+        ],
+
         _BillingCard(stats: stats),
         const SizedBox(height: AppDimensions.lg),
 
@@ -102,6 +162,141 @@ class _MobileAdminLayout extends StatelessWidget {
         const SizedBox(height: AppDimensions.md),
         _ActivityCards(stats: stats),
       ],
+    );
+  }
+}
+
+// ─── Personal pending bills banner (for admins with a unit) ──────────────────
+
+class _AdminPendingBillsBanner extends StatelessWidget {
+  final AsyncValue<List<Map<String, dynamic>>> pendingBills;
+  const _AdminPendingBillsBanner({required this.pendingBills});
+
+  @override
+  Widget build(BuildContext context) {
+    return pendingBills.when(
+      loading: () => const SizedBox.shrink(),
+      error: (e, s) => const SizedBox.shrink(),
+      data: (bills) {
+        if (bills.isEmpty) return const SizedBox.shrink();
+        final fmt = NumberFormat('#,##0');
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ...bills.map((bill) {
+              final unit = bill['unit'] as Map?;
+              final unitCode = unit?['fullCode'] as String? ?? '-';
+              final month = bill['billingMonth'] != null
+                  ? DateFormat('MMM yyyy')
+                      .format(DateTime.parse(bill['billingMonth']))
+                  : '';
+              final remaining =
+                  (double.tryParse(bill['totalDue']?.toString() ?? '0') ?? 0) -
+                      (double.tryParse(bill['paidAmount']?.toString() ?? '0') ?? 0);
+              final isOverdue =
+                  (bill['status'] as String? ?? '').toLowerCase() == 'overdue';
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: AppDimensions.sm),
+                child: GestureDetector(
+                  onTap: () => showPaySheet(context, bill: bill),
+                  child: Container(
+                    padding: const EdgeInsets.all(AppDimensions.md),
+                    decoration: BoxDecoration(
+                      color: isOverdue
+                          ? AppColors.dangerSurface
+                          : AppColors.warningSurface,
+                      borderRadius:
+                          BorderRadius.circular(AppDimensions.radiusLg),
+                      border: Border.all(
+                        color: (isOverdue ? AppColors.danger : AppColors.warning)
+                            .withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: (isOverdue
+                                    ? AppColors.danger
+                                    : AppColors.warning)
+                                .withValues(alpha: 0.15),
+                            borderRadius:
+                                BorderRadius.circular(AppDimensions.radiusMd),
+                          ),
+                          child: Icon(
+                            isOverdue
+                                ? Icons.warning_rounded
+                                : Icons.notifications_active_rounded,
+                            color: isOverdue
+                                ? AppColors.danger
+                                : AppColors.warning,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: AppDimensions.md),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                isOverdue
+                                    ? 'Overdue Payment!'
+                                    : 'Maintenance Due',
+                                style: AppTextStyles.labelLarge.copyWith(
+                                    color: isOverdue
+                                        ? AppColors.dangerText
+                                        : AppColors.warningText),
+                              ),
+                              Text(
+                                'Unit $unitCode · $month',
+                                style: AppTextStyles.bodySmall.copyWith(
+                                    color: (isOverdue
+                                            ? AppColors.dangerText
+                                            : AppColors.warningText)
+                                        .withValues(alpha: 0.8)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '₹${fmt.format(remaining)}',
+                              style: AppTextStyles.h3.copyWith(
+                                  color: isOverdue
+                                      ? AppColors.danger
+                                      : AppColors.warning),
+                            ),
+                            Container(
+                              margin: const EdgeInsets.only(top: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: isOverdue
+                                    ? AppColors.danger
+                                    : AppColors.warning,
+                                borderRadius: BorderRadius.circular(
+                                    AppDimensions.radiusSm),
+                              ),
+                              child: Text('Pay Now',
+                                  style: AppTextStyles.labelSmall
+                                      .copyWith(color: Colors.white)),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ],
+        );
+      },
     );
   }
 }

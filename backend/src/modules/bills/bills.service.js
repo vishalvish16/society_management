@@ -1,4 +1,5 @@
 const prisma = require('../../config/db');
+const notificationsService = require('../notifications/notifications.service');
 const { pushToUnit } = require('../../utils/push');
 
 /**
@@ -99,11 +100,15 @@ async function bulkGenerateBills(societyId, month, defaultAmount, dueDate, gener
   const monthLabel = billingMonth.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
   setImmediate(() => {
     newUnits.forEach(unit => {
-      pushToUnit(unit.id, {
+      notificationsService.sendNotification(generatedById, societyId, {
+        targetType: 'unit',
+        targetId: unit.id,
         title: '🧾 Maintenance Bill Generated',
         body: `Your maintenance bill of ₹${defaultAmount} for ${monthLabel} is now due.`,
-        data: { type: 'BILL_GENERATED', route: '/bills' },
-      }, { excludeUserId: generatedById });
+        type: 'BILL',
+        route: '/bills',
+        excludeUserId: generatedById
+      });
     });
   });
 

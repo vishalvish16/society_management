@@ -156,9 +156,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
         NotificationService().registerTokenAfterLogin();
       }
     } catch (_) {
-       await _client.storage.delete(key: 'accessToken');
-       await _client.storage.delete(key: 'userRole');
-       await _client.storage.delete(key: 'userId');
+      await _client.storage.delete(key: 'accessToken');
+      await _client.storage.delete(key: 'userRole');
+      await _client.storage.delete(key: 'userId');
+      state = const AuthState();
     }
   }
 }

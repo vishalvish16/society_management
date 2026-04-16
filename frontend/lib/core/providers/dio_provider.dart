@@ -15,10 +15,12 @@ final dioProvider = Provider<Dio>((ref) {
     ),
   );
 
+  final authState = ref.watch(authProvider);
+  
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) async {
-        final authState = ref.read(authProvider);
+        print('[DEBUG] Request to ${options.path} - Token present: ${authState.token != null}');
         if (authState.token != null) {
           options.headers['Authorization'] = 'Bearer ${authState.token}';
         }

@@ -91,24 +91,14 @@ class ExpensesNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
     await fetchExpenses(refresh: false);
   }
 
-  Future<bool> createExpense(Map<String, dynamic> data, {List<XFile>? attachments}) async {
+  Future<String?> createExpense(Map<String, dynamic> data, {List<XFile>? attachments}) async {
     try {
-      print('[DEBUG] Starting createExpense provider method');
-      print('[DEBUG] Raw data: $data');
-      
       final dio = ref.read(dioProvider);
-      
       final formData = FormData.fromMap(data);
-      print('[DEBUG] FormData initialized with basic fields');
 
       if (attachments != null && attachments.isNotEmpty) {
-        print('[DEBUG] Processing ${attachments.length} attachments');
-        for (var i = 0; i < attachments.length; i++) {
-          final file = attachments[i];
-          print('[DEBUG] Reading file contents for: ${file.name}');
+        for (var file in attachments) {
           final bytes = await file.readAsBytes();
-          print('[DEBUG] File read successfully. Size: ${bytes.length} bytes');
-          
           final extension = file.name.split('.').last.toLowerCase();
           String mimeType = 'application/octet-stream';
           if (extension == 'pdf') mimeType = 'application/pdf';
@@ -123,38 +113,24 @@ class ExpensesNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
               contentType: MediaType.parse(mimeType),
             ),
           ));
-          print('[DEBUG] Attachment ${i + 1} added to FormData with mimeType: $mimeType');
         }
-      } else {
-        print('[DEBUG] No attachments provided');
       }
 
-      print('[DEBUG] Sending POST /expenses request');
       final response = await dio.post('expenses', data: formData);
-      print('[DEBUG] POST /expenses Response status: ${response.statusCode}');
-      print('[DEBUG] POST /expenses Response data: ${response.data}');
       
       if (response.data['success'] == true) {
-        print('[DEBUG] Expense creation success, refreshing list');
         fetchExpenses();
-        return true;
-      } else {
-        print('[DEBUG] Expense creation failed according to response: ${response.data['message']}');
+        return null;
       }
-      return false;
+      return response.data['message'] ?? 'Failed to create expense';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to create expense';
     } catch (e) {
-      print('[DEBUG] FATAL ERROR in createExpense provider: $e');
-      if (e is DioException) {
-        print('[DEBUG] DioException Details:');
-        print('[DEBUG] Status: ${e.response?.statusCode}');
-        print('[DEBUG] Data: ${e.response?.data}');
-        print('[DEBUG] Message: ${e.message}');
-      }
-      return false;
+      return e.toString();
     }
   }
 
-  Future<bool> updateExpense(String id, Map<String, dynamic> data, {List<XFile>? attachments}) async {
+  Future<String?> updateExpense(String id, Map<String, dynamic> data, {List<XFile>? attachments}) async {
     try {
       final dio = ref.read(dioProvider);
       final formData = FormData.fromMap(data);
@@ -177,15 +153,17 @@ class ExpensesNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
       final response = await dio.put('expenses/$id', data: formData);
       if (response.data['success'] == true) {
         fetchExpenses();
-        return true;
+        return null;
       }
-      return false;
+      return response.data['message'] ?? 'Failed to update expense';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to update expense';
     } catch (e) {
-      return false;
+      return e.toString();
     }
   }
 
-  Future<bool> updateStatus(String id, String status, {String? reason}) async {
+  Future<String?> updateStatus(String id, String status, {String? reason}) async {
     try {
       final dio = ref.read(dioProvider);
       final endpoint = status == 'approved'
@@ -196,11 +174,13 @@ class ExpensesNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
       });
       if (response.data['success'] == true) {
         fetchExpenses();
-        return true;
+        return null;
       }
-      return false;
+      return response.data['message'] ?? 'Failed to update status';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to update status';
     } catch (e) {
-      return false;
+      return e.toString();
     }
   }
 }

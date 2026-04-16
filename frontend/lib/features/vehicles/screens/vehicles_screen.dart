@@ -10,7 +10,7 @@ import '../../../shared/widgets/app_loading_shimmer.dart';
 import '../providers/vehicles_provider.dart';
 import '../../../shared/widgets/unit_picker_field.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
-import '../../../shared/widgets/show_app_dialog.dart';
+import '../../../shared/widgets/show_app_sheet.dart';
 
 class VehiclesScreen extends ConsumerStatefulWidget {
   const VehiclesScreen({super.key});
@@ -74,168 +74,186 @@ class _VehiclesScreenState extends ConsumerState<VehiclesScreen> {
             BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
       ),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) => Padding(
-          padding: EdgeInsets.fromLTRB(
-            AppDimensions.screenPadding,
-            AppDimensions.lg,
-            AppDimensions.screenPadding,
-            MediaQuery.of(context).viewInsets.bottom + AppDimensions.lg,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.border,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppDimensions.lg),
-                Text(isEdit ? 'Edit Vehicle' : 'Register Vehicle',
-                    style: AppTextStyles.h1),
-                const SizedBox(height: AppDimensions.lg),
-
-                // Unit picker (only shown on create)
-                if (!isEdit) ...[
-                  UnitPickerField(
-                    selectedUnitId: selectedUnitId,
-                    selectedUnitCode: selectedUnitCode,
-                    readOnly: lockUnit,
-                    onChanged: (id, code) => setSheetState(() {
-                      selectedUnitId = id;
-                      selectedUnitCode = code;
-                    }),
-                  ),
-                  const SizedBox(height: AppDimensions.md),
-                ],
-
-                // Type dropdown
-                AppSearchableDropdown<String>(
-                  label: 'Vehicle Type',
-                  value: selectedType,
-                  items: _types.map((t) => AppDropdownItem(value: t, label: _typeLabels[t] ?? t)).toList(),
-                  onChanged: (v) { if (v != null) setSheetState(() => selectedType = v); },
-                ),
-                const SizedBox(height: AppDimensions.md),
-
-                // Number Plate
-                _buildTextField(
-                  controller: plateCtrl,
-                  label: 'Number Plate',
-                  hint: 'e.g. MH01AB1234',
-                  capitalization: TextCapitalization.characters,
-                ),
-                const SizedBox(height: AppDimensions.md),
-
-                // Brand
-                _buildTextField(
-                    controller: brandCtrl,
-                    label: 'Brand',
-                    hint: 'e.g. Honda'),
-                const SizedBox(height: AppDimensions.md),
-
-                // Model
-                _buildTextField(
-                    controller: modelCtrl,
-                    label: 'Model',
-                    hint: 'e.g. City'),
-                const SizedBox(height: AppDimensions.md),
-
-                // Colour
-                _buildTextField(
-                    controller: colourCtrl,
-                    label: 'Colour',
-                    hint: 'e.g. White'),
-                const SizedBox(height: AppDimensions.xl),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      padding:
-                          const EdgeInsets.symmetric(vertical: AppDimensions.md),
-                      shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppDimensions.radiusMd),
+        builder: (ctx, setSheetState) {
+          String? sheetError;
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppDimensions.screenPadding,
+              AppDimensions.lg,
+              AppDimensions.screenPadding,
+              MediaQuery.of(context).viewInsets.bottom + AppDimensions.lg,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.border,
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    onPressed: submitting
-                        ? null
-                        : () async {
-                            if (plateCtrl.text.trim().isEmpty ||
-                                brandCtrl.text.trim().isEmpty ||
-                                modelCtrl.text.trim().isEmpty ||
-                                colourCtrl.text.trim().isEmpty ||
-                                (!isEdit && selectedUnitId == null)) {
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                content: Text('Please fill all required fields',
-                                    style: AppTextStyles.bodyMedium),
-                                backgroundColor: AppColors.danger,
-                              ));
-                              return;
-                            }
-                            setSheetState(() => submitting = true);
-                            // Capture messenger before await
-                            final messenger = ScaffoldMessenger.of(context);
-                            final payload = {
-                              'type': selectedType,
-                              'numberPlate': plateCtrl.text.trim().toUpperCase(),
-                              'brand': brandCtrl.text.trim(),
-                              'model': modelCtrl.text.trim(),
-                              'colour': colourCtrl.text.trim(),
-                              if (!isEdit) 'unitId': selectedUnitId!,
-                            };
-                            final bool ok;
-                            if (isEdit) {
-                              ok = await ref
-                                  .read(vehiclesProvider.notifier)
-                                  .updateVehicle(existing['id'] as String, payload);
-                            } else {
-                              ok = await ref
-                                  .read(vehiclesProvider.notifier)
-                                  .createVehicle(payload);
-                            }
-                            if (ctx.mounted) Navigator.pop(ctx);
-                            messenger.showSnackBar(SnackBar(
-                              content: Text(
-                                ok
-                                    ? (isEdit
-                                        ? 'Vehicle updated'
-                                        : 'Vehicle registered')
-                                    : (isEdit
-                                        ? 'Failed to update vehicle'
-                                        : 'Failed to register vehicle'),
-                                style: AppTextStyles.bodyMedium,
-                              ),
-                              backgroundColor:
-                                  ok ? AppColors.success : AppColors.danger,
-                            ));
-                          },
-                    child: submitting
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.textOnPrimary,
-                            ),
-                          )
-                        : Text(isEdit ? 'Update' : 'Register',
-                            style: AppTextStyles.labelLarge
-                                .copyWith(color: AppColors.textOnPrimary)),
                   ),
-                ),
-              ],
+                  const SizedBox(height: AppDimensions.lg),
+                  Text(isEdit ? 'Edit Vehicle' : 'Register Vehicle',
+                      style: AppTextStyles.h1),
+                  const SizedBox(height: AppDimensions.lg),
+
+                  // Unit picker (only shown on create)
+                  if (!isEdit) ...[
+                    UnitPickerField(
+                      selectedUnitId: selectedUnitId,
+                      selectedUnitCode: selectedUnitCode,
+                      readOnly: lockUnit,
+                      onChanged: (id, code) => setSheetState(() {
+                        selectedUnitId = id;
+                        selectedUnitCode = code;
+                      }),
+                    ),
+                    const SizedBox(height: AppDimensions.md),
+                  ],
+
+                  // Type dropdown
+                  AppSearchableDropdown<String>(
+                    label: 'Vehicle Type',
+                    value: selectedType,
+                    items: _types.map((t) => AppDropdownItem(value: t, label: _typeLabels[t] ?? t)).toList(),
+                    onChanged: (v) { if (v != null) setSheetState(() => selectedType = v); },
+                  ),
+                  const SizedBox(height: AppDimensions.md),
+
+                  // Number Plate
+                  _buildTextField(
+                    controller: plateCtrl,
+                    label: 'Number Plate',
+                    hint: 'e.g. MH01AB1234',
+                    capitalization: TextCapitalization.characters,
+                  ),
+                  const SizedBox(height: AppDimensions.md),
+
+                  // Brand
+                  _buildTextField(
+                      controller: brandCtrl,
+                      label: 'Brand',
+                      hint: 'e.g. Honda'),
+                  const SizedBox(height: AppDimensions.md),
+
+                  // Model
+                  _buildTextField(
+                      controller: modelCtrl,
+                      label: 'Model',
+                      hint: 'e.g. City'),
+                  const SizedBox(height: AppDimensions.md),
+
+                  // Colour
+                  _buildTextField(
+                      controller: colourCtrl,
+                      label: 'Colour',
+                      hint: 'e.g. White'),
+                  if (sheetError != null) ...[
+                    const SizedBox(height: AppDimensions.md),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(AppDimensions.sm),
+                      decoration: BoxDecoration(
+                        color: AppColors.dangerSurface,
+                        borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                      ),
+                      child: Text(
+                        sheetError!,
+                        style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: AppDimensions.xl),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        padding:
+                            const EdgeInsets.symmetric(vertical: AppDimensions.md),
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(AppDimensions.radiusMd),
+                        ),
+                      ),
+                      onPressed: submitting
+                          ? null
+                          : () async {
+                              if (plateCtrl.text.trim().isEmpty ||
+                                  brandCtrl.text.trim().isEmpty ||
+                                  modelCtrl.text.trim().isEmpty ||
+                                  colourCtrl.text.trim().isEmpty ||
+                                  (!isEdit && selectedUnitId == null)) {
+                                setSheetState(() => sheetError = 'Please fill all required fields');
+                                return;
+                              }
+                              setSheetState(() {
+                                submitting = true;
+                                sheetError = null;
+                              });
+                              final payload = {
+                                'type': selectedType,
+                                'numberPlate': plateCtrl.text.trim().toUpperCase(),
+                                'brand': brandCtrl.text.trim(),
+                                'model': modelCtrl.text.trim(),
+                                'colour': colourCtrl.text.trim(),
+                                if (!isEdit) 'unitId': selectedUnitId!,
+                              };
+                              final String? error;
+                              if (isEdit) {
+                                error = await ref
+                                    .read(vehiclesProvider.notifier)
+                                    .updateVehicle(existing['id'] as String, payload);
+                              } else {
+                                error = await ref
+                                    .read(vehiclesProvider.notifier)
+                                    .createVehicle(payload);
+                              }
+                              if (ctx.mounted) {
+                                if (error == null) {
+                                  Navigator.pop(ctx);
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                    content: Text(
+                                      isEdit ? 'Vehicle updated' : 'Vehicle registered',
+                                      style: AppTextStyles.bodyMedium,
+                                    ),
+                                    backgroundColor: AppColors.success,
+                                  ));
+                                } else {
+                                  setSheetState(() {
+                                    submitting = false;
+                                    sheetError = error;
+                                  });
+                                }
+                              }
+                            },
+                      child: submitting
+                          ? const SizedBox(
+                              height: 18,
+                              width: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.textOnPrimary,
+                              ),
+                            )
+                          : Text(isEdit ? 'Update' : 'Register',
+                              style: AppTextStyles.labelLarge
+                                  .copyWith(color: AppColors.textOnPrimary)),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -389,17 +407,17 @@ class _VehiclesScreenState extends ConsumerState<VehiclesScreen> {
                           message: 'Remove $plate from the registry?',
                           confirmLabel: 'Remove',
                         );
-                        if (confirm == true) {
-                          final ok = await ref
+                         if (confirm == true) {
+                          final error = await ref
                               .read(vehiclesProvider.notifier)
                               .deleteVehicle(id);
                           messenger.showSnackBar(SnackBar(
                             content: Text(
-                              ok ? 'Vehicle removed' : 'Failed to remove vehicle',
+                              error ?? 'Vehicle removed',
                               style: AppTextStyles.bodyMedium,
                             ),
                             backgroundColor:
-                                ok ? AppColors.success : AppColors.danger,
+                                error == null ? AppColors.success : AppColors.danger,
                           ));
                         }
                       },

@@ -126,41 +126,50 @@ class MembersNotifier extends StateNotifier<AsyncValue<List<Member>>> {
     await loadMembers(refresh: false);
   }
 
-  Future<bool> createMember(Map<String, dynamic> data) async {
+  Future<String?> createMember(Map<String, dynamic> data) async {
     try {
       final dio = ref.read(dioProvider);
       final response = await dio.post('members', data: data);
       if (response.data['success'] == true) {
         loadMembers();
-        return true;
+        return null;
       }
-      return false;
+      return response.data['message'] ?? 'Failed to create member';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to create member';
     } catch (e) {
-      return false;
+      return e.toString();
     }
   }
 
-  Future<bool> updateMember(String id, Map<String, dynamic> data) async {
+  Future<String?> updateMember(String id, Map<String, dynamic> data) async {
     try {
       final dio = ref.read(dioProvider);
       final response = await dio.patch('members/$id', data: data);
       if (response.data['success'] == true) {
         loadMembers();
-        return true;
+        return null;
       }
-      return false;
+      return response.data['message'] ?? 'Failed to update member';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to update member';
     } catch (e) {
-      return false;
+      return e.toString();
     }
   }
 
-  Future<bool> resetPassword(String id, String password) async {
+  Future<String?> resetPassword(String id, String password) async {
     try {
       final dio = ref.read(dioProvider);
       final response = await dio.post('members/$id/reset-password', data: {'password': password});
-      return response.data['success'] == true;
+      if (response.data['success'] == true) {
+        return null;
+      }
+      return response.data['message'] ?? 'Failed to reset password';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to reset password';
     } catch (e) {
-      return false;
+      return e.toString();
     }
   }
 }

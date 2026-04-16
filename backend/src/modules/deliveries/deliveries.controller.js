@@ -1,4 +1,5 @@
 const prisma = require('../../config/db');
+const notificationsService = require('../notifications/notifications.service');
 const { sendSuccess, sendError } = require('../../utils/response');
 const { pushToUnit } = require('../../utils/push');
 
@@ -59,11 +60,15 @@ exports.createDelivery = async (req, res) => {
     });
 
     // Notify unit residents about the delivery (exclude the watchman who logged it)
-    setImmediate(() => pushToUnit(unitId, {
+    setImmediate(() => notificationsService.sendNotification(loggedById, societyId, {
+      targetType: 'unit',
+      targetId: unitId,
       title: '📦 Delivery Arrived',
       body: `${agentName}${company ? ` (${company})` : ''} has a delivery for ${unit.fullCode}. Please respond.`,
-      data: { type: 'DELIVERY_NEW', route: '/deliveries', id: delivery.id },
-    }, { excludeUserId: loggedById }));
+      type: 'DELIVERY',
+      route: '/deliveries',
+      excludeUserId: loggedById
+    }));
 
     return sendSuccess(res, delivery, 'Delivery logged', 201);
   } catch (error) {

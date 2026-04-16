@@ -13,7 +13,7 @@ import '../../../shared/widgets/app_status_chip.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
 import '../providers/bill_provider.dart';
 import '../../settings/providers/payment_settings_provider.dart';
-import '../../../shared/widgets/show_app_dialog.dart';
+import '../../../shared/widgets/show_app_sheet.dart';
 
 class BillsScreen extends ConsumerStatefulWidget {
   const BillsScreen({super.key});

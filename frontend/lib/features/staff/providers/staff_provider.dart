@@ -83,45 +83,51 @@ class StaffNotifier extends StateNotifier<AsyncValue<List<StaffMember>>> {
     }
   }
 
-  Future<bool> createStaff(Map<String, dynamic> data) async {
+  Future<String?> createStaff(Map<String, dynamic> data) async {
     try {
       final dio = ref.read(dioProvider);
       final response = await dio.post('staff', data: data);
       if (response.data['success'] == true) {
         await loadStaff();
-        return true;
+        return null;
       }
-      return false;
-    } catch (_) {
-      return false;
+      return response.data['message'] ?? 'Failed to add staff';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to add staff';
+    } catch (e) {
+      return e.toString();
     }
   }
 
-  Future<bool> updateStaff(String id, Map<String, dynamic> data) async {
+  Future<String?> updateStaff(String id, Map<String, dynamic> data) async {
     try {
       final dio = ref.read(dioProvider);
       final response = await dio.patch('staff/$id', data: data);
       if (response.data['success'] == true) {
         await loadStaff();
-        return true;
+        return null;
       }
-      return false;
-    } catch (_) {
-      return false;
+      return response.data['message'] ?? 'Failed to update staff';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to update staff';
+    } catch (e) {
+      return e.toString();
     }
   }
 
-  Future<bool> deleteStaff(String id) async {
+  Future<String?> deleteStaff(String id) async {
     try {
       final dio = ref.read(dioProvider);
       final response = await dio.delete('staff/$id');
       if (response.data['success'] == true) {
         await loadStaff();
-        return true;
+        return null;
       }
-      return false;
-    } catch (_) {
-      return false;
+      return response.data['message'] ?? 'Failed to deactivate staff';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to deactivate staff';
+    } catch (e) {
+      return e.toString();
     }
   }
 
@@ -140,7 +146,7 @@ class StaffNotifier extends StateNotifier<AsyncValue<List<StaffMember>>> {
     }
   }
 
-  Future<bool> markAttendance(String staffId, String date, String status) async {
+  Future<String?> markAttendance(String staffId, String date, String status) async {
     try {
       final dio = ref.read(dioProvider);
       final response = await dio.post('staff/$staffId/attendance', data: {
@@ -149,11 +155,13 @@ class StaffNotifier extends StateNotifier<AsyncValue<List<StaffMember>>> {
       });
       if (response.data['success'] == true) {
         await loadStaff();
-        return true;
+        return null;
       }
-      return false;
-    } catch (_) {
-      return false;
+      return response.data['message'] ?? 'Failed to mark attendance';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to mark attendance';
+    } catch (e) {
+      return e.toString();
     }
   }
 }

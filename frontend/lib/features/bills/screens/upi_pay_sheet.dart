@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +15,7 @@ import '../../../shared/widgets/app_searchable_dropdown.dart';
 import '../../settings/providers/payment_settings_provider.dart';
 import '../providers/my_pending_bills_provider.dart';
 import '../providers/bill_provider.dart';
+import 'razorpay_web_stub.dart' if (dart.library.html) 'razorpay_web.dart';
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
 
@@ -118,20 +120,9 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
       final orderData = res.data['data'];
       final orderId = orderData['orderId'] as String;
       final orderAmount = orderData['amount'] as int; // paise from backend
-
-      setState(() => _isSubmitting = false);
-
-      // 2. Init Razorpay SDK
-      _razorpay?.clear();
-      _razorpay = Razorpay();
-      _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS, _onRazorpaySuccess);
-      _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR, _onRazorpayError);
-      _razorpay!.on(Razorpay.EVENT_EXTERNAL_WALLET, _onRazorpayExternalWallet);
-
       final user = ref.read(authProvider).user;
 
-      // 3. Open Razorpay checkout
-      _razorpay!.open({
+      final options = <String, dynamic>{
         'key': ps.razorpayKeyId,
         'order_id': orderId,
         'amount': orderAmount,
@@ -143,25 +134,45 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
           'contact': user?.phone ?? '',
         },
         'theme': {'color': '#1565C0'},
-        'send_sms_hash': true,
-        'remember_customer': false,
-      });
+      };
+
+      setState(() => _isSubmitting = false);
+
+      if (kIsWeb) {
+        // 2a. Web: use JS interop checkout
+        openRazorpayWeb(
+          options: options,
+          onSuccess: (paymentId, rzpOrderId, signature) =>
+              _verifyAndRecord(paymentId, rzpOrderId, signature),
+          onError: (msg) => _showSnack(msg, isError: true),
+        );
+      } else {
+        // 2b. Native: use razorpay_flutter SDK
+        _razorpay?.clear();
+        _razorpay = Razorpay();
+        _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS, _onRazorpaySuccess);
+        _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR, _onRazorpayError);
+        _razorpay!.on(Razorpay.EVENT_EXTERNAL_WALLET, _onRazorpayExternalWallet);
+        options['send_sms_hash'] = true;
+        options['remember_customer'] = false;
+        _razorpay!.open(options);
+      }
     } catch (e) {
       setState(() => _isSubmitting = false);
       _showSnack('Error: $e', isError: true);
     }
   }
 
-  void _onRazorpaySuccess(PaymentSuccessResponse response) async {
-    // Verify on backend and record payment
+  Future<void> _verifyAndRecord(
+      String paymentId, String rzpOrderId, String signature) async {
     setState(() => _isSubmitting = true);
     try {
       final dio = ref.read(dioProvider);
       final res = await dio.post('payments/verify', data: {
         'billId': widget.bill['id'],
-        'razorpayOrderId': response.orderId,
-        'razorpayPaymentId': response.paymentId,
-        'razorpaySignature': response.signature,
+        'razorpayOrderId': rzpOrderId,
+        'razorpayPaymentId': paymentId,
+        'razorpaySignature': signature,
         'paidAmount': double.tryParse(_amountCtrl.text.trim()) ?? _remaining,
       });
 
@@ -176,7 +187,7 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
         if (res.data['success'] == true) {
           _showSuccessDialog(
             double.tryParse(_amountCtrl.text.trim()) ?? _remaining,
-            'Payment ID: ${response.paymentId}',
+            'Payment ID: $paymentId',
             nav: nav,
             messenger: messenger,
           );
@@ -195,12 +206,17 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
     }
   }
 
+  void _onRazorpaySuccess(PaymentSuccessResponse response) {
+    _verifyAndRecord(
+      response.paymentId ?? '',
+      response.orderId ?? '',
+      response.signature ?? '',
+    );
+  }
+
   void _onRazorpayError(PaymentFailureResponse response) {
     if (mounted) {
-      _showSnack(
-        response.message ?? 'Payment failed or cancelled',
-        isError: true,
-      );
+      _showSnack(response.message ?? 'Payment failed or cancelled', isError: true);
     }
   }
 

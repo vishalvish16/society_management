@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/dio_client.dart';
+import 'package:dio/dio.dart';
 
 class ComplaintsState {
   final List<Map<String, dynamic>> complaints;
@@ -27,28 +28,49 @@ class ComplaintsNotifier extends StateNotifier<ComplaintsState> {
     }
   }
 
-  Future<bool> createComplaint(Map<String, dynamic> data) async {
+  Future<String?> createComplaint(Map<String, dynamic> data) async {
     try {
-      await _client.dio.post('/complaints', data: data);
-      await loadComplaints();
-      return true;
-    } catch (_) { return false; }
+      final res = await _client.dio.post('/complaints', data: data);
+      if (res.data['success'] == true) {
+        await loadComplaints();
+        return null;
+      }
+      return res.data['message'] ?? 'Failed to create complaint';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to create complaint';
+    } catch (e) {
+      return e.toString();
+    }
   }
 
-  Future<bool> updateComplaint(String id, Map<String, dynamic> data) async {
+  Future<String?> updateComplaint(String id, Map<String, dynamic> data) async {
     try {
-      await _client.dio.patch('/complaints/$id', data: data);
-      await loadComplaints();
-      return true;
-    } catch (_) { return false; }
+      final res = await _client.dio.patch('/complaints/$id', data: data);
+      if (res.data['success'] == true) {
+        await loadComplaints();
+        return null;
+      }
+      return res.data['message'] ?? 'Failed to update complaint';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to update complaint';
+    } catch (e) {
+      return e.toString();
+    }
   }
 
-  Future<bool> deleteComplaint(String id) async {
+  Future<String?> deleteComplaint(String id) async {
     try {
-      await _client.dio.delete('/complaints/$id');
-      await loadComplaints();
-      return true;
-    } catch (_) { return false; }
+      final res = await _client.dio.delete('/complaints/$id');
+      if (res.data['success'] == true) {
+        await loadComplaints();
+        return null;
+      }
+      return res.data['message'] ?? 'Failed to delete complaint';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to delete complaint';
+    } catch (e) {
+      return e.toString();
+    }
   }
 }
 

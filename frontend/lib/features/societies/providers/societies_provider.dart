@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
 import '../../../core/api/dio_client.dart';
 import '../../superadmin/providers/dashboard_provider.dart';
 
@@ -84,75 +85,86 @@ class SocietiesNotifier extends StateNotifier<SocietiesState> {
     }
   }
 
-  Future<bool> createSociety(Map<String, dynamic> data) async {
+  Future<String?> createSociety(Map<String, dynamic> data) async {
     try {
       await _client.dio.post('/societies', data: data);
       await loadSocieties();
       _invalidateDashboard();
-      return true;
-    } catch (_) {
-      return false;
+      return null;
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to create society';
+    } catch (e) {
+      return e.toString();
     }
   }
 
   /// Create a society and return its id (used for step-by-step registration flow).
   /// Does not auto-refresh list to keep the sheet responsive; caller can refresh at the end.
-  Future<String?> createSocietyDraft(Map<String, dynamic> data) async {
+  Future<(String? id, String? error)> createSocietyWithId(Map<String, dynamic> data) async {
     try {
       final res = await _client.dio.post('/societies', data: data);
       final payload = res.data['data'];
       final society = payload is Map ? payload['society'] : null;
       final id = society is Map ? society['id'] : null;
-      return id is String ? id : null;
-    } catch (_) {
-      return null;
+      return (id is String ? id : null, null);
+    } on DioException catch (e) {
+      return (null, (e.response?.data['message'] ?? 'Failed to create society') as String?);
+    } catch (e) {
+      return (null, e.toString() as String?);
     }
   }
 
-  Future<bool> deactivateSociety(String id) async {
+  Future<String?> deactivateSociety(String id) async {
     try {
       await _client.dio.delete('/societies/$id');
       await loadSocieties(page: state.page);
       _invalidateDashboard();
-      return true;
-    } catch (_) {
-      return false;
+      return null;
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to deactivate society';
+    } catch (e) {
+      return e.toString();
     }
   }
 
-  Future<bool> updateSociety(String id, Map<String, dynamic> data) async {
+  Future<String?> updateSociety(String id, Map<String, dynamic> data) async {
     try {
       await _client.dio.patch('/societies/$id', data: data);
       await loadSocieties(page: state.page);
       _invalidateDashboard();
-      return true;
+      return null;
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to update society';
     } catch (e) {
-      state = state.copyWith(error: e.toString());
-      return false;
+      return e.toString();
     }
   }
 
-  Future<bool> upsertChairman(String societyId, Map<String, dynamic> chairman) async {
+  Future<String?> upsertChairman(String societyId, Map<String, dynamic> chairman) async {
     try {
       await _client.dio.post('/societies/$societyId/chairman', data: chairman);
-      return true;
-    } catch (_) {
-      return false;
+      return null;
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to update chairman';
+    } catch (e) {
+      return e.toString();
     }
   }
 
-  Future<bool> toggleStatus(String id) async {
+  Future<String?> toggleStatus(String id) async {
     try {
       await _client.dio.patch('/societies/$id/toggle-status');
       await loadSocieties(page: state.page);
       _invalidateDashboard();
-      return true;
-    } catch (_) {
-      return false;
+      return null;
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to toggle status';
+    } catch (e) {
+      return e.toString();
     }
   }
 
-  Future<bool> resetPassword(String id, String? password,
+  Future<String?> resetPassword(String id, String? password,
       {String? name, String mode = 'manual'}) async {
     try {
       final data = <String, dynamic>{};
@@ -161,9 +173,24 @@ class SocietiesNotifier extends StateNotifier<SocietiesState> {
       data['mode'] = mode;
       
       await _client.dio.post('/societies/$id/reset-password', data: data);
-      return true;
-    } catch (_) {
-      return false;
+      return null;
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to reset password';
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  Future<String?> updateSettings(String id, Map<String, dynamic> settings) async {
+    try {
+      await _client.dio.patch('/societies/$id/settings', data: settings);
+      // Refresh local list to show updated settings in detail dialogs etc.
+      await loadSocieties(page: state.page);
+      return null;
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to update settings';
+    } catch (e) {
+      return e.toString();
     }
   }
 }

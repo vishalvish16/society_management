@@ -9,7 +9,7 @@ import '../../../shared/widgets/app_empty_state.dart';
 import '../../../shared/widgets/app_loading_shimmer.dart';
 import '../../../shared/widgets/app_status_chip.dart';
 import '../providers/amenities_provider.dart';
-import '../../../shared/widgets/show_app_dialog.dart';
+import '../../../shared/widgets/show_app_sheet.dart';
 
 class AmenitiesScreen extends ConsumerWidget {
   const AmenitiesScreen({super.key});

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import '../../../core/providers/dio_provider.dart';
+import '../../visitors/providers/visitor_config_provider.dart';
 
 /// Represents a single platform setting row.
 class PlatformSetting {
@@ -79,6 +80,9 @@ class PlatformSettingsNotifier
       final response = await dio.patch('superadmin/settings/$key',
           data: {'value': value});
       if (response.data['success'] == true) {
+        if (key == 'visitor_qr_max_hrs') {
+          _ref.invalidate(visitorConfigProvider);
+        }
         return null; // success
       }
       state = prev; // rollback

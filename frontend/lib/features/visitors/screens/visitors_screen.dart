@@ -140,10 +140,16 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
                                   Text(v['visitorName'] as String? ?? '-', style: AppTextStyles.h3),
                                   const SizedBox(height: AppDimensions.xs),
                                   Text(
-                                    'Unit $unitCode${v['noteForWatchman'] != null ? ' • ${v['noteForWatchman']}' : ''}',
+                                    'Unit $unitCode${v['numberOfAdults'] != null && v['numberOfAdults'] > 1 ? ' • ${v['numberOfAdults']} Adults' : ''}${v['description'] != null ? ' • ${v['description']}' : ''}',
                                     style: AppTextStyles.bodySmall
                                         .copyWith(color: AppColors.textMuted),
                                   ),
+                                  if (v['noteForWatchman'] != null)
+                                    Text(
+                                      v['noteForWatchman'],
+                                      style: AppTextStyles.caption
+                                          .copyWith(color: AppColors.textMuted, fontStyle: FontStyle.italic),
+                                    ),
                                 ],
                               ),
                             ),
@@ -188,6 +194,8 @@ class _LogVisitorFormState extends ConsumerState<_LogVisitorForm> {
   final _nameController  = TextEditingController();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
+  final _adultsController = TextEditingController(text: '1');
+  final _descriptionController = TextEditingController();
   final _noteController  = TextEditingController();
   String? _selectedUnitId;
   bool _lockUnit  = false;
@@ -199,6 +207,7 @@ class _LogVisitorFormState extends ConsumerState<_LogVisitorForm> {
 
   /// How many hours the QR should be valid — null means use platform default.
   int? _expiryHours;
+  String? _errorMsg;
 
   @override
   void initState() {
@@ -220,23 +229,24 @@ class _LogVisitorFormState extends ConsumerState<_LogVisitorForm> {
     _nameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
+    _adultsController.dispose();
+    _descriptionController.dispose();
     _noteController.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
+    setState(() => _errorMsg = null);
     if (!_formKey.currentState!.validate() || _selectedUnitId == null) {
       if (_selectedUnitId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please select a unit')),
-        );
+        setState(() => _errorMsg = 'Please select a unit');
       }
       return;
     }
 
     setState(() => _isLoading = true);
 
-    bool success;
+    String? error;
     if (_isInviteMode) {
       // Invite — QR will be generated and sent via WhatsApp + email
       final payload = <String, dynamic>{
@@ -248,37 +258,39 @@ class _LogVisitorFormState extends ConsumerState<_LogVisitorForm> {
       };
       final email = _emailController.text.trim();
       if (email.isNotEmpty) payload['visitorEmail'] = email;
+      payload['numberOfAdults'] = int.tryParse(_adultsController.text) ?? 1;
+      payload['description'] = _descriptionController.text.trim();
 
-      success = await ref.read(visitorsProvider.notifier).inviteVisitor(payload);
+      error = await ref.read(visitorsProvider.notifier).inviteVisitor(payload);
     } else {
       // Walk-in log — immediate entry
-      success = await ref.read(visitorsProvider.notifier).logVisitor({
+      error = await ref.read(visitorsProvider.notifier).logVisitor({
         'visitorName':  _nameController.text.trim(),
         'visitorPhone': _phoneController.text.trim(),
         'unitId':       _selectedUnitId,
+        'numberOfAdults': int.tryParse(_adultsController.text) ?? 1,
+        'description': _descriptionController.text.trim(),
         'noteForWatchman': _noteController.text.trim(),
       });
     }
 
     if (mounted) {
-      setState(() => _isLoading = false);
-      if (success) {
+      if (error == null) {
+        setState(() => _isLoading = false);
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_isInviteMode
                 ? 'Invitation sent! QR delivered via WhatsApp & email.'
                 : 'Visitor entry logged successfully.'),
+            backgroundColor: AppColors.success,
           ),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_isInviteMode
-                ? 'Failed to send invitation'
-                : 'Failed to log visitor'),
-          ),
-        );
+        setState(() {
+          _isLoading = false;
+          _errorMsg = error;
+        });
       }
     }
   }
@@ -399,6 +411,41 @@ class _LogVisitorFormState extends ConsumerState<_LogVisitorForm> {
             ),
             const SizedBox(height: AppDimensions.md),
 
+            // ── Adults & Description ──────────────────────────────────
+            Row(
+              children: [
+                Expanded(
+                  flex: 1,
+                  child: TextFormField(
+                    controller: _adultsController,
+                    decoration: const InputDecoration(
+                      labelText: 'Adults *',
+                      prefixIcon: Icon(Icons.people_outline),
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (v) {
+                      final val = int.tryParse(v ?? '') ?? 0;
+                      return val < 1 ? 'Min 1' : null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: AppDimensions.md),
+                Expanded(
+                  flex: 2,
+                  child: TextFormField(
+                    controller: _descriptionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Vehicle No / Desc',
+                      prefixIcon: Icon(Icons.directions_car_outlined),
+                      hintText: 'e.g. GJ01AB1234',
+                    ),
+                    textCapitalization: TextCapitalization.characters,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppDimensions.md),
+
             // ── Email (invite mode only) ───────────────────────────────
             if (_isInviteMode) ...[
               TextFormField(
@@ -495,6 +542,22 @@ class _LogVisitorFormState extends ConsumerState<_LogVisitorForm> {
                 onChanged: (hrs) => setState(() => _expiryHours = hrs),
               ),
             const SizedBox(height: AppDimensions.xl),
+
+            if (_errorMsg != null) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppDimensions.sm),
+                margin: const EdgeInsets.only(bottom: AppDimensions.md),
+                decoration: BoxDecoration(
+                  color: AppColors.dangerSurface,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                ),
+                child: Text(
+                  _errorMsg!,
+                  style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText),
+                ),
+              ),
+            ],
 
             // ── Submit ─────────────────────────────────────────────────
             SizedBox(

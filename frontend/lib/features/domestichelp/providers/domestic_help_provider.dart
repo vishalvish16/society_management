@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/dio_client.dart';
+import 'package:dio/dio.dart';
 
 class DomesticHelpState {
   final List<Map<String, dynamic>> helpers;
@@ -44,43 +45,63 @@ class DomesticHelpNotifier extends StateNotifier<DomesticHelpState> {
     }
   }
 
-  Future<bool> addHelper(Map<String, dynamic> data) async {
+  Future<String?> addHelper(Map<String, dynamic> data) async {
     try {
-      await _client.dio.post('/domestichelp', data: data);
-      await loadHelpers();
-      return true;
-    } catch (_) {
-      return false;
+      final res = await _client.dio.post('/domestichelp', data: data);
+      if (res.data['success'] == true) {
+        await loadHelpers();
+        return null;
+      }
+      return res.data['message'] ?? 'Failed to add helper';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to add helper';
+    } catch (e) {
+      return e.toString();
     }
   }
 
-  Future<bool> updateHelper(String id, Map<String, dynamic> data) async {
+  Future<String?> updateHelper(String id, Map<String, dynamic> data) async {
     try {
-      await _client.dio.patch('/domestichelp/$id', data: data);
-      await loadHelpers();
-      return true;
-    } catch (_) {
-      return false;
+      final res = await _client.dio.patch('/domestichelp/$id', data: data);
+      if (res.data['success'] == true) {
+        await loadHelpers();
+        return null;
+      }
+      return res.data['message'] ?? 'Failed to update helper';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to update helper';
+    } catch (e) {
+      return e.toString();
     }
   }
 
-  Future<bool> suspendHelper(String id) async {
+  Future<String?> suspendHelper(String id) async {
     try {
-      await _client.dio.patch('/domestichelp/$id/suspend');
-      await loadHelpers();
-      return true;
-    } catch (_) {
-      return false;
+      final res = await _client.dio.patch('/domestichelp/$id/suspend');
+      if (res.data['success'] == true) {
+        await loadHelpers();
+        return null;
+      }
+      return res.data['message'] ?? 'Failed to suspend helper';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to suspend helper';
+    } catch (e) {
+      return e.toString();
     }
   }
 
-  Future<bool> removeHelper(String id) async {
+  Future<String?> removeHelper(String id) async {
     try {
-      await _client.dio.patch('/domestichelp/$id/remove');
-      await loadHelpers();
-      return true;
-    } catch (_) {
-      return false;
+      final res = await _client.dio.patch('/domestichelp/$id/remove');
+      if (res.data['success'] == true) {
+        await loadHelpers();
+        return null;
+      }
+      return res.data['message'] ?? 'Failed to remove helper';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to remove helper';
+    } catch (e) {
+      return e.toString();
     }
   }
 }

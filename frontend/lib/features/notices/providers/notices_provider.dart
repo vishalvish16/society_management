@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/dio_client.dart';
+import 'package:dio/dio.dart';
 
 class NoticesState {
   final List<Map<String, dynamic>> notices;
@@ -25,28 +26,49 @@ class NoticesNotifier extends StateNotifier<NoticesState> {
     }
   }
 
-  Future<bool> createNotice(Map<String, dynamic> data) async {
+  Future<String?> createNotice(Map<String, dynamic> data) async {
     try {
-      await _client.dio.post('/notices', data: data);
-      await loadNotices();
-      return true;
-    } catch (_) { return false; }
+      final res = await _client.dio.post('/notices', data: data);
+      if (res.data['success'] == true) {
+        await loadNotices();
+        return null;
+      }
+      return res.data['message'] ?? 'Failed to create notice';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to create notice';
+    } catch (e) {
+      return e.toString();
+    }
   }
 
-  Future<bool> updateNotice(String id, Map<String, dynamic> data) async {
+  Future<String?> updateNotice(String id, Map<String, dynamic> data) async {
     try {
-      await _client.dio.patch('/notices/$id', data: data);
-      await loadNotices();
-      return true;
-    } catch (_) { return false; }
+      final res = await _client.dio.patch('/notices/$id', data: data);
+      if (res.data['success'] == true) {
+        await loadNotices();
+        return null;
+      }
+      return res.data['message'] ?? 'Failed to update notice';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to update notice';
+    } catch (e) {
+      return e.toString();
+    }
   }
 
-  Future<bool> deleteNotice(String id) async {
+  Future<String?> deleteNotice(String id) async {
     try {
-      await _client.dio.delete('/notices/$id');
-      await loadNotices();
-      return true;
-    } catch (_) { return false; }
+      final res = await _client.dio.delete('/notices/$id');
+      if (res.data['success'] == true) {
+        await loadNotices();
+        return null;
+      }
+      return res.data['message'] ?? 'Failed to delete notice';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to delete notice';
+    } catch (e) {
+      return e.toString();
+    }
   }
 }
 

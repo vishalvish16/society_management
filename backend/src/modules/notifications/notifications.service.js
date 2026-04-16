@@ -7,7 +7,7 @@ async function listNotifications(societyId, filters = {}) {
   const [notifications, total] = await Promise.all([
     prisma.notification.findMany({
       where: { societyId },
-      include: { sentBy: { select: { id: true, name: true } } },
+      include: { sender: { select: { id: true, name: true } } },
       skip,
       take: parseInt(limit, 10),
       orderBy: { sentAt: 'desc' },
@@ -18,49 +18,71 @@ async function listNotifications(societyId, filters = {}) {
 }
 
 async function sendNotification(senderId, societyId, data) {
-  const { targetType, targetId, title, body, type, route } = data;
-  const normalizedType = targetType?.toLowerCase();
-  if (!['all', 'role', 'unit', 'user'].includes(normalizedType)) {
+  let { targetType, targetId, title, body, type, route } = data;
+  const normalizedTarget = targetType?.toLowerCase();
+  if (!['all', 'role', 'unit', 'user'].includes(normalizedTarget)) {
     throw Object.assign(new Error('targetType must be all, role, unit, or user'), { status: 400 });
   }
+
+  // Normalize Notification Type for Prisma Enum
+  const typeMapping = {
+    'NOTICE_NEW':       'ANNOUNCEMENT',
+    'NOTICE_UPDATE':    'ANNOUNCEMENT',
+    'BILL_GENERATED':   'BILL',
+    'BILL_PAID':        'PAYMENT',
+    'EXPENSE_NEW':      'EXPENSE',
+    'EXPENSE_UPDATE':   'EXPENSE',
+    'VISITOR_CHECKIN':  'VISITOR',
+    'VISITOR_PREAUTH':  'VISITOR',
+    'COMPLAINT_NEW':    'COMPLAINT',
+    'COMPLAINT_UPDATE': 'COMPLAINT',
+    'DELIVERY_NEW':     'DELIVERY',
+    'DELIVERY_UPDATE':  'DELIVERY'
+  };
+  const dbType = typeMapping[type] || type;
 
   return prisma.$transaction(async (tx) => {
     const notification = await tx.notification.create({
       data: {
         societyId,
         sentById: senderId || null,
-        targetType: normalizedType,
+        targetType: normalizedTarget,
         targetId: targetId || null,
         title,
         body,
-        type,
+        type: dbType,
       },
     });
 
     // Resolve FCM tokens
     let users = [];
-    if (normalizedType === 'all') {
+    if (normalizedTarget === 'all') {
       users = await tx.user.findMany({
         where: { societyId, fcmToken: { not: null }, deletedAt: null, isActive: true },
         select: { id: true, fcmToken: true },
       });
-    } else if (normalizedType === 'role') {
+    } else if (normalizedTarget === 'role') {
       users = await tx.user.findMany({
         where: { societyId, role: targetId, fcmToken: { not: null }, deletedAt: null, isActive: true },
         select: { id: true, fcmToken: true },
       });
-    } else if (normalizedType === 'unit') {
+    } else if (normalizedTarget === 'unit') {
       const residents = await tx.unitResident.findMany({
         where: { unitId: targetId, user: { societyId, fcmToken: { not: null }, deletedAt: null } },
         include: { user: { select: { id: true, fcmToken: true } } },
       });
       users = residents.map((r) => r.user);
-    } else if (normalizedType === 'user') {
+    } else if (normalizedTarget === 'user') {
       const u = await tx.user.findUnique({
         where: { id: targetId },
         select: { id: true, fcmToken: true },
       });
       if (u?.fcmToken) users = [u];
+    }
+
+    // Exclude specific user if requested
+    if (data.excludeUserId) {
+      users = users.filter(u => u.id !== data.excludeUserId);
     }
 
     const tokens = users.map((u) => u.fcmToken).filter(Boolean);
@@ -92,6 +114,9 @@ async function getNotificationsForUser(userId, societyId) {
         ...(unitIds.length ? [{ targetType: 'unit', targetId: { in: unitIds } }] : []),
         { targetType: 'user', targetId: userId },
       ],
+    },
+    include: {
+      sender: { select: { id: true, name: true } },
     },
     orderBy: { sentAt: 'desc' },
     take: 50,

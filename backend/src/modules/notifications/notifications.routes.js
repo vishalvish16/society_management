@@ -9,7 +9,8 @@ const router = Router();
 router.use(authMiddleware);
 
 // Visible to admins for history
-router.get('/', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), notificationsController.getNotifications);
+const ADMIN_ROLES = ['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'VICE_CHAIRMAN', 'TREASURER', 'ASSISTANT_SECRETARY', 'ASSISTANT_TREASURER'];
+router.get('/', roleGuard(ADMIN_ROLES), notificationsController.getNotifications);
 
 // Residents see their own notifications
 router.get('/me', notificationsController.getMyNotifications);

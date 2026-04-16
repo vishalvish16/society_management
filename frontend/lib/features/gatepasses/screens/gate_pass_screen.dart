@@ -11,7 +11,7 @@ import '../../../shared/widgets/app_loading_shimmer.dart';
 import '../../../shared/widgets/app_status_chip.dart';
 import '../providers/gate_pass_provider.dart';
 import '../../../shared/widgets/unit_picker_field.dart';
-import '../../../shared/widgets/show_app_dialog.dart';
+import '../../../shared/widgets/show_app_sheet.dart';
 
 class GatePassScreen extends ConsumerStatefulWidget {
   const GatePassScreen({super.key});
@@ -26,56 +26,90 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
     final codeCtrl = TextEditingController();
     showAppSheet(
       context: context,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          AppDimensions.screenPadding, AppDimensions.lg,
-          AppDimensions.screenPadding,
-          MediaQuery.of(ctx).viewInsets.bottom + AppDimensions.xxxl,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(child: Container(width: 36, height: 4,
-              decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
-            const SizedBox(height: AppDimensions.lg),
-            Text('Scan Gate Pass', style: AppTextStyles.h1),
-            const SizedBox(height: AppDimensions.lg),
-            TextField(
-              controller: codeCtrl,
-              autofocus: true,
-              style: AppTextStyles.unitCode,
-              textCapitalization: TextCapitalization.characters,
-              decoration: InputDecoration(
-                labelText: 'Pass Code',
-                labelStyle: AppTextStyles.bodyMedium.copyWith(color: AppColors.textMuted),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
-              ),
+      builder: (ctx) {
+        bool scanning = false;
+        String? scanError;
+        return StatefulBuilder(
+          builder: (ctx, setDlgState) => Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppDimensions.screenPadding, AppDimensions.lg,
+              AppDimensions.screenPadding,
+              MediaQuery.of(ctx).viewInsets.bottom + AppDimensions.xxxl,
             ),
-            const SizedBox(height: AppDimensions.lg),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () async {
-                  final code = codeCtrl.text.trim();
-                  if (code.isEmpty) return;
-                  Navigator.pop(ctx);
-                  final messenger = ScaffoldMessenger.of(context);
-                  try {
-                    final dio = ref.read(dioProvider);
-                    await dio.post('gatepasses/scan', data: {'passCode': code});
-                    messenger.showSnackBar(SnackBar(content: Text('Pass scanned successfully', style: AppTextStyles.bodyMedium), backgroundColor: AppColors.success));
-                    ref.read(gatePassProvider.notifier).loadPasses();
-                  } catch (e) {
-                    messenger.showSnackBar(SnackBar(content: Text('Scan failed: $e', style: AppTextStyles.bodyMedium), backgroundColor: AppColors.danger));
-                  }
-                },
-                child: const Text('Scan Pass'),
-              ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(child: Container(width: 36, height: 4,
+                  decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
+                const SizedBox(height: AppDimensions.lg),
+                Text('Scan Gate Pass', style: AppTextStyles.h1),
+                const SizedBox(height: AppDimensions.lg),
+                TextField(
+                  controller: codeCtrl,
+                  autofocus: true,
+                  style: AppTextStyles.unitCode,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: InputDecoration(
+                    labelText: 'Pass Code',
+                    labelStyle: AppTextStyles.bodyMedium.copyWith(color: AppColors.textMuted),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
+                  ),
+                ),
+                if (scanError != null) ...[
+                  const SizedBox(height: AppDimensions.md),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(AppDimensions.sm),
+                    decoration: BoxDecoration(
+                      color: AppColors.dangerSurface,
+                      borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                    ),
+                    child: Text(
+                      scanError!,
+                      style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: AppDimensions.lg),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: FilledButton(
+                    onPressed: scanning ? null : () async {
+                      final code = codeCtrl.text.trim();
+                      if (code.isEmpty) return;
+                      setDlgState(() {
+                        scanning = true;
+                        scanError = null;
+                      });
+                      try {
+                        final dio = ref.read(dioProvider);
+                        await dio.post('gatepasses/scan', data: {'passCode': code});
+                        if (ctx.mounted) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Pass scanned successfully', style: AppTextStyles.bodyMedium), backgroundColor: AppColors.success));
+                          ref.read(gatePassProvider.notifier).loadPasses();
+                        }
+                      } catch (e) {
+                         if (ctx.mounted) {
+                           setDlgState(() {
+                             scanning = false;
+                             scanError = e.toString();
+                           });
+                         }
+                      }
+                    },
+                    child: scanning
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Text('Scan Pass'),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -101,6 +135,7 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
       ),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
+          String? sheetError;
           Future<void> pickDate({required bool isFrom}) async {
             final now = DateTime.now();
             final picked = await showDatePicker(
@@ -132,16 +167,7 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Center(
-                    child: Container(
-                      width: 36,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppColors.border,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
+                   Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
                   const SizedBox(height: AppDimensions.lg),
                   Text('Generate Gate Pass', style: AppTextStyles.h1),
                   const SizedBox(height: AppDimensions.lg),
@@ -181,10 +207,26 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
                     value: validTo,
                     onTap: () => pickDate(isFrom: false),
                   ),
+                  if (sheetError != null) ...[
+                    const SizedBox(height: AppDimensions.md),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(AppDimensions.sm),
+                      decoration: BoxDecoration(
+                        color: AppColors.dangerSurface,
+                        borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                      ),
+                      child: Text(
+                        sheetError!,
+                        style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: AppDimensions.xl),
 
                   SizedBox(
                     width: double.infinity,
+                    height: 50,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
@@ -200,17 +242,14 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
                                 descCtrl.text.trim().isEmpty ||
                                 validFrom == null ||
                                 validTo == null) {
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                content: Text('Please fill all required fields',
-                                    style: AppTextStyles.bodyMedium),
-                                backgroundColor: AppColors.danger,
-                              ));
+                              setSheetState(() => sheetError = 'Please fill all required fields');
                               return;
                             }
-                            setSheetState(() => submitting = true);
-                            // Capture messenger and navigator before await gap
-                            final messenger = ScaffoldMessenger.of(context);
-                              final ok =
+                            setSheetState(() {
+                              submitting = true;
+                              sheetError = null;
+                            });
+                               final error =
                                   await ref.read(gatePassProvider.notifier).createPass({
                                 'unitId': selectedUnitId!,
                                 'itemDescription': descCtrl.text.trim(),
@@ -219,15 +258,20 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
                                 'validFrom': validFrom!.toIso8601String(),
                                 'validTo': validTo!.toIso8601String(),
                               });
-                              if (ctx.mounted) Navigator.pop(ctx);
-                              messenger.showSnackBar(SnackBar(
-                                content: Text(
-                                  ok ? 'Gate pass generated' : 'Failed to generate pass',
-                                  style: AppTextStyles.bodyMedium,
-                                ),
-                                backgroundColor:
-                                    ok ? AppColors.success : AppColors.danger,
-                              ));
+                              if (ctx.mounted) {
+                                if (error == null) {
+                                  Navigator.pop(ctx);
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                    content: Text('Gate pass generated', style: AppTextStyles.bodyMedium),
+                                    backgroundColor: AppColors.success,
+                                  ));
+                                } else {
+                                  setSheetState(() {
+                                    submitting = false;
+                                    sheetError = error;
+                                  });
+                                }
+                              }
                             },
                       child: submitting
                           ? const SizedBox(
@@ -431,16 +475,16 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
                               confirmLabel: 'Cancel Pass',
                             );
                             if (confirm == true) {
-                              final ok = await ref
+                               final error = await ref
                                   .read(gatePassProvider.notifier)
                                   .cancelPass(id);
                               messenger.showSnackBar(SnackBar(
                                 content: Text(
-                                  ok ? 'Pass cancelled' : 'Failed to cancel pass',
+                                  error ?? 'Pass cancelled',
                                   style: AppTextStyles.bodyMedium,
                                 ),
                                 backgroundColor:
-                                    ok ? AppColors.success : AppColors.danger,
+                                    error == null ? AppColors.success : AppColors.danger,
                               ));
                             }
                           },

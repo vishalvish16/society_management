@@ -239,11 +239,12 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
   }
 
   Future<void> _markCollected(String id) async {
-    final success = await ref.read(deliveryProvider.notifier).markCollected(id);
+    final error = await ref.read(deliveryProvider.notifier).markCollected(id);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(success ? 'Marked as collected' : 'Failed to update delivery'),
+          content: Text(error ?? 'Marked as collected'),
+          backgroundColor: error == null ? AppColors.success : AppColors.danger,
         ),
       );
     }
@@ -278,6 +279,7 @@ class _LogDeliveryFormState extends ConsumerState<_LogDeliveryForm> {
   final _companyController = TextEditingController();
   final _descriptionController = TextEditingController();
   bool _isLoading = false;
+  String? _errorMsg;
 
   @override
   void initState() {
@@ -310,19 +312,19 @@ class _LogDeliveryFormState extends ConsumerState<_LogDeliveryForm> {
     if (company.isNotEmpty) data['company'] = company;
     if (description.isNotEmpty) data['description'] = description;
 
-    final success = await ref.read(deliveryProvider.notifier).logDelivery(data);
+    final error = await ref.read(deliveryProvider.notifier).logDelivery(data);
 
     if (mounted) {
-      setState(() => _isLoading = false);
-      if (success) {
+      if (error == null) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Delivery logged successfully')),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to log delivery')),
-        );
+        setState(() {
+          _isLoading = false;
+          _errorMsg = error;
+        });
       }
     }
   }
@@ -389,6 +391,21 @@ class _LogDeliveryFormState extends ConsumerState<_LogDeliveryForm> {
                 prefixIcon: Icon(Icons.notes_rounded),
               ),
             ),
+            if (_errorMsg != null) ...[
+              const SizedBox(height: AppDimensions.md),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppDimensions.sm),
+                decoration: BoxDecoration(
+                  color: AppColors.dangerSurface,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                ),
+                child: Text(
+                  _errorMsg!,
+                  style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText),
+                ),
+              ),
+            ],
             const SizedBox(height: AppDimensions.xl),
             SizedBox(
               width: double.infinity,

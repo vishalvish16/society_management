@@ -11,7 +11,8 @@ import '../../../shared/widgets/app_status_chip.dart';
 import '../providers/complaints_provider.dart';
 import '../../../shared/widgets/unit_picker_field.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
-import '../../../shared/widgets/show_app_dialog.dart';
+import '../../../shared/widgets/show_app_sheet.dart';
+import '../../members/providers/members_provider.dart';
 
 class ComplaintsScreen extends ConsumerStatefulWidget {
   const ComplaintsScreen({super.key});
@@ -30,14 +31,17 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
     return _adminRoles.contains(role);
   }
 
+  // Backend returns uppercase status (OPEN, IN_PROGRESS, etc.)
   Color _borderColor(String status) {
-    switch (status) {
-      case 'open':
+    switch (status.toUpperCase()) {
+      case 'OPEN':
         return AppColors.danger;
-      case 'in_progress':
+      case 'ASSIGNED':
+        return AppColors.info;
+      case 'IN_PROGRESS':
         return AppColors.warning;
-      case 'resolved':
-      case 'closed':
+      case 'RESOLVED':
+      case 'CLOSED':
         return AppColors.success;
       default:
         return AppColors.border;
@@ -48,9 +52,23 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(complaintsProvider);
 
+    // Backend returns uppercase statuses; filter tabs use lowercase keys mapped to uppercase
+    final statusMap = {
+      'all': null,
+      'open': 'OPEN',
+      'assigned': 'ASSIGNED',
+      'in_progress': 'IN_PROGRESS',
+      'resolved': 'RESOLVED',
+      'closed': 'CLOSED',
+    };
+
     final filtered = _filter == 'all'
         ? state.complaints
-        : state.complaints.where((c) => (c['status'] ?? '') == _filter).toList();
+        : state.complaints
+            .where((c) =>
+                (c['status'] as String? ?? '').toUpperCase() ==
+                statusMap[_filter])
+            .toList();
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -62,7 +80,7 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
           IconButton(
             icon: const Icon(Icons.refresh_rounded, color: AppColors.textOnPrimary),
             onPressed: () => ref.read(complaintsProvider.notifier).loadComplaints(
-                status: _filter == 'all' ? null : _filter),
+                status: _filter == 'all' ? null : statusMap[_filter]),
           ),
         ],
       ),
@@ -83,7 +101,7 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  for (final s in ['all', 'open', 'in_progress', 'resolved', 'closed'])
+                  for (final s in statusMap.keys)
                     Padding(
                       padding: const EdgeInsets.only(right: AppDimensions.sm),
                       child: ChoiceChip(
@@ -96,7 +114,7 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
                         onSelected: (_) {
                           setState(() => _filter = s);
                           ref.read(complaintsProvider.notifier).loadComplaints(
-                              status: s == 'all' ? null : s);
+                              status: s == 'all' ? null : statusMap[s]);
                         },
                       ),
                     ),
@@ -128,7 +146,10 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
                         : RefreshIndicator(
                             onRefresh: () => ref
                                 .read(complaintsProvider.notifier)
-                                .loadComplaints(status: _filter == 'all' ? null : _filter),
+                                .loadComplaints(
+                                    status: _filter == 'all'
+                                        ? null
+                                        : statusMap[_filter]),
                             child: ListView.separated(
                               padding: const EdgeInsets.all(AppDimensions.screenPadding),
                               itemCount: filtered.length,
@@ -164,14 +185,7 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
         preUnitId: lockUnit ? user?.unitId : null,
         preUnitCode: lockUnit ? user?.unitCode : null,
         onSubmit: (data) async {
-          final ok = await ref.read(complaintsProvider.notifier).createComplaint(data);
-          if (context.mounted) {
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(ok ? 'Complaint raised successfully.' : 'Failed to raise complaint.'),
-              backgroundColor: ok ? AppColors.success : AppColors.danger,
-            ));
-          }
+          return await ref.read(complaintsProvider.notifier).createComplaint(data);
         },
       ),
     );
@@ -181,7 +195,7 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
 // ── Raise Complaint Bottom Sheet ──────────────────────────────────────────────
 
 class _RaiseComplaintSheet extends StatefulWidget {
-  final Future<void> Function(Map<String, dynamic>) onSubmit;
+  final Future<String?> Function(Map<String, dynamic>) onSubmit;
   final bool lockUnit;
   final String? preUnitId;
   final String? preUnitCode;
@@ -204,6 +218,7 @@ class _RaiseComplaintSheetState extends State<_RaiseComplaintSheet> {
   String _category = 'MAINTENANCE';
   String _priority = 'medium';
   bool _submitting = false;
+  String? _errorMsg;
 
   @override
   void initState() {
@@ -212,7 +227,7 @@ class _RaiseComplaintSheetState extends State<_RaiseComplaintSheet> {
     _selectedUnitCode = widget.preUnitCode;
   }
 
-  static const _categories = ['MAINTENANCE', 'SECURITY', 'CLEANLINESS', 'NOISE', 'OTHER'];
+  static const _categories = ['MAINTENANCE', 'SECURITY', 'CLEANLINESS', 'NOISE', 'PARKING', 'OTHER'];
   static const _priorities = ['low', 'medium', 'high'];
 
   @override
@@ -280,6 +295,21 @@ class _RaiseComplaintSheetState extends State<_RaiseComplaintSheet> {
               items: _priorities.map((v) => AppDropdownItem(value: v, label: v.toUpperCase())).toList(),
               onChanged: (v) { if (v != null) setState(() => _priority = v); },
             ),
+            if (_errorMsg != null) ...[
+              const SizedBox(height: AppDimensions.md),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppDimensions.sm),
+                decoration: BoxDecoration(
+                  color: AppColors.dangerSurface,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                ),
+                child: Text(
+                  _errorMsg!,
+                  style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText),
+                ),
+              ),
+            ],
             const SizedBox(height: AppDimensions.xl),
             SizedBox(
               width: double.infinity,
@@ -338,24 +368,36 @@ class _RaiseComplaintSheetState extends State<_RaiseComplaintSheet> {
         ),
       );
 
-
   Future<void> _submit() async {
     if (_titleCtrl.text.trim().isEmpty || _descCtrl.text.trim().isEmpty || _selectedUnitId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Please fill in all required fields.'),
-        backgroundColor: AppColors.warning,
-      ));
+      setState(() => _errorMsg = 'Please fill in all required fields.');
       return;
     }
-    setState(() => _submitting = true);
-    await widget.onSubmit({
+    setState(() {
+      _submitting = true;
+      _errorMsg = null;
+    });
+    final error = await widget.onSubmit({
       'title': _titleCtrl.text.trim(),
       'description': _descCtrl.text.trim(),
       'category': _category,
       'unitId': _selectedUnitId!,
       'priority': _priority,
     });
-    if (mounted) setState(() => _submitting = false);
+    if (mounted) {
+      if (error == null) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Complaint raised successfully.'),
+          backgroundColor: AppColors.success,
+        ));
+      } else {
+        setState(() {
+          _submitting = false;
+          _errorMsg = error;
+        });
+      }
+    }
   }
 }
 
@@ -375,75 +417,120 @@ class _ComplaintCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = complaint;
-    final status = c['status'] as String? ?? 'open';
+    final status = c['status'] as String? ?? 'OPEN';
     final title = c['title'] as String? ?? '-';
     final category = c['category'] as String? ?? '-';
     final raisedBy = (c['raisedBy'] as Map?)?['name'] as String? ?? '-';
     final unit = (c['unit'] as Map?)?['fullCode'] as String? ?? '-';
+    final assignedTo = (c['assignedTo'] as Map?)?['name'] as String?;
     final priority = c['priority'] as String? ?? 'medium';
     final createdAt = c['createdAt'] as String? ?? '';
     final id = c['id'] as String? ?? '';
+    final resolutionNote = c['resolutionNote'] as String?;
 
-    return AppCard(
-      leftBorderColor: borderColor,
-      padding: const EdgeInsets.all(AppDimensions.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(child: Text(title, style: AppTextStyles.h3)),
-              AppStatusChip(status: status),
-            ],
-          ),
-          const SizedBox(height: AppDimensions.xs),
-          Row(
-            children: [
-              _badge(category.toUpperCase(), AppColors.infoSurface, AppColors.info),
-              const SizedBox(width: AppDimensions.sm),
-              _badge(priority.toUpperCase(),
-                  priority == 'high'
-                      ? AppColors.dangerSurface
-                      : priority == 'medium'
-                          ? AppColors.warningSurface
-                          : AppColors.successSurface,
-                  priority == 'high'
-                      ? AppColors.dangerText
-                      : priority == 'medium'
-                          ? AppColors.warningText
-                          : AppColors.successText),
-            ],
-          ),
-          const SizedBox(height: AppDimensions.xs),
-          Row(
-            children: [
-              const Icon(Icons.person_outline_rounded, size: 12, color: AppColors.textMuted),
-              const SizedBox(width: 3),
-              Text(raisedBy, style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
-              const SizedBox(width: AppDimensions.sm),
-              const Icon(Icons.home_outlined, size: 12, color: AppColors.textMuted),
-              const SizedBox(width: 3),
-              Text(unit, style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
-              const Spacer(),
-              Text(
-                createdAt.length >= 10 ? createdAt.substring(0, 10) : createdAt,
-                style: AppTextStyles.caption,
-              ),
-            ],
-          ),
-          if (isAdmin) ...[
-            const SizedBox(height: AppDimensions.sm),
+    return GestureDetector(
+      onTap: () => _showDetailSheet(context, c),
+      child: AppCard(
+        leftBorderColor: borderColor,
+        padding: const EdgeInsets.all(AppDimensions.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                _UpdateStatusButton(complaintId: id, currentStatus: status),
-                const SizedBox(width: AppDimensions.sm),
-                _DeleteButton(complaintId: id),
+                Expanded(child: Text(title, style: AppTextStyles.h3)),
+                AppStatusChip(status: status.toLowerCase()),
               ],
             ),
+            const SizedBox(height: AppDimensions.xs),
+            Row(
+              children: [
+                _badge(category.toUpperCase(), AppColors.infoSurface, AppColors.info),
+                const SizedBox(width: AppDimensions.sm),
+                _badge(
+                    (priority).toUpperCase(),
+                    priority == 'high'
+                        ? AppColors.dangerSurface
+                        : priority == 'medium'
+                            ? AppColors.warningSurface
+                            : AppColors.successSurface,
+                    priority == 'high'
+                        ? AppColors.dangerText
+                        : priority == 'medium'
+                            ? AppColors.warningText
+                            : AppColors.successText),
+              ],
+            ),
+            const SizedBox(height: AppDimensions.xs),
+            Row(
+              children: [
+                const Icon(Icons.person_outline_rounded, size: 12, color: AppColors.textMuted),
+                const SizedBox(width: 3),
+                Text(raisedBy, style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
+                const SizedBox(width: AppDimensions.sm),
+                const Icon(Icons.home_outlined, size: 12, color: AppColors.textMuted),
+                const SizedBox(width: 3),
+                Text(unit, style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
+                const Spacer(),
+                Text(
+                  createdAt.length >= 10 ? createdAt.substring(0, 10) : createdAt,
+                  style: AppTextStyles.caption,
+                ),
+              ],
+            ),
+            if (assignedTo != null) ...[
+              const SizedBox(height: AppDimensions.xs),
+              Row(
+                children: [
+                  const Icon(Icons.assignment_ind_outlined, size: 12, color: AppColors.info),
+                  const SizedBox(width: 3),
+                  Text('Assigned: $assignedTo',
+                      style: AppTextStyles.bodySmall.copyWith(color: AppColors.info)),
+                ],
+              ),
+            ],
+            if (resolutionNote != null && resolutionNote.isNotEmpty) ...[
+              const SizedBox(height: AppDimensions.xs),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.check_circle_outline, size: 12, color: AppColors.success),
+                  const SizedBox(width: 3),
+                  Expanded(
+                    child: Text('Note: $resolutionNote',
+                        style: AppTextStyles.bodySmall.copyWith(color: AppColors.successText),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis),
+                  ),
+                ],
+              ),
+            ],
+            if (isAdmin) ...[
+              const SizedBox(height: AppDimensions.sm),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  _UpdateStatusButton(complaint: c),
+                  const SizedBox(width: AppDimensions.sm),
+                  _DeleteButton(complaintId: id),
+                ],
+              ),
+            ],
           ],
-        ],
+        ),
       ),
+    );
+  }
+
+  void _showDetailSheet(BuildContext context, Map<String, dynamic> c) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
+      ),
+      builder: (_) => _ComplaintDetailSheet(complaint: c),
     );
   }
 
@@ -457,32 +544,145 @@ class _ComplaintCard extends ConsumerWidget {
       );
 }
 
+// ── Complaint Detail Sheet ────────────────────────────────────────────────────
+
+class _ComplaintDetailSheet extends StatelessWidget {
+  final Map<String, dynamic> complaint;
+  const _ComplaintDetailSheet({required this.complaint});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = complaint;
+    final status = (c['status'] as String? ?? 'OPEN').toUpperCase();
+    final title = c['title'] as String? ?? '-';
+    final description = c['description'] as String? ?? '';
+    final category = c['category'] as String? ?? '-';
+    final priority = c['priority'] as String? ?? 'medium';
+    final raisedBy = (c['raisedBy'] as Map?)?['name'] as String? ?? '-';
+    final unit = (c['unit'] as Map?)?['fullCode'] as String? ?? '-';
+    final assignedTo = (c['assignedTo'] as Map?)?['name'] as String?;
+    final resolutionNote = c['resolutionNote'] as String?;
+    final createdAt = c['createdAt'] as String? ?? '';
+    final resolvedAt = c['resolvedAt'] as String?;
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.6,
+      maxChildSize: 0.92,
+      builder: (_, ctrl) => Padding(
+        padding: const EdgeInsets.fromLTRB(
+            AppDimensions.screenPadding, AppDimensions.md,
+            AppDimensions.screenPadding, AppDimensions.xl),
+        child: ListView(
+          controller: ctrl,
+          children: [
+            Center(
+              child: Container(
+                width: 36, height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppDimensions.md),
+            Row(
+              children: [
+                Expanded(child: Text(title, style: AppTextStyles.h2)),
+                AppStatusChip(status: status.toLowerCase()),
+              ],
+            ),
+            const SizedBox(height: AppDimensions.sm),
+            if (description.isNotEmpty) ...[
+              Text('Description', style: AppTextStyles.labelLarge.copyWith(color: AppColors.textSecondary)),
+              const SizedBox(height: AppDimensions.xs),
+              Text(description, style: AppTextStyles.bodyMedium),
+              const SizedBox(height: AppDimensions.md),
+            ],
+            const Divider(),
+            const SizedBox(height: AppDimensions.sm),
+            _row('Category', category.toUpperCase()),
+            _row('Priority', priority.toUpperCase()),
+            _row('Raised By', raisedBy),
+            _row('Unit', unit),
+            if (assignedTo != null) _row('Assigned To', assignedTo),
+            _row('Raised On', createdAt.length >= 10 ? createdAt.substring(0, 10) : createdAt),
+            if (resolvedAt != null)
+              _row('Resolved On', resolvedAt.length >= 10 ? resolvedAt.substring(0, 10) : resolvedAt),
+            if (resolutionNote != null && resolutionNote.isNotEmpty) ...[
+              const SizedBox(height: AppDimensions.md),
+              const Divider(),
+              const SizedBox(height: AppDimensions.sm),
+              Text('Resolution Note',
+                  style: AppTextStyles.labelLarge.copyWith(color: AppColors.success)),
+              const SizedBox(height: AppDimensions.xs),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppDimensions.sm),
+                decoration: BoxDecoration(
+                  color: AppColors.successSurface,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                ),
+                child: Text(resolutionNote,
+                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.successText)),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _row(String label, String value) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 110,
+              child: Text(label,
+                  style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
+            ),
+            Expanded(child: Text(value, style: AppTextStyles.bodyMedium)),
+          ],
+        ),
+      );
+}
+
+// ── Update Status Button ──────────────────────────────────────────────────────
+
 class _UpdateStatusButton extends ConsumerWidget {
-  final String complaintId;
-  final String currentStatus;
-  const _UpdateStatusButton({required this.complaintId, required this.currentStatus});
+  final Map<String, dynamic> complaint;
+  const _UpdateStatusButton({required this.complaint});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final currentStatus = (complaint['status'] as String? ?? 'OPEN').toUpperCase();
     final nextStatuses = _nextStatuses(currentStatus);
     if (nextStatuses.isEmpty) return const SizedBox.shrink();
 
     return PopupMenuButton<String>(
       onSelected: (newStatus) async {
-        final ok = await ref
-            .read(complaintsProvider.notifier)
-            .updateComplaint(complaintId, {'status': newStatus});
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(ok ? 'Status updated.' : 'Failed to update status.'),
-            backgroundColor: ok ? AppColors.success : AppColors.danger,
-          ));
+        if (newStatus == 'ASSIGNED') {
+          _showAssignDialog(context, ref);
+        } else if (newStatus == 'RESOLVED') {
+          _showResolveDialog(context, ref, newStatus);
+        } else {
+          final error = await ref
+              .read(complaintsProvider.notifier)
+              .updateComplaint(complaint['id'] as String, {'status': newStatus});
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(error ?? 'Status updated.'),
+              backgroundColor: error == null ? AppColors.success : AppColors.danger,
+            ));
+          }
         }
       },
       itemBuilder: (_) => nextStatuses
           .map((s) => PopupMenuItem(
                 value: s,
-                child: Text(s.replaceAll('_', ' ').toUpperCase(),
+                child: Text(s.replaceAll('_', ' '),
                     style: AppTextStyles.bodyMedium),
               ))
           .toList(),
@@ -507,19 +707,162 @@ class _UpdateStatusButton extends ConsumerWidget {
     );
   }
 
+  void _showAssignDialog(BuildContext context, WidgetRef ref) {
+    final members = ref.read(membersProvider).value ?? [];
+    String? selectedId;
+    String? selectedName;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          title: const Text('Assign Complaint'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Select a member to assign this complaint to:',
+                  style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary)),
+              const SizedBox(height: AppDimensions.sm),
+              if (members.isEmpty)
+                Text('No members found.',
+                    style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted))
+              else
+                DropdownButtonFormField<String>(
+                  initialValue: selectedId,
+                  decoration: InputDecoration(
+                    hintText: 'Choose member...',
+                    hintStyle: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: AppDimensions.md, vertical: AppDimensions.sm),
+                  ),
+                  isExpanded: true,
+                  items: members
+                      .map((m) => DropdownMenuItem(
+                            value: m.id,
+                            child: Text('${m.name} (${m.role})',
+                                style: AppTextStyles.bodyMedium,
+                                overflow: TextOverflow.ellipsis),
+                          ))
+                      .toList(),
+                  onChanged: (v) {
+                    setS(() {
+                      selectedId = v;
+                      selectedName = members.firstWhere((m) => m.id == v).name;
+                    });
+                  },
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+              onPressed: selectedId == null
+                  ? null
+                  : () async {
+                      Navigator.pop(ctx);
+                      final error = await ref
+                          .read(complaintsProvider.notifier)
+                          .updateComplaint(complaint['id'] as String, {
+                        'status': 'ASSIGNED',
+                        'assignedToId': selectedId,
+                      });
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text(error ?? 'Assigned to $selectedName.'),
+                          backgroundColor: error == null ? AppColors.success : AppColors.danger,
+                        ));
+                      }
+                    },
+              child: Text('Assign',
+                  style: AppTextStyles.labelMedium.copyWith(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showResolveDialog(BuildContext context, WidgetRef ref, String newStatus) {
+    final noteCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Resolve Complaint'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Add a resolution note (optional):',
+                style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary)),
+            const SizedBox(height: AppDimensions.sm),
+            TextField(
+              controller: noteCtrl,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: 'Describe what was done to resolve this...',
+                hintStyle: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final data = <String, dynamic>{'status': newStatus};
+              if (noteCtrl.text.trim().isNotEmpty) {
+                data['resolutionNote'] = noteCtrl.text.trim();
+              }
+              final error = await ref
+                  .read(complaintsProvider.notifier)
+                  .updateComplaint(complaint['id'] as String, data);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(error ?? 'Complaint resolved.'),
+                  backgroundColor: error == null ? AppColors.success : AppColors.danger,
+                ));
+              }
+            },
+            child: Text('Resolve', style: AppTextStyles.labelMedium.copyWith(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   List<String> _nextStatuses(String current) {
     switch (current) {
-      case 'open':
-        return ['in_progress', 'resolved', 'closed'];
-      case 'in_progress':
-        return ['resolved', 'closed'];
-      case 'resolved':
-        return ['closed'];
+      case 'OPEN':
+        return ['ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
+      case 'ASSIGNED':
+        return ['IN_PROGRESS', 'RESOLVED', 'CLOSED'];
+      case 'IN_PROGRESS':
+        return ['RESOLVED', 'CLOSED'];
+      case 'RESOLVED':
+        return ['CLOSED'];
       default:
         return [];
     }
   }
 }
+
+// ── Delete Button ─────────────────────────────────────────────────────────────
 
 class _DeleteButton extends ConsumerWidget {
   final String complaintId;
@@ -557,11 +900,11 @@ class _DeleteButton extends ConsumerWidget {
       confirmLabel: 'Delete',
     );
     if (ok && context.mounted) {
-      final success = await ref.read(complaintsProvider.notifier).deleteComplaint(complaintId);
+      final error = await ref.read(complaintsProvider.notifier).deleteComplaint(complaintId);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(success ? 'Complaint deleted.' : 'Failed to delete complaint.'),
-          backgroundColor: success ? AppColors.success : AppColors.danger,
+          content: Text(error ?? 'Complaint deleted.'),
+          backgroundColor: error == null ? AppColors.success : AppColors.danger,
         ));
       }
     }

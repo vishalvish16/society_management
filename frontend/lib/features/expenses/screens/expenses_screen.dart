@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:image_picker/image_picker.dart' show XFile; 
+import 'package:image_picker/image_picker.dart' show XFile;
 import '../../../core/constants/app_constants.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
@@ -15,7 +15,7 @@ import '../../../shared/widgets/app_loading_shimmer.dart';
 import '../../../shared/widgets/app_status_chip.dart';
 import '../providers/expense_provider.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
-import '../../../shared/widgets/show_app_dialog.dart';
+import '../../../shared/widgets/show_app_sheet.dart';
 
 class ExpensesScreen extends ConsumerStatefulWidget {
   const ExpensesScreen({super.key});
@@ -49,16 +49,23 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
 
   Color _borderColor(String status) {
     switch (status.toLowerCase()) {
-      case 'approved': return AppColors.success;
-      case 'rejected': return AppColors.danger;
-      default: return AppColors.warning;
+      case 'approved':
+        return AppColors.success;
+      case 'rejected':
+        return AppColors.danger;
+      default:
+        return AppColors.warning;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final role = ref.watch(authProvider).user?.role ?? '';
-    final isAdmin = role == 'CHAIRMAN' || role == 'SECRETARY' || role == 'WATCHMAN' || role == 'PRAMUKH';
+    final isAdmin =
+        role == 'CHAIRMAN' ||
+        role == 'SECRETARY' ||
+        role == 'WATCHMAN' ||
+        role == 'PRAMUKH';
     final expensesAsync = ref.watch(expensesProvider);
     final notifier = ref.read(expensesProvider.notifier);
     final fmt = NumberFormat('#,##0');
@@ -67,15 +74,22 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.primary,
-        title: Text('Expenses', style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
+        title: Text(
+          'Expenses',
+          style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary),
+        ),
       ),
       floatingActionButton: isAdmin
           ? FloatingActionButton.extended(
               onPressed: () => _showAddDialog(context),
               backgroundColor: AppColors.primary,
               icon: const Icon(Icons.add, color: AppColors.textOnPrimary),
-              label: Text('Add Expense',
-                  style: AppTextStyles.labelLarge.copyWith(color: AppColors.textOnPrimary)),
+              label: Text(
+                'Add Expense',
+                style: AppTextStyles.labelLarge.copyWith(
+                  color: AppColors.textOnPrimary,
+                ),
+              ),
             )
           : null,
       body: Column(
@@ -83,7 +97,9 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
           Container(
             color: AppColors.surface,
             padding: const EdgeInsets.symmetric(
-                horizontal: AppDimensions.screenPadding, vertical: AppDimensions.sm),
+              horizontal: AppDimensions.screenPadding,
+              vertical: AppDimensions.sm,
+            ),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
@@ -92,11 +108,17 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                     Padding(
                       padding: const EdgeInsets.only(right: AppDimensions.sm),
                       child: ChoiceChip(
-                        label: Text(s == 'all' ? 'All' : s[0].toUpperCase() + s.substring(1)),
+                        label: Text(
+                          s == 'all'
+                              ? 'All'
+                              : s[0].toUpperCase() + s.substring(1),
+                        ),
                         selected: _statusFilter == s,
                         selectedColor: AppColors.primarySurface,
                         labelStyle: AppTextStyles.labelMedium.copyWith(
-                          color: _statusFilter == s ? AppColors.primary : AppColors.textMuted,
+                          color: _statusFilter == s
+                              ? AppColors.primary
+                              : AppColors.textMuted,
                         ),
                         onSelected: (_) => setState(() => _statusFilter = s),
                       ),
@@ -113,8 +135,12 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                   padding: const EdgeInsets.all(AppDimensions.screenPadding),
                   child: AppCard(
                     backgroundColor: AppColors.dangerSurface,
-                    child: Text('Error: $e',
-                        style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText)),
+                    child: Text(
+                      'Error: $e',
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.dangerText,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -122,9 +148,12 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                 final filtered = _statusFilter == 'all'
                     ? expenses
                     : expenses
-                        .where((e) =>
-                            (e['status'] as String? ?? '').toLowerCase() == _statusFilter)
-                        .toList();
+                          .where(
+                            (e) =>
+                                (e['status'] as String? ?? '').toLowerCase() ==
+                                _statusFilter,
+                          )
+                          .toList();
                 if (filtered.isEmpty) {
                   return const AppEmptyState(
                     emoji: '💰',
@@ -139,28 +168,37 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                     controller: _scrollController,
                     padding: const EdgeInsets.all(AppDimensions.screenPadding),
                     itemCount: filtered.length + (notifier.hasMore ? 1 : 0),
-                    separatorBuilder: (_, index) => const SizedBox(height: AppDimensions.sm),
+                    separatorBuilder: (_, index) =>
+                        const SizedBox(height: AppDimensions.sm),
                     itemBuilder: (_, i) {
                       if (i == filtered.length) {
                         return const Center(
                           child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: AppDimensions.md),
+                            padding: EdgeInsets.symmetric(
+                              vertical: AppDimensions.md,
+                            ),
                             child: CircularProgressIndicator(),
                           ),
                         );
                       }
                       final ex = filtered[i];
-                      final status = (ex['status'] as String? ?? 'pending').toLowerCase();
+                      final status = (ex['status'] as String? ?? 'pending')
+                          .toLowerCase();
                       final amount =
-                          double.tryParse(ex['totalAmount']?.toString() ?? '0') ?? 0;
+                          double.tryParse(
+                            ex['totalAmount']?.toString() ?? '0',
+                          ) ??
+                          0;
                       final date = ex['expenseDate'] != null
-                          ? DateFormat('dd MMM yyyy')
-                              .format(DateTime.parse(ex['expenseDate']))
+                          ? DateFormat(
+                              'dd MMM yyyy',
+                            ).format(DateTime.parse(ex['expenseDate']))
                           : '-';
                       final attachments = ex['attachments'] as List? ?? [];
                       final hasAttachment = attachments.isNotEmpty;
-                      
-                      final submitterName = ex['submitter']?['name'] as String? ?? '-';
+
+                      final submitterName =
+                          ex['submitter']?['name'] as String? ?? '-';
                       final approverName = ex['approver']?['name'] as String?;
 
                       return AppCard(
@@ -177,27 +215,45 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                                   height: 40,
                                   decoration: BoxDecoration(
                                     color: AppColors.primarySurface,
-                                    borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                                    borderRadius: BorderRadius.circular(
+                                      AppDimensions.radiusMd,
+                                    ),
                                   ),
-                                  child: const Icon(Icons.account_balance_wallet_rounded,
-                                      color: AppColors.primary, size: 20),
+                                  child: const Icon(
+                                    Icons.account_balance_wallet_rounded,
+                                    color: AppColors.primary,
+                                    size: 20,
+                                  ),
                                 ),
                                 const SizedBox(width: AppDimensions.md),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Text(ex['title'] as String? ?? '-', style: AppTextStyles.h3),
+                                      Text(
+                                        ex['title'] as String? ?? '-',
+                                        style: AppTextStyles.h3,
+                                      ),
                                       const SizedBox(height: AppDimensions.xs),
                                       Row(
                                         children: [
                                           Text(
                                             '$date • ${ex['category'] ?? '-'}',
-                                            style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
+                                            style: AppTextStyles.bodySmall
+                                                .copyWith(
+                                                  color: AppColors.textMuted,
+                                                ),
                                           ),
                                           if (hasAttachment) ...[
-                                            const SizedBox(width: AppDimensions.sm),
-                                            const Icon(Icons.attach_file, size: 14, color: AppColors.primary),
+                                            const SizedBox(
+                                              width: AppDimensions.sm,
+                                            ),
+                                            const Icon(
+                                              Icons.attach_file,
+                                              size: 14,
+                                              color: AppColors.primary,
+                                            ),
                                           ],
                                         ],
                                       ),
@@ -207,7 +263,10 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
-                                    Text('₹${fmt.format(amount)}', style: AppTextStyles.h3),
+                                    Text(
+                                      '₹${fmt.format(amount)}',
+                                      style: AppTextStyles.h3,
+                                    ),
                                     const SizedBox(height: AppDimensions.xs),
                                     AppStatusChip(status: status),
                                   ],
@@ -218,14 +277,30 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                             // Submitter / Approver row
                             Row(
                               children: [
-                                const Icon(Icons.person_outline, size: 13, color: AppColors.textMuted),
+                                const Icon(
+                                  Icons.person_outline,
+                                  size: 13,
+                                  color: AppColors.textMuted,
+                                ),
                                 const SizedBox(width: 4),
-                                Text('By $submitterName', style: AppTextStyles.caption),
+                                Text(
+                                  'By $submitterName',
+                                  style: AppTextStyles.caption,
+                                ),
                                 if (approverName != null) ...[
                                   const SizedBox(width: AppDimensions.md),
-                                  const Icon(Icons.verified_outlined, size: 13, color: AppColors.success),
+                                  const Icon(
+                                    Icons.verified_outlined,
+                                    size: 13,
+                                    color: AppColors.success,
+                                  ),
                                   const SizedBox(width: 4),
-                                  Text('Approved by $approverName', style: AppTextStyles.caption.copyWith(color: AppColors.success)),
+                                  Text(
+                                    'Approved by $approverName',
+                                    style: AppTextStyles.caption.copyWith(
+                                      color: AppColors.success,
+                                    ),
+                                  ),
                                 ],
                               ],
                             ),
@@ -236,13 +311,20 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                                 alignment: Alignment.centerRight,
                                 child: TextButton.icon(
                                   onPressed: () => _showEditDialog(context, ex),
-                                  icon: const Icon(Icons.edit_outlined, size: 14),
+                                  icon: const Icon(
+                                    Icons.edit_outlined,
+                                    size: 14,
+                                  ),
                                   label: const Text('Edit'),
                                   style: TextButton.styleFrom(
                                     foregroundColor: AppColors.primary,
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
                                     minimumSize: Size.zero,
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
                                     textStyle: AppTextStyles.labelMedium,
                                   ),
                                 ),
@@ -255,36 +337,61 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
                                   OutlinedButton.icon(
-                                    onPressed: () => _confirmReject(context, ex['id'], notifier),
+                                    onPressed: () => _confirmReject(
+                                      context,
+                                      ex['id'],
+                                      notifier,
+                                    ),
                                     icon: const Icon(Icons.close, size: 14),
                                     label: const Text('Reject'),
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: AppColors.danger,
-                                      side: const BorderSide(color: AppColors.danger),
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      side: const BorderSide(
+                                        color: AppColors.danger,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
                                       minimumSize: Size.zero,
-                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
                                       textStyle: AppTextStyles.labelMedium,
                                     ),
                                   ),
                                   const SizedBox(width: AppDimensions.sm),
                                   FilledButton.icon(
                                     onPressed: () async {
-                                      final ok = await notifier.updateStatus(ex['id'], 'approved');
+                                      final error = await notifier.updateStatus(
+                                        ex['id'],
+                                        'approved',
+                                      );
                                       if (context.mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                          content: Text(ok ? 'Expense approved' : 'Failed to approve'),
-                                          backgroundColor: ok ? AppColors.success : AppColors.danger,
-                                        ));
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              error ?? 'Expense approved',
+                                            ),
+                                            backgroundColor: error == null
+                                                ? AppColors.success
+                                                : AppColors.danger,
+                                          ),
+                                        );
                                       }
                                     },
                                     icon: const Icon(Icons.check, size: 14),
                                     label: const Text('Approve'),
                                     style: FilledButton.styleFrom(
                                       backgroundColor: AppColors.success,
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
                                       minimumSize: Size.zero,
-                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
                                       textStyle: AppTextStyles.labelMedium,
                                     ),
                                   ),
@@ -306,9 +413,10 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   }
 
   void _showAttachmentViewer(BuildContext context, String fileUrl) {
-    final fullUrl = AppConstants.apiBaseUrl.replaceAll('/api/', '/uploads/') + fileUrl;
+    final fullUrl =
+        AppConstants.apiBaseUrl.replaceAll('/api/', '/uploads/') + fileUrl;
     final isPdf = fileUrl.toLowerCase().endsWith('.pdf');
-    
+
     if (isPdf) {
       launchUrl(Uri.parse(fullUrl));
       return;
@@ -328,7 +436,10 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                 icon: const Icon(Icons.close, color: Colors.white),
                 onPressed: () => Navigator.pop(context),
               ),
-              title: const Text('View Attachment', style: TextStyle(color: Colors.white)),
+              title: const Text(
+                'View Attachment',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
             Expanded(
               child: InteractiveViewer(
@@ -342,9 +453,16 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.error_outline, color: Colors.white, size: 48),
+                        Icon(
+                          Icons.error_outline,
+                          color: Colors.white,
+                          size: 48,
+                        ),
                         SizedBox(height: 16),
-                        Text('Could not load image', style: TextStyle(color: Colors.white)),
+                        Text(
+                          'Could not load image',
+                          style: TextStyle(color: Colors.white),
+                        ),
                       ],
                     ),
                   ),
@@ -357,7 +475,11 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
     );
   }
 
-  void _showDetailSheet(BuildContext context, Map<String, dynamic> ex, bool isAdmin) {
+  void _showDetailSheet(
+    BuildContext context,
+    Map<String, dynamic> ex,
+    bool isAdmin,
+  ) {
     final status = (ex['status'] as String? ?? 'pending').toLowerCase();
     final attachments = ex['attachments'] as List? ?? [];
     final fmt = NumberFormat('#,##0');
@@ -372,7 +494,9 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       context: context,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppDimensions.radiusXl),
+        ),
       ),
       builder: (ctx) => Padding(
         padding: const EdgeInsets.all(AppDimensions.screenPadding),
@@ -382,28 +506,56 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
           children: [
             Center(
               child: Container(
-                width: 36, height: 4,
-                decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)),
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
             const SizedBox(height: AppDimensions.lg),
             Row(
               children: [
-                Expanded(child: Text(ex['title'] as String? ?? '-', style: AppTextStyles.h1)),
+                Expanded(
+                  child: Text(
+                    ex['title'] as String? ?? '-',
+                    style: AppTextStyles.h1,
+                  ),
+                ),
                 AppStatusChip(status: status),
               ],
             ),
             const SizedBox(height: AppDimensions.md),
             _detailRow(Icons.attach_money, 'Amount', '₹${fmt.format(amount)}'),
-            _detailRow(Icons.category_outlined, 'Category', ex['category'] ?? '-'),
+            _detailRow(
+              Icons.category_outlined,
+              'Category',
+              ex['category'] ?? '-',
+            ),
             _detailRow(Icons.calendar_today_outlined, 'Date', date),
             _detailRow(Icons.person_outline, 'Submitted by', submitterName),
             if (approverName != null)
-              _detailRow(Icons.verified_outlined, 'Approved by', approverName, color: AppColors.success),
-            if (ex['description'] != null && (ex['description'] as String).isNotEmpty)
-              _detailRow(Icons.notes_outlined, 'Description', ex['description']),
+              _detailRow(
+                Icons.verified_outlined,
+                'Approved by',
+                approverName,
+                color: AppColors.success,
+              ),
+            if (ex['description'] != null &&
+                (ex['description'] as String).isNotEmpty)
+              _detailRow(
+                Icons.notes_outlined,
+                'Description',
+                ex['description'],
+              ),
             if (ex['rejectionReason'] != null)
-              _detailRow(Icons.info_outline, 'Rejection Reason', ex['rejectionReason'], color: AppColors.danger),
+              _detailRow(
+                Icons.info_outline,
+                'Rejection Reason',
+                ex['rejectionReason'],
+                color: AppColors.danger,
+              ),
             if (attachments.isNotEmpty) ...[
               const SizedBox(height: AppDimensions.sm),
               GestureDetector(
@@ -413,9 +565,18 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                 },
                 child: Row(
                   children: [
-                    const Icon(Icons.attach_file, size: 16, color: AppColors.primary),
+                    const Icon(
+                      Icons.attach_file,
+                      size: 16,
+                      color: AppColors.primary,
+                    ),
                     const SizedBox(width: 6),
-                    Text('View Attachment', style: AppTextStyles.bodySmall.copyWith(color: AppColors.primary)),
+                    Text(
+                      'View Attachment',
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.primary,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -434,55 +595,149 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
         children: [
           Icon(icon, size: 16, color: color ?? AppColors.textMuted),
           const SizedBox(width: 8),
-          Text('$label: ', style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
-          Expanded(child: Text(value, style: AppTextStyles.bodySmall.copyWith(color: color ?? AppColors.textPrimary))),
+          Text(
+            '$label: ',
+            style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: AppTextStyles.bodySmall.copyWith(
+                color: color ?? AppColors.textPrimary,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  void _confirmReject(BuildContext context, String id, ExpensesNotifier notifier) {
+  void _confirmReject(
+    BuildContext context,
+    String id,
+    ExpensesNotifier notifier,
+  ) {
     final reasonC = TextEditingController();
     showAppSheet(
       context: context,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(ctx).viewInsets.bottom + 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(child: Container(width: 36, height: 4,
-              decoration: BoxDecoration(color: const Color(0xFFE0E0E0), borderRadius: BorderRadius.circular(2)))),
-            const SizedBox(height: 16),
-            const Text('Reject Expense', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 16),
-            TextField(
-              controller: reasonC,
-              maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Reason *', alignLabelWithHint: true),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-                onPressed: () async {
-                  if (reasonC.text.trim().isEmpty) return;
-                  Navigator.pop(ctx);
-                  final ok = await notifier.updateStatus(id, 'rejected', reason: reasonC.text.trim());
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text(ok ? 'Expense rejected' : 'Failed to reject'),
-                      backgroundColor: ok ? AppColors.warning : AppColors.danger,
-                    ));
-                  }
-                },
-                child: const Text('Reject Expense'),
+      builder: (ctx) {
+        bool isSubmitting = false;
+        String? sheetError;
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                MediaQuery.of(ctx).viewInsets.bottom + 32,
               ),
-            ),
-          ],
-        ),
-      ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE0E0E0),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Reject Expense',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: reasonC,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Reason *',
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  if (sheetError != null) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(AppDimensions.sm),
+                      decoration: BoxDecoration(
+                        color: AppColors.dangerSurface,
+                        borderRadius: BorderRadius.circular(
+                          AppDimensions.radiusSm,
+                        ),
+                      ),
+                      child: Text(
+                        sheetError!,
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: AppColors.dangerText,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.danger,
+                      ),
+                      onPressed: isSubmitting
+                          ? null
+                          : () async {
+                              if (reasonC.text.trim().isEmpty) return;
+
+                              setSheetState(() {
+                                isSubmitting = true;
+                                sheetError = null;
+                              });
+
+                              final error = await notifier.updateStatus(
+                                id,
+                                'rejected',
+                                reason: reasonC.text.trim(),
+                              );
+
+                              if (context.mounted) {
+                                if (error == null) {
+                                  Navigator.pop(ctx);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Expense rejected'),
+                                      backgroundColor: AppColors.warning,
+                                    ),
+                                  );
+                                } else {
+                                  setSheetState(() {
+                                    isSubmitting = false;
+                                    sheetError = error;
+                                  });
+                                }
+                              }
+                            },
+                      child: isSubmitting
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Reject Expense'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -492,7 +747,9 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppDimensions.radiusXl),
+        ),
       ),
       builder: (_) => const _AddExpenseSheet(),
     );
@@ -504,7 +761,9 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppDimensions.radiusXl),
+        ),
       ),
       builder: (_) => _EditExpenseSheet(expense: ex),
     );
@@ -528,8 +787,15 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
   DateTime _date = DateTime.now();
   XFile? _attachment;
   bool _isSubmitting = false;
+  String? _errorMsg;
 
-  static const _categories = ['MAINTENANCE', 'UTILITIES', 'EVENTS', 'SECURITY', 'OTHER'];
+  static const _categories = [
+    'MAINTENANCE',
+    'UTILITIES',
+    'EVENTS',
+    'SECURITY',
+    'OTHER',
+  ];
 
   @override
   void dispose() {
@@ -547,7 +813,9 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
     );
     if (result != null && result.files.single.bytes != null) {
       final file = result.files.single;
-      setState(() => _attachment = XFile.fromData(file.bytes!, name: file.name));
+      setState(
+        () => _attachment = XFile.fromData(file.bytes!, name: file.name),
+      );
     }
   }
 
@@ -558,23 +826,32 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
       );
       return;
     }
-    setState(() => _isSubmitting = true);
-    final success = await ref.read(expensesProvider.notifier).createExpense(
-      {
-        'title': _titleCtrl.text.trim(),
-        'amount': double.tryParse(_amountCtrl.text.trim()) ?? 0,
-        'category': _category,
-        'expenseDate': _date.toIso8601String(),
-        'description': _descCtrl.text.trim(),
-      },
-      attachments: _attachment != null ? [_attachment!] : null,
-    );
+    setState(() {
+      _isSubmitting = true;
+      _errorMsg = null;
+    });
+    final error = await ref.read(expensesProvider.notifier).createExpense({
+      'title': _titleCtrl.text.trim(),
+      'amount': double.tryParse(_amountCtrl.text.trim()) ?? 0,
+      'category': _category,
+      'expenseDate': _date.toIso8601String(),
+      'description': _descCtrl.text.trim(),
+    }, attachments: _attachment != null ? [_attachment!] : null);
     if (mounted) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(success ? 'Expense added' : 'Failed to add expense'),
-        backgroundColor: success ? AppColors.success : AppColors.danger,
-      ));
+      if (error == null) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Expense added'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      } else {
+        setState(() {
+          _isSubmitting = false;
+          _errorMsg = error;
+        });
+      }
     }
   }
 
@@ -582,10 +859,11 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.fromLTRB(
-          AppDimensions.screenPadding,
-          AppDimensions.lg,
-          AppDimensions.screenPadding,
-          MediaQuery.of(context).viewInsets.bottom + AppDimensions.lg),
+        AppDimensions.screenPadding,
+        AppDimensions.lg,
+        AppDimensions.screenPadding,
+        MediaQuery.of(context).viewInsets.bottom + AppDimensions.lg,
+      ),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -593,8 +871,12 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
           children: [
             Center(
               child: Container(
-                width: 36, height: 4,
-                decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)),
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
             const SizedBox(height: AppDimensions.lg),
@@ -612,7 +894,10 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
                   child: TextField(
                     controller: _amountCtrl,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Amount *', prefixText: '₹'),
+                    decoration: const InputDecoration(
+                      labelText: 'Amount *',
+                      prefixText: '₹',
+                    ),
                   ),
                 ),
                 const SizedBox(width: AppDimensions.md),
@@ -621,8 +906,12 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
                   child: AppSearchableDropdown<String>(
                     label: 'Category',
                     value: _category,
-                    items: _categories.map((c) => AppDropdownItem(value: c, label: c)).toList(),
-                    onChanged: (v) { if (v != null) setState(() => _category = v); },
+                    items: _categories
+                        .map((c) => AppDropdownItem(value: c, label: c))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) setState(() => _category = v);
+                    },
                   ),
                 ),
               ],
@@ -658,7 +947,9 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
                 ),
                 child: _attachment != null
                     ? Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: AppDimensions.sm),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppDimensions.sm,
+                        ),
                         child: Row(
                           children: [
                             Icon(
@@ -669,12 +960,15 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
                             ),
                             const SizedBox(width: AppDimensions.sm),
                             Expanded(
-                              child: Text(_attachment!.name,
-                                  style: AppTextStyles.bodySmall,
-                                  overflow: TextOverflow.ellipsis),
+                              child: Text(
+                                _attachment!.name,
+                                style: AppTextStyles.bodySmall,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                             IconButton(
-                              onPressed: () => setState(() => _attachment = null),
+                              onPressed: () =>
+                                  setState(() => _attachment = null),
                               icon: const Icon(Icons.close, size: 18),
                             ),
                           ],
@@ -683,8 +977,14 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
                     : Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.upload_file, color: AppColors.textMuted),
-                          Text('Tap to attach file', style: AppTextStyles.bodySmall),
+                          const Icon(
+                            Icons.upload_file,
+                            color: AppColors.textMuted,
+                          ),
+                          Text(
+                            'Tap to attach file',
+                            style: AppTextStyles.bodySmall,
+                          ),
                         ],
                       ),
               ),
@@ -693,8 +993,28 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
             TextField(
               controller: _descCtrl,
               maxLines: 2,
-              decoration: const InputDecoration(labelText: 'Description (Optional)'),
+              decoration: const InputDecoration(
+                labelText: 'Description (Optional)',
+              ),
             ),
+            if (_errorMsg != null) ...[
+              const SizedBox(height: AppDimensions.md),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppDimensions.sm),
+                margin: const EdgeInsets.only(bottom: AppDimensions.md),
+                decoration: BoxDecoration(
+                  color: AppColors.dangerSurface,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                ),
+                child: Text(
+                  _errorMsg!,
+                  style: AppTextStyles.bodySmall.copyWith(
+                    color: AppColors.dangerText,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: AppDimensions.xl),
             SizedBox(
               width: double.infinity,
@@ -709,7 +1029,14 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
                   ),
                 ),
                 child: _isSubmitting
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
                     : const Text('Add Expense'),
               ),
             ),
@@ -738,8 +1065,15 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
   late DateTime _date;
   XFile? _attachment;
   bool _isSubmitting = false;
+  String? _errorMsg;
 
-  static const _categories = ['MAINTENANCE', 'UTILITIES', 'EVENTS', 'SECURITY', 'OTHER'];
+  static const _categories = [
+    'MAINTENANCE',
+    'UTILITIES',
+    'EVENTS',
+    'SECURITY',
+    'OTHER',
+  ];
 
   @override
   void initState() {
@@ -747,10 +1081,14 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
     final ex = widget.expense;
     _titleCtrl = TextEditingController(text: ex['title'] as String? ?? '');
     _amountCtrl = TextEditingController(
-        text: (double.tryParse(ex['totalAmount']?.toString() ?? '0') ?? 0).toStringAsFixed(0));
+      text: (double.tryParse(ex['totalAmount']?.toString() ?? '0') ?? 0)
+          .toStringAsFixed(0),
+    );
     _descCtrl = TextEditingController(text: ex['description'] as String? ?? '');
     _category = ex['category'] as String? ?? 'MAINTENANCE';
-    _date = ex['expenseDate'] != null ? DateTime.parse(ex['expenseDate']) : DateTime.now();
+    _date = ex['expenseDate'] != null
+        ? DateTime.parse(ex['expenseDate'])
+        : DateTime.now();
   }
 
   @override
@@ -769,7 +1107,9 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
     );
     if (result != null && result.files.single.bytes != null) {
       final file = result.files.single;
-      setState(() => _attachment = XFile.fromData(file.bytes!, name: file.name));
+      setState(
+        () => _attachment = XFile.fromData(file.bytes!, name: file.name),
+      );
     }
   }
 
@@ -780,24 +1120,34 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
       );
       return;
     }
-    setState(() => _isSubmitting = true);
-    final success = await ref.read(expensesProvider.notifier).updateExpense(
-      widget.expense['id'],
-      {
-        'title': _titleCtrl.text.trim(),
-        'amount': double.tryParse(_amountCtrl.text.trim()) ?? 0,
-        'category': _category,
-        'expenseDate': _date.toIso8601String(),
-        'description': _descCtrl.text.trim(),
-      },
-      attachments: _attachment != null ? [_attachment!] : null,
-    );
+    setState(() {
+      _isSubmitting = true;
+      _errorMsg = null;
+    });
+    final error = await ref
+        .read(expensesProvider.notifier)
+        .updateExpense(widget.expense['id'], {
+          'title': _titleCtrl.text.trim(),
+          'amount': double.tryParse(_amountCtrl.text.trim()) ?? 0,
+          'category': _category,
+          'expenseDate': _date.toIso8601String(),
+          'description': _descCtrl.text.trim(),
+        }, attachments: _attachment != null ? [_attachment!] : null);
     if (mounted) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(success ? 'Expense updated' : 'Failed to update expense'),
-        backgroundColor: success ? AppColors.success : AppColors.danger,
-      ));
+      if (error == null) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Expense updated'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      } else {
+        setState(() {
+          _isSubmitting = false;
+          _errorMsg = error;
+        });
+      }
     }
   }
 
@@ -805,10 +1155,11 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.fromLTRB(
-          AppDimensions.screenPadding,
-          AppDimensions.lg,
-          AppDimensions.screenPadding,
-          MediaQuery.of(context).viewInsets.bottom + AppDimensions.lg),
+        AppDimensions.screenPadding,
+        AppDimensions.lg,
+        AppDimensions.screenPadding,
+        MediaQuery.of(context).viewInsets.bottom + AppDimensions.lg,
+      ),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -816,8 +1167,12 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
           children: [
             Center(
               child: Container(
-                width: 36, height: 4,
-                decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)),
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
             const SizedBox(height: AppDimensions.lg),
@@ -835,7 +1190,10 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
                   child: TextField(
                     controller: _amountCtrl,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Amount *', prefixText: '₹'),
+                    decoration: const InputDecoration(
+                      labelText: 'Amount *',
+                      prefixText: '₹',
+                    ),
                   ),
                 ),
                 const SizedBox(width: AppDimensions.md),
@@ -844,8 +1202,12 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
                   child: AppSearchableDropdown<String>(
                     label: 'Category',
                     value: _category,
-                    items: _categories.map((c) => AppDropdownItem(value: c, label: c)).toList(),
-                    onChanged: (v) { if (v != null) setState(() => _category = v); },
+                    items: _categories
+                        .map((c) => AppDropdownItem(value: c, label: c))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) setState(() => _category = v);
+                    },
                   ),
                 ),
               ],
@@ -867,7 +1229,10 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
               },
             ),
             const SizedBox(height: AppDimensions.md),
-            Text('Replace Attachment (optional)', style: AppTextStyles.labelMedium),
+            Text(
+              'Replace Attachment (optional)',
+              style: AppTextStyles.labelMedium,
+            ),
             const SizedBox(height: AppDimensions.xs),
             InkWell(
               onTap: _pickFile,
@@ -881,7 +1246,9 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
                 ),
                 child: _attachment != null
                     ? Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: AppDimensions.sm),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppDimensions.sm,
+                        ),
                         child: Row(
                           children: [
                             Icon(
@@ -892,12 +1259,15 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
                             ),
                             const SizedBox(width: AppDimensions.sm),
                             Expanded(
-                              child: Text(_attachment!.name,
-                                  style: AppTextStyles.bodySmall,
-                                  overflow: TextOverflow.ellipsis),
+                              child: Text(
+                                _attachment!.name,
+                                style: AppTextStyles.bodySmall,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                             IconButton(
-                              onPressed: () => setState(() => _attachment = null),
+                              onPressed: () =>
+                                  setState(() => _attachment = null),
                               icon: const Icon(Icons.close, size: 18),
                             ),
                           ],
@@ -906,8 +1276,14 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
                     : Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.upload_file, color: AppColors.textMuted),
-                          Text('Tap to replace attachment', style: AppTextStyles.bodySmall),
+                          const Icon(
+                            Icons.upload_file,
+                            color: AppColors.textMuted,
+                          ),
+                          Text(
+                            'Tap to replace attachment',
+                            style: AppTextStyles.bodySmall,
+                          ),
                         ],
                       ),
               ),
@@ -916,8 +1292,28 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
             TextField(
               controller: _descCtrl,
               maxLines: 2,
-              decoration: const InputDecoration(labelText: 'Description (Optional)'),
+              decoration: const InputDecoration(
+                labelText: 'Description (Optional)',
+              ),
             ),
+            if (_errorMsg != null) ...[
+              const SizedBox(height: AppDimensions.md),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppDimensions.sm),
+                margin: const EdgeInsets.only(bottom: AppDimensions.md),
+                decoration: BoxDecoration(
+                  color: AppColors.dangerSurface,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                ),
+                child: Text(
+                  _errorMsg!,
+                  style: AppTextStyles.bodySmall.copyWith(
+                    color: AppColors.dangerText,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: AppDimensions.xl),
             SizedBox(
               width: double.infinity,
@@ -932,7 +1328,14 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
                   ),
                 ),
                 child: _isSubmitting
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
                     : const Text('Update Expense'),
               ),
             ),

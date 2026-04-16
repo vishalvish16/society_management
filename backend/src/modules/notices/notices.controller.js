@@ -1,4 +1,5 @@
 const prisma = require('../../config/db');
+const notificationsService = require('../notifications/notifications.service');
 const { sendSuccess, sendError } = require('../../utils/response');
 const { pushToSociety } = require('../../utils/push');
 
@@ -23,11 +24,14 @@ const createNotice = async (req, res) => {
       include: { creator: { select: { id: true, name: true } } },
     });
     // Notify all society members about the new notice
-    setImmediate(() => pushToSociety(societyId, {
+    setImmediate(() => notificationsService.sendNotification(createdById, societyId, {
+      targetType: 'all',
       title: `📢 ${title}`,
       body: notice.body.length > 100 ? notice.body.slice(0, 97) + '...' : notice.body,
-      data: { type: 'NOTICE_NEW', route: '/notices', id: notice.id },
-    }, { excludeUserId: createdById }));
+      type: 'ANNOUNCEMENT',
+      route: '/notices',
+      excludeUserId: createdById
+    }));
 
     return sendSuccess(res, notice, 'Notice posted', 201);
   } catch (err) {

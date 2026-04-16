@@ -110,15 +110,16 @@ const updateMember = async (req, res) => {
   try {
     const { societyId } = req.user;
     const { id } = req.params;
-    const { name, email, phone, isActive, unitId } = req.body;
+    const { name, email, phone, role, isActive, unitId } = req.body;
 
     const member = await prisma.user.findUnique({ where: { id } });
     if (!member || member.societyId !== societyId) return sendError(res, 'Member not found', 404);
 
     const updateData = {};
     if (name) updateData.name = name;
-    if (email) updateData.email = email;
+    if (email !== undefined) updateData.email = email;
     if (phone) updateData.phone = phone;
+    if (role) updateData.role = role;
     if (isActive !== undefined) updateData.isActive = isActive;
 
     const result = await prisma.$transaction(async (tx) => {
@@ -133,7 +134,7 @@ const updateMember = async (req, res) => {
         // (or upsert if we want to support only one link per member in this UI)
         await tx.unitResident.deleteMany({ where: { userId: id } });
         await tx.unitResident.create({
-          data: { unitId, userId: id, isOwner: updated.role === 'PRAMUKH' || role === 'CHAIRMAN' || updated.role === 'RESIDENT' },
+          data: { unitId, userId: id, isOwner: updated.role === 'PRAMUKH' || updated.role === 'CHAIRMAN' || updated.role === 'RESIDENT' },
         });
         // Ensure unit is marked as occupied
         await tx.unit.update({

@@ -98,46 +98,52 @@ class VisitorsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
   }
 
   /// Walk-in log — no QR generated or sent.
-  Future<bool> logVisitor(Map<String, dynamic> data) async {
+  Future<String?> logVisitor(Map<String, dynamic> data) async {
     try {
       final dio = ref.read(dioProvider);
       final response = await dio.post('visitors/log-entry', data: data);
       if (response.data['success'] == true) {
         fetchVisitors();
-        return true;
+        return null;
       }
-      return false;
+      return response.data['message'] ?? 'Failed to log visitor';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to log visitor';
     } catch (e) {
-      return false;
+      return e.toString();
     }
   }
 
   /// Invite visitor — generates QR and dispatches via WhatsApp + email.
-  Future<bool> inviteVisitor(Map<String, dynamic> data) async {
+  Future<String?> inviteVisitor(Map<String, dynamic> data) async {
     try {
       final dio = ref.read(dioProvider);
       final response = await dio.post('visitors/invite', data: data);
       if (response.data['success'] == true) {
         fetchVisitors();
-        return true;
+        return null;
       }
-      return false;
+      return response.data['message'] ?? 'Failed to send invitation';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to send invitation';
     } catch (e) {
-      return false;
+      return e.toString();
     }
   }
 
-  Future<bool> validateVisitor(String qrToken) async {
+  Future<String?> validateVisitor(String qrToken) async {
     try {
       final dio = ref.read(dioProvider);
       final response = await dio.post('visitors/validate', data: {'qrToken': qrToken});
       if (response.data['success'] == true) {
         fetchVisitors(); // Refresh list
-        return true;
+        return null;
       }
-      return false;
+      return response.data['message'] ?? 'Invalid QR';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Network error';
     } catch (e) {
-      return false;
+      return e.toString();
     }
   }
 }

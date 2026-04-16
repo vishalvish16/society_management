@@ -33,7 +33,7 @@ class AppNotification {
         targetType: j['targetType'] ?? 'all',
         targetId: j['targetId'],
         sentAt: j['sentAt'] ?? j['createdAt'] ?? '',
-        sentByName: j['sentBy']?['name'],
+        sentByName: j['sender']?['name'],
       );
 
   /// Icon based on notification type

@@ -105,73 +105,83 @@ class UnitsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
     await fetchUnits(refresh: false);
   }
 
-  Future<bool> bulkCreate(Map<String, dynamic> data) async {
+  Future<String?> bulkCreate(Map<String, dynamic> data) async {
     try {
       final dio = ref.read(dioProvider);
       final response = await dio.post('units/bulk', data: data);
       if (response.data['success'] == true) {
         fetchUnits();
-        return true;
+        return null;
       }
-      return false;
+      return response.data['message'] ?? 'Failed to create units';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to create units';
     } catch (e) {
-      return false;
+      return e.toString();
     }
   }
 
-  Future<bool> createUnit(Map<String, dynamic> data) async {
+  Future<String?> createUnit(Map<String, dynamic> data) async {
     try {
       final dio = ref.read(dioProvider);
       final response = await dio.post('units', data: data);
       if (response.data['success'] == true) {
-        fetchUnits(); // Refresh list
-        return true;
+        fetchUnits();
+        return null;
       }
-      return false;
+      return response.data['message'] ?? 'Failed to create unit';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to create unit';
     } catch (e) {
-      return false;
+      return e.toString();
     }
   }
 
-  Future<bool> updateUnit(String id, Map<String, dynamic> data) async {
+  Future<String?> updateUnit(String id, Map<String, dynamic> data) async {
     try {
       final dio = ref.read(dioProvider);
       final response = await dio.patch('units/$id', data: data);
       if (response.data['success'] == true) {
         fetchUnits();
-        return true;
+        return null;
       }
-      return false;
+      return response.data['message'] ?? 'Failed to update unit';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to update unit';
     } catch (e) {
-      return false;
+      return e.toString();
     }
   }
 
-  Future<bool> assignResident(String unitId, String userId, {bool isOwner = false}) async {
+  Future<String?> assignResident(String unitId, String userId, {bool isOwner = false}) async {
     try {
       final dio = ref.read(dioProvider);
       final response = await dio.post('units/$unitId/residents', data: {'userId': userId, 'isOwner': isOwner});
       if (response.data['success'] == true) {
         fetchUnits();
-        return true;
+        return null;
       }
-      return false;
+      return response.data['message'] ?? 'Failed to assign resident';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to assign resident';
     } catch (e) {
-      return false;
+      return e.toString();
     }
   }
 
-  Future<bool> removeResident(String unitId, String userId) async {
+  Future<String?> removeResident(String unitId, String userId) async {
     try {
       final dio = ref.read(dioProvider);
       final response = await dio.delete('units/$unitId/residents/$userId');
       if (response.data['success'] == true) {
         fetchUnits();
-        return true;
+        return null;
       }
-      return false;
+      return response.data['message'] ?? 'Failed to remove resident';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to remove resident';
     } catch (e) {
-      return false;
+      return e.toString();
     }
   }
 
@@ -189,17 +199,19 @@ class UnitsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
     }
   }
 
-  Future<bool> deleteUnit(String id) async {
+  Future<String?> deleteUnit(String id) async {
     try {
       final dio = ref.read(dioProvider);
       final response = await dio.delete('units/$id');
       if (response.data['success'] == true) {
         fetchUnits();
-        return true;
+        return null;
       }
-      return false;
+      return response.data['message'] ?? 'Failed to delete unit';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to delete unit';
     } catch (e) {
-      return false;
+      return e.toString();
     }
   }
 }

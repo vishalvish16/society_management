@@ -1,4 +1,5 @@
 const prisma = require('../../config/db');
+const notificationsService = require('../notifications/notifications.service');
 const { pushToRole, pushToUsers } = require('../../utils/push');
 
 async function listExpenses(societyId, filters = {}) {
@@ -67,11 +68,15 @@ async function submitExpense(userId, societyId, data, files = []) {
     });
 
     // Notify admins about new expense submission (exclude the submitter themselves)
-    setImmediate(() => pushToRole(societyId, 'PRAMUKH', {
+    setImmediate(() => notificationsService.sendNotification(userId, societyId, {
+      targetType: 'role',
+      targetId: 'PRAMUKH',
       title: '💰 New Expense Submitted',
       body: `${created.submitter?.name || 'A member'}: ${title} — ₹${created.totalAmount}`,
-      data: { type: 'EXPENSE_NEW', route: '/expenses', id: created.id },
-    }, { excludeUserId: userId }));
+      type: 'EXPENSE',
+      route: '/expenses',
+      excludeUserId: userId
+    }));
 
     return created;
   });
@@ -151,10 +156,15 @@ async function reviewExpense(expenseId, reviewerId, status, societyId, rejection
     };
     const msg = messages[upperStatus];
     if (msg) {
-      setImmediate(() => pushToUsers([expense.submittedById], {
-        ...msg,
-        data: { type: 'EXPENSE_UPDATE', route: '/expenses', id: expenseId },
-      }, { excludeUserId: reviewerId }));
+      setImmediate(() => notificationsService.sendNotification(reviewerId, societyId, {
+        targetType: 'user',
+        targetId: expense.submittedById,
+        title: msg.title,
+        body: msg.body,
+        type: 'EXPENSE',
+        route: '/expenses',
+        excludeUserId: reviewerId
+      }));
     }
   }
 

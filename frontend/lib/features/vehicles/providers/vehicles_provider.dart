@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/dio_client.dart';
+import 'package:dio/dio.dart';
 
 class VehiclesState {
   final List<Map<String, dynamic>> vehicles;
@@ -28,33 +29,48 @@ class VehiclesNotifier extends StateNotifier<VehiclesState> {
     }
   }
 
-  Future<bool> createVehicle(Map<String, dynamic> data) async {
+  Future<String?> createVehicle(Map<String, dynamic> data) async {
     try {
-      await _client.dio.post('/vehicles', data: data);
-      await loadVehicles();
-      return true;
-    } catch (_) {
-      return false;
+      final res = await _client.dio.post('/vehicles', data: data);
+      if (res.data['success'] == true) {
+        await loadVehicles();
+        return null;
+      }
+      return res.data['message'] ?? 'Failed to create vehicle';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to create vehicle';
+    } catch (e) {
+      return e.toString();
     }
   }
 
-  Future<bool> updateVehicle(String id, Map<String, dynamic> data) async {
+  Future<String?> updateVehicle(String id, Map<String, dynamic> data) async {
     try {
-      await _client.dio.patch('/vehicles/$id', data: data);
-      await loadVehicles();
-      return true;
-    } catch (_) {
-      return false;
+      final res = await _client.dio.patch('/vehicles/$id', data: data);
+      if (res.data['success'] == true) {
+        await loadVehicles();
+        return null;
+      }
+      return res.data['message'] ?? 'Failed to update vehicle';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to update vehicle';
+    } catch (e) {
+      return e.toString();
     }
   }
 
-  Future<bool> deleteVehicle(String id) async {
+  Future<String?> deleteVehicle(String id) async {
     try {
-      await _client.dio.delete('/vehicles/$id');
-      await loadVehicles();
-      return true;
-    } catch (_) {
-      return false;
+      final res = await _client.dio.delete('/vehicles/$id');
+      if (res.data['success'] == true) {
+        await loadVehicles();
+        return null;
+      }
+      return res.data['message'] ?? 'Failed to delete vehicle';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to delete vehicle';
+    } catch (e) {
+      return e.toString();
     }
   }
 }

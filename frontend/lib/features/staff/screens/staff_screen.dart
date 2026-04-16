@@ -11,7 +11,7 @@ import '../../../shared/widgets/app_status_chip.dart';
 import '../../../shared/widgets/app_text_field.dart';
 import '../providers/staff_provider.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
-import '../../../shared/widgets/show_app_dialog.dart';
+import '../../../shared/widgets/show_app_sheet.dart';
 
 const _roles = [
   'watchman',
@@ -294,123 +294,154 @@ class StaffScreen extends ConsumerWidget {
 
     showAppSheet(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDlgState) => Padding(
-          padding: EdgeInsets.fromLTRB(
-            AppDimensions.screenPadding, AppDimensions.lg,
-            AppDimensions.screenPadding,
-            MediaQuery.of(ctx).viewInsets.bottom + AppDimensions.xxxl,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(child: Container(width: 36, height: 4,
-                  decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
-                const SizedBox(height: AppDimensions.lg),
-                Text(isEdit ? 'Edit Staff' : 'Add Staff', style: AppTextStyles.h1),
-                const SizedBox(height: AppDimensions.lg),
-                AppTextField(label: 'Full Name *', controller: nameCtrl),
-                const SizedBox(height: AppDimensions.md),
-                AppTextField(label: 'Phone', controller: phoneCtrl, keyboardType: TextInputType.phone),
-                const SizedBox(height: AppDimensions.md),
-                AppTextField(label: 'Monthly Salary (₹) *', controller: salaryCtrl, keyboardType: TextInputType.number),
-                const SizedBox(height: AppDimensions.md),
-                AppSearchableDropdown<String>(
-                  label: 'Role / Job Type',
-                  value: _roles.contains(role) ? role : _roles.first,
-                  items: _roles.map((r) => AppDropdownItem(value: r, label: r)).toList(),
-                  onChanged: (v) => setDlgState(() => role = v ?? _roles.first),
-                ),
-                if (!isEdit && role == 'watchman') ...[
-                  const SizedBox(height: AppDimensions.sm),
-                  Container(
-                    padding: const EdgeInsets.all(AppDimensions.sm),
-                    decoration: BoxDecoration(
-                      color: AppColors.primarySurface,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.info_outline, size: 16, color: AppColors.primary),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Watchman will get an app login using their phone number and password below.',
-                            style: AppTextStyles.caption.copyWith(color: AppColors.primary),
+      builder: (ctx) {
+        bool saving = false;
+        String? sheetError;
+        return StatefulBuilder(
+          builder: (ctx, setDlgState) => Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppDimensions.screenPadding, AppDimensions.lg,
+              AppDimensions.screenPadding,
+              MediaQuery.of(ctx).viewInsets.bottom + AppDimensions.xxxl,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(child: Container(width: 36, height: 4,
+                    decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
+                  const SizedBox(height: AppDimensions.lg),
+                  Text(isEdit ? 'Edit Staff' : 'Add Staff', style: AppTextStyles.h1),
+                  const SizedBox(height: AppDimensions.lg),
+                  AppTextField(label: 'Full Name *', controller: nameCtrl),
+                  const SizedBox(height: AppDimensions.md),
+                  AppTextField(label: 'Phone', controller: phoneCtrl, keyboardType: TextInputType.phone),
+                  const SizedBox(height: AppDimensions.md),
+                  AppTextField(label: 'Monthly Salary (₹) *', controller: salaryCtrl, keyboardType: TextInputType.number),
+                  const SizedBox(height: AppDimensions.md),
+                  AppSearchableDropdown<String>(
+                    label: 'Role / Job Type',
+                    value: _roles.contains(role) ? role : _roles.first,
+                    items: _roles.map((r) => AppDropdownItem(value: r, label: r)).toList(),
+                    onChanged: (v) => setDlgState(() => role = v ?? _roles.first),
+                  ),
+                  if (!isEdit && role == 'watchman') ...[
+                    const SizedBox(height: AppDimensions.sm),
+                    Container(
+                      padding: const EdgeInsets.all(AppDimensions.sm),
+                      decoration: BoxDecoration(
+                        color: AppColors.primarySurface,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Watchman will get an app login using their phone number and password below.',
+                              style: AppTextStyles.caption.copyWith(color: AppColors.primary),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppDimensions.md),
+                    AppTextField(
+                      label: 'Login Password * (min 6 chars)',
+                      controller: passCtrl,
+                      obscureText: true,
+                    ),
+                  ],
+                  if (isEdit) ...[
+                    const SizedBox(height: AppDimensions.md),
+                    SwitchListTile(
+                      title: const Text('Active'),
+                      value: isActive,
+                      onChanged: (v) => setDlgState(() => isActive = v),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ],
+                  if (sheetError != null) ...[
+                    const SizedBox(height: AppDimensions.md),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(AppDimensions.sm),
+                      decoration: BoxDecoration(
+                        color: AppColors.dangerSurface,
+                        borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                      ),
+                      child: Text(
+                        sheetError!,
+                        style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: AppDimensions.lg),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: FilledButton(
+                      onPressed: saving ? null : () async {
+                        if (nameCtrl.text.trim().isEmpty || salaryCtrl.text.trim().isEmpty) {
+                          setDlgState(() => sheetError = 'Name and salary are required');
+                          return;
+                        }
+                        if (!isEdit && role == 'watchman') {
+                          if (phoneCtrl.text.trim().isEmpty) {
+                            setDlgState(() => sheetError = 'Phone is required for watchman login');
+                            return;
+                          }
+                          if (passCtrl.text.trim().length < 6) {
+                            setDlgState(() => sheetError = 'Password must be at least 6 characters');
+                            return;
+                          }
+                        }
+                        
+                        setDlgState(() {
+                          saving = true;
+                          sheetError = null;
+                        });
+
+                        final data = <String, dynamic>{
+                          'name': nameCtrl.text.trim(),
+                          'role': role,
+                          'phone': phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim(),
+                          'salary': double.tryParse(salaryCtrl.text.trim()) ?? 0,
+                          if (isEdit) 'isActive': isActive,
+                          if (!isEdit && role == 'watchman') 'password': passCtrl.text.trim(),
+                        };
+                        
+                        final error = isEdit
+                            ? await ref.read(staffProvider.notifier).updateStaff(staff.id, data)
+                            : await ref.read(staffProvider.notifier).createStaff(data);
+                        
+                        if (ctx.mounted) {
+                          if (error == null) {
+                            Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(isEdit ? 'Staff updated' : 'Staff added')),
+                            );
+                          } else {
+                            setDlgState(() {
+                              saving = false;
+                              sheetError = error;
+                            });
+                          }
+                        }
+                      },
+                      child: saving
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : Text(isEdit ? 'Update Staff' : 'Add Staff'),
                     ),
                   ),
-                  const SizedBox(height: AppDimensions.md),
-                  AppTextField(
-                    label: 'Login Password * (min 6 chars)',
-                    controller: passCtrl,
-                    obscureText: true,
-                  ),
                 ],
-                if (isEdit) ...[
-                  const SizedBox(height: AppDimensions.md),
-                  SwitchListTile(
-                    title: const Text('Active'),
-                    value: isActive,
-                    onChanged: (v) => setDlgState(() => isActive = v),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ],
-                const SizedBox(height: AppDimensions.lg),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () async {
-                      if (nameCtrl.text.trim().isEmpty || salaryCtrl.text.trim().isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Name and salary are required')),
-                        );
-                        return;
-                      }
-                      if (!isEdit && role == 'watchman') {
-                        if (phoneCtrl.text.trim().isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Phone is required for watchman login')),
-                          );
-                          return;
-                        }
-                        if (passCtrl.text.trim().length < 6) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Password must be at least 6 characters')),
-                          );
-                          return;
-                        }
-                      }
-                      final data = <String, dynamic>{
-                        'name': nameCtrl.text.trim(),
-                        'role': role,
-                        'phone': phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim(),
-                        'salary': double.tryParse(salaryCtrl.text.trim()) ?? 0,
-                        if (isEdit) 'isActive': isActive,
-                        if (!isEdit && role == 'watchman') 'password': passCtrl.text.trim(),
-                      };
-                      final success = isEdit
-                          ? await ref.read(staffProvider.notifier).updateStaff(staff.id, data)
-                          : await ref.read(staffProvider.notifier).createStaff(data);
-                      if (ctx.mounted) {
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(success ? (isEdit ? 'Staff updated' : 'Staff added') : 'Failed')),
-                        );
-                      }
-                    },
-                    child: Text(isEdit ? 'Update Staff' : 'Add Staff'),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -421,51 +452,84 @@ class StaffScreen extends ConsumerWidget {
 
     showAppSheet(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDlgState) => Padding(
-          padding: EdgeInsets.fromLTRB(
-            AppDimensions.screenPadding, AppDimensions.lg,
-            AppDimensions.screenPadding,
-            MediaQuery.of(ctx).viewInsets.bottom + AppDimensions.xxxl,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(child: Container(width: 36, height: 4,
-                decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
-              const SizedBox(height: AppDimensions.lg),
-              const Text('Mark Attendance', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
-              const SizedBox(height: AppDimensions.xs),
-              Text(staff.name, style: AppTextStyles.h3),
-              Text(dateStr, style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
-              const SizedBox(height: AppDimensions.lg),
-              DropdownButtonFormField<String>(
-                initialValue: status,
-                decoration: const InputDecoration(labelText: 'Status'),
-                items: _attendanceStatuses.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-                onChanged: (v) => setDlgState(() => status = v ?? 'present'),
-              ),
-              const SizedBox(height: AppDimensions.lg),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () async {
-                    final success = await ref.read(staffProvider.notifier).markAttendance(staff.id, dateStr, status);
-                    if (ctx.mounted) {
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(success ? 'Attendance marked' : 'Failed')),
-                      );
-                    }
-                  },
-                  child: const Text('Mark Attendance'),
+      builder: (ctx) {
+        bool saving = false;
+        String? sheetError;
+        return StatefulBuilder(
+          builder: (ctx, setDlgState) => Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppDimensions.screenPadding, AppDimensions.lg,
+              AppDimensions.screenPadding,
+              MediaQuery.of(ctx).viewInsets.bottom + AppDimensions.xxxl,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(child: Container(width: 36, height: 4,
+                  decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
+                const SizedBox(height: AppDimensions.lg),
+                const Text('Mark Attendance', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+                const SizedBox(height: AppDimensions.xs),
+                Text(staff.name, style: AppTextStyles.h3),
+                Text(dateStr, style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
+                const SizedBox(height: AppDimensions.lg),
+                DropdownButtonFormField<String>(
+                  value: status,
+                  decoration: const InputDecoration(labelText: 'Status'),
+                  items: _attendanceStatuses.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                  onChanged: (v) => setDlgState(() => status = v ?? 'present'),
                 ),
-              ),
-            ],
+                if (sheetError != null) ...[
+                  const SizedBox(height: AppDimensions.md),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(AppDimensions.sm),
+                    decoration: BoxDecoration(
+                      color: AppColors.dangerSurface,
+                      borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                    ),
+                    child: Text(
+                      sheetError!,
+                      style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: AppDimensions.lg),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: FilledButton(
+                    onPressed: saving ? null : () async {
+                      setDlgState(() {
+                        saving = true;
+                        sheetError = null;
+                      });
+                      final error = await ref.read(staffProvider.notifier).markAttendance(staff.id, dateStr, status);
+                      if (ctx.mounted) {
+                        if (error == null) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Attendance marked')),
+                          );
+                        } else {
+                          setDlgState(() {
+                            saving = false;
+                            sheetError = error;
+                          });
+                        }
+                      }
+                    },
+                    child: saving
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Text('Mark Attendance'),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -477,10 +541,13 @@ class StaffScreen extends ConsumerWidget {
       confirmLabel: 'Deactivate',
     );
     if (confirmed && context.mounted) {
-      final success = await ref.read(staffProvider.notifier).deleteStaff(staff.id);
+      final error = await ref.read(staffProvider.notifier).deleteStaff(staff.id);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(success ? 'Staff deactivated' : 'Failed')),
+          SnackBar(
+            content: Text(error ?? 'Staff deactivated'),
+            backgroundColor: error == null ? AppColors.success : AppColors.danger,
+          ),
         );
       }
     }

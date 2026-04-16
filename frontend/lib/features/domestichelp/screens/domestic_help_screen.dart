@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../shared/widgets/show_app_dialog.dart';
+import '../../../shared/widgets/show_app_sheet.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
@@ -301,7 +301,7 @@ class _DomesticHelpScreenState extends ConsumerState<DomesticHelpScreen> {
   Future<void> _confirmAction({
     required String label,
     required String message,
-    required Future<bool> Function() onConfirm,
+    required Future<String?> Function() onConfirm,
   }) async {
     final confirmed = await showConfirmSheet(
       context: context,
@@ -311,10 +311,13 @@ class _DomesticHelpScreenState extends ConsumerState<DomesticHelpScreen> {
       confirmColor: label == 'Remove' ? AppColors.danger : AppColors.warning,
     );
     if (!confirmed) return;
-    final success = await onConfirm();
+    final error = await onConfirm();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(success ? '$label successful' : 'Action failed')),
+      SnackBar(
+        content: Text(error ?? '$label successful'),
+        backgroundColor: error == null ? AppColors.success : AppColors.danger,
+      ),
     );
   }
 
@@ -349,6 +352,7 @@ class _HelperFormState extends ConsumerState<_HelperForm> {
   late final TextEditingController _entryCodeController;
   late String _selectedType;
   bool _isLoading = false;
+  String? _errorMsg;
 
   bool get _isEdit => widget.existing != null;
 
@@ -379,11 +383,14 @@ class _HelperFormState extends ConsumerState<_HelperForm> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _isLoading = true);
-
-    bool success;
+    setState(() {
+      _isLoading = true;
+      _errorMsg = null;
+    });
+    
+    String? error;
     if (_isEdit) {
-      success = await ref.read(domesticHelpProvider.notifier).updateHelper(
+      error = await ref.read(domesticHelpProvider.notifier).updateHelper(
         widget.existing!['id'] as String,
         {
           'name': _nameController.text.trim(),
@@ -393,10 +400,10 @@ class _HelperFormState extends ConsumerState<_HelperForm> {
       );
     } else {
       if (_selectedUnitId == null) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please select a unit'), backgroundColor: AppColors.danger),
-        );
+        setState(() {
+          _isLoading = false;
+          _errorMsg = 'Please select a unit';
+        });
         return;
       }
       final data = <String, dynamic>{
@@ -408,20 +415,20 @@ class _HelperFormState extends ConsumerState<_HelperForm> {
       final entryCode = _entryCodeController.text.trim();
       if (phone.isNotEmpty) data['phone'] = phone;
       if (entryCode.isNotEmpty) data['entryCode'] = entryCode;
-      success = await ref.read(domesticHelpProvider.notifier).addHelper(data);
+      error = await ref.read(domesticHelpProvider.notifier).addHelper(data);
     }
-
+ 
     if (mounted) {
-      setState(() => _isLoading = false);
-      if (success) {
+      if (error == null) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_isEdit ? 'Helper updated' : 'Helper added successfully')),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_isEdit ? 'Failed to update helper' : 'Failed to add helper')),
-        );
+        setState(() {
+          _isLoading = false;
+          _errorMsg = error;
+        });
       }
     }
   }
@@ -497,6 +504,22 @@ class _HelperFormState extends ConsumerState<_HelperForm> {
                 decoration: const InputDecoration(
                   labelText: 'Entry Code (Optional)',
                   prefixIcon: Icon(Icons.vpn_key_rounded),
+                ),
+              ),
+            ],
+            const SizedBox(height: AppDimensions.md),
+            if (_errorMsg != null) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppDimensions.sm),
+                margin: const EdgeInsets.only(bottom: AppDimensions.md),
+                decoration: BoxDecoration(
+                  color: AppColors.dangerSurface,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                ),
+                child: Text(
+                  _errorMsg!,
+                  style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText),
                 ),
               ),
             ],

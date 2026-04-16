@@ -1,23 +1,27 @@
 const prisma = require('../../config/db');
+const notificationsService = require('../notifications/notifications.service');
 const { sendSuccess, sendError } = require('../../utils/response');
 const { pushToUsers, pushToRole } = require('../../utils/push');
 
 const createComplaint = async (req, res) => {
   try {
     const { societyId, id: raisedById } = req.user;
-    const { title, description, category, unitId } = req.body;
+    const { title, description, category, unitId, priority } = req.body;
     if (!title || !category) return sendError(res, 'title and category are required', 400);
 
     const complaint = await prisma.complaint.create({
-      data: { societyId, raisedById, title, description, category: category.toUpperCase(), unitId: unitId || null },
+      data: { societyId, raisedById, title, description, category: category.toUpperCase(), unitId: unitId || null, priority: priority || 'medium' },
       include: { raisedBy: { select: { name: true } } },
     });
 
     // Notify admins about new complaint
-    setImmediate(() => pushToRole(societyId, 'PRAMUKH', {
-      title: '🔔 New Complaint Raised',
+    setImmediate(() => notificationsService.sendNotification(raisedById, societyId, {
+      targetType: 'role',
+      targetId: 'PRAMUKH',
+      title: ' New Complaint Raised',
       body: `${complaint.raisedBy.name}: ${title}`,
-      data: { type: 'COMPLAINT_NEW', route: '/complaints', id: complaint.id },
+      type: 'COMPLAINT',
+      route: '/complaints'
     }));
 
     return sendSuccess(res, complaint, 'Complaint raised', 201);
@@ -41,6 +45,7 @@ const getComplaints = async (req, res) => {
         where, skip, take: parseInt(limit),
         include: {
           raisedBy: { select: { name: true, phone: true } },
+          assignedTo: { select: { name: true } },
           unit: { select: { fullCode: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -80,15 +85,20 @@ const updateComplaint = async (req, res) => {
 
     const complaint = await prisma.complaint.findUnique({
       where: { id },
-      include: { raisedBy: { select: { id: true, name: true } } },
+      include: {
+        raisedBy: { select: { id: true, name: true } },
+        assignedTo: { select: { name: true } },
+      },
     });
     if (!complaint || complaint.societyId !== societyId) return sendError(res, 'Complaint not found', 404);
 
     const updateData = {};
     if (status) updateData.status = status.toUpperCase();
-    if (assignedToId !== undefined) updateData.assignedToId = assignedToId;
+    if (assignedToId !== undefined) updateData.assignedToId = assignedToId || null;
     if (resolutionNote !== undefined) updateData.resolutionNote = resolutionNote;
-    if (status?.toLowerCase() === 'resolved') updateData.resolvedAt = new Date();
+    if (status?.toUpperCase() === 'RESOLVED') updateData.resolvedAt = new Date();
+    // Auto-set ASSIGNED when assignee is set
+    if (assignedToId && !status) updateData.status = 'ASSIGNED';
 
     const updated = await prisma.complaint.update({ where: { id }, data: updateData });
 
@@ -96,17 +106,33 @@ const updateComplaint = async (req, res) => {
     if (status && complaint.raisedById) {
       const statusLabel = status.toUpperCase();
       const messages = {
+        ASSIGNED:    { title: '👤 Complaint Assigned',    body: `Your complaint "${complaint.title}" has been assigned and will be addressed soon.` },
         IN_PROGRESS: { title: '🔧 Complaint In Progress', body: `Your complaint "${complaint.title}" is being worked on.` },
         RESOLVED:    { title: '✅ Complaint Resolved',    body: `Your complaint "${complaint.title}" has been resolved.` },
         CLOSED:      { title: '📋 Complaint Closed',      body: `Your complaint "${complaint.title}" has been closed.` },
       };
       const msg = messages[statusLabel];
       if (msg) {
-        setImmediate(() => pushToUsers([complaint.raisedById], {
-          ...msg,
-          data: { type: 'COMPLAINT_UPDATE', route: '/complaints', id: complaint.id },
+        setImmediate(() => notificationsService.sendNotification(req.user.id, societyId, {
+          targetType: 'user',
+          targetId: complaint.raisedById,
+          title: msg.title,
+          body: msg.body,
+          type: 'COMPLAINT',
+          route: '/complaints'
         }));
       }
+    }
+    // Notify assignee when assigned
+    if (assignedToId && assignedToId !== complaint.assignedToId) {
+      setImmediate(() => notificationsService.sendNotification(req.user.id, societyId, {
+        targetType: 'user',
+        targetId: assignedToId,
+        title: '📋 Complaint Assigned To You',
+        body: `You have been assigned complaint: "${complaint.title}"`,
+        type: 'COMPLAINT',
+        route: '/complaints'
+      }));
     }
 
     return sendSuccess(res, updated, 'Complaint updated');

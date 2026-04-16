@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 
 const prisma                                      = require('../../config/db');
+const notificationsService                        = require('../notifications/notifications.service');
 const { pushToUnit }                              = require('../../utils/push');
 const { sendVisitorQrMail }                       = require('../../utils/mailer');
 const WhatsApp                                    = require('../../utils/whatsapp');
@@ -128,6 +129,8 @@ async function inviteVisitor(userId, societyId, data) {
     visitorName,
     visitorPhone,
     visitorEmail,
+    numberOfAdults = 1,
+    description,
     expectedArrival,
     expiryHours = 24,
     noteForWatchman,
@@ -165,6 +168,8 @@ async function inviteVisitor(userId, societyId, data) {
       visitorName,
       visitorPhone,
       visitorEmail:    visitorEmail || null,
+      numberOfAdults:  parseInt(numberOfAdults, 10) || 1,
+      description:     description || null,
       noteForWatchman: noteForWatchman || null,
       expectedArrival: expectedArrival ? new Date(expectedArrival) : null,
       qrToken,
@@ -226,11 +231,15 @@ async function validateToken(qrToken, scannerId, societyId, _deviceInfo = {}) {
     });
 
     setImmediate(() =>
-      pushToUnit(visitor.unitId, {
+      notificationsService.sendNotification(null, societyId, {
+        targetType: 'unit',
+        targetId: visitor.unitId,
         title: '🚪 Visitor Arrived',
         body:  `${visitor.visitorName} has checked in at the gate for ${visitor.unit.fullCode}.`,
-        data:  { type: 'VISITOR_CHECKIN', route: '/visitors', id: visitor.id },
-      }, { excludeUserId: scannerId })
+        type: 'VISITOR',
+        route: '/visitors',
+        excludeUserId: scannerId
+      })
     );
 
     return {
@@ -248,7 +257,7 @@ async function validateToken(qrToken, scannerId, societyId, _deviceInfo = {}) {
  * Only used by watchmen or admins — NO QR dispatch.
  */
 async function logWalkinEntry(userId, societyId, data) {
-  const { unitId, visitorName, visitorPhone, noteForWatchman } = data;
+  const { unitId, visitorName, visitorPhone, numberOfAdults = 1, description, noteForWatchman } = data;
 
   const unit = await prisma.unit.findUnique({ where: { id: unitId } });
   if (!unit || unit.societyId !== societyId) {
@@ -263,6 +272,8 @@ async function logWalkinEntry(userId, societyId, data) {
         invitedById:     userId,
         visitorName,
         visitorPhone,
+        numberOfAdults:  parseInt(numberOfAdults, 10) || 1,
+        description:     description || null,
         noteForWatchman: noteForWatchman || null,
         qrToken:         crypto.randomUUID(),
         qrExpiresAt:     new Date(),   // immediate expiry — walk-in

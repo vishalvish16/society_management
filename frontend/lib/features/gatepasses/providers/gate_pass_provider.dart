@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/dio_provider.dart';
+import 'package:dio/dio.dart';
 import '../../../core/providers/auth_provider.dart';
 
 class GatePassState {
@@ -39,28 +40,35 @@ class GatePassNotifier extends StateNotifier<GatePassState> {
     }
   }
 
-  Future<bool> createPass(Map<String, dynamic> data) async {
+  Future<String?> createPass(Map<String, dynamic> data) async {
     try {
       final dio = ref.read(dioProvider);
       final res = await dio.post('gatepasses', data: data);
       if (res.data['success'] == true) {
         loadPasses();
-        return true;
+        return null;
       }
-      return false;
+      return res.data['message'] ?? 'Failed to create gate pass';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to create gate pass';
     } catch (e) {
-      return false;
+      return e.toString();
     }
   }
 
-  Future<bool> cancelPass(String id) async {
+  Future<String?> cancelPass(String id) async {
     try {
       final dio = ref.read(dioProvider);
-      await dio.patch('gatepasses/$id/cancel');
-      loadPasses();
-      return true;
+      final res = await dio.patch('gatepasses/$id/cancel');
+      if (res.data['success'] == true) {
+        loadPasses();
+        return null;
+      }
+      return res.data['message'] ?? 'Failed to cancel gate pass';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to cancel gate pass';
     } catch (e) {
-      return false;
+      return e.toString();
     }
   }
 }

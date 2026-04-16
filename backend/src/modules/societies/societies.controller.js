@@ -1,5 +1,6 @@
 const societiesService = require('./societies.service');
 const { sendSuccess, sendError } = require('../../utils/response');
+const { getVisitorQrMaxHrs } = require('../../utils/platformSettings');
 
 async function listSocieties(req, res, next) {
   try {
@@ -26,6 +27,23 @@ async function getSociety(req, res, next) {
   }
 }
 
+async function _validateSocietySettings(settings) {
+  if (!settings) return;
+  const { visitor_qr_max_hrs } = settings;
+  if (visitor_qr_max_hrs !== undefined) {
+    const n = parseInt(visitor_qr_max_hrs, 10);
+    if (!isNaN(n)) {
+      const platformMax = await getVisitorQrMaxHrs();
+      if (n > platformMax) {
+        throw Object.assign(
+          new Error(`Society Max QR Expiry cannot exceed Platform limit of ${platformMax} hours`),
+          { status: 400 }
+        );
+      }
+    }
+  }
+}
+
 async function createSociety(req, res, next) {
   try {
     const { name, address, city, contactPhone, contactEmail, planName, chairman, trialDays, settings } = req.body;
@@ -39,6 +57,10 @@ async function createSociety(req, res, next) {
       if (chairman.password.length < 8) {
         return sendError(res, 'Password must be at least 8 characters', 400);
       }
+    }
+
+    if (settings) {
+      await _validateSocietySettings(settings);
     }
 
     const result = await societiesService.createSociety({
@@ -58,6 +80,9 @@ async function createSociety(req, res, next) {
 async function updateSociety(req, res, next) {
   try {
     console.log('[DEBUG] Update Society Request Body:', req.body);
+    if (req.body.settings) {
+      await _validateSocietySettings(req.body.settings);
+    }
     const society = await societiesService.updateSociety(req.params.id, req.body);
     return sendSuccess(res, society, 'Society updated');
   } catch (err) {
@@ -126,6 +151,10 @@ async function updateSocietySettings(req, res, next) {
     if (!existing) return sendError(res, 'Society not found', 404);
 
     const merged = { ...(existing.settings ?? {}), ...patch };
+
+    // Validate merged settings
+    await _validateSocietySettings(merged);
+
     const updated = await societiesService.updateSociety(req.params.id, { settings: merged });
     return sendSuccess(res, updated.settings ?? {}, 'Society settings updated');
   } catch (err) {

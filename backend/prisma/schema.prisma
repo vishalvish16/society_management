@@ -659,6 +659,8 @@ model Visitor {
   visitorName     String
   visitorPhone    String
   visitorEmail    String?
+  numberOfAdults  Int           @default(1)
+  description     String?
   expectedArrival DateTime?
   noteForWatchman String?
   qrToken         String        @unique @default(uuid())
@@ -740,15 +742,17 @@ model Complaint {
   unit         Unit              @relation(fields: [unitId], references: [id])
   raisedById   String
   raisedBy     User              @relation("RaisedBy", fields: [raisedById], references: [id])
-  category     ComplaintCategory
-  title        String
-  description  String?
-  status       ComplaintStatus   @default(OPEN)
-  assignedToId String?
-  assignedTo   User?             @relation("AssignedTo", fields: [assignedToId], references: [id])
-  resolvedAt   DateTime?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  category       ComplaintCategory
+  title          String
+  description    String?
+  priority       String?           @default("medium")
+  status         ComplaintStatus   @default(OPEN)
+  assignedToId   String?
+  assignedTo     User?             @relation("AssignedTo", fields: [assignedToId], references: [id])
+  resolutionNote String?
+  resolvedAt     DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   @@index([societyId])
   @@index([status])
