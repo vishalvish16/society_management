@@ -1,0 +1,21 @@
+workflows:
+  ios-workflow:
+    name: iOS Build
+    max_build_duration: 60
+    instance_type: mac_mini_m1
+    environment:
+      flutter: stable
+      xcode: latest
+    scripts:
+      - name: Get Flutter packages
+        script: |
+          cd frontend && flutter packages pub get
+      - name: Flutter build ipa
+        script: |
+          cd frontend && flutter build ipa --release --no-codesign
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      email:
+        recipients:
+          - vishal.vish16@gmail.com # Change this to your email
