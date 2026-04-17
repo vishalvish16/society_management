@@ -4,6 +4,7 @@ class AppConstants {
 
   // For mobile devices on the same WiFi, use your machine's LAN IP.
   // For Flutter web (browser), use localhost.
-  static const String apiBaseUrl = 'http://192.168.1.5:3001/api/';
-  // static const String apiBaseUrl = 'https://associated-widespread-liability-cdna.trycloudflare.com/api/';
+  // static const String apiBaseUrl = 'http://192.168.1.5:3001/api/';
+  static const String apiBaseUrl =
+      'https://download-metabolism-boats-afternoon.trycloudflare.com/api/';
 }

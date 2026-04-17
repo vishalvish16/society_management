@@ -15,6 +15,7 @@ class SaPlatformSettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsAsync = ref.watch(platformSettingsProvider);
     final isWeb = MediaQuery.of(context).size.width >= 720;
+    final isMobile = MediaQuery.of(context).size.width < 768;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -22,40 +23,42 @@ class SaPlatformSettingsScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Page header ────────────────────────────────────────────
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.fromLTRB(
-              AppDimensions.xxl,
-              MediaQuery.of(context).padding.top + AppDimensions.lg,
-              AppDimensions.xxl,
-              AppDimensions.lg,
-            ),
-            color: AppColors.surface,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Platform Settings', style: AppTextStyles.displayMedium),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Configure platform-wide defaults for all societies',
-                        style: AppTextStyles.bodyMedium
-                            .copyWith(color: AppColors.textMuted),
-                      ),
-                    ],
+          if (!isMobile) ...[
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.fromLTRB(
+                AppDimensions.xxl,
+                MediaQuery.of(context).padding.top + AppDimensions.lg,
+                AppDimensions.xxl,
+                AppDimensions.lg,
+              ),
+              color: AppColors.surface,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Platform Settings', style: AppTextStyles.displayMedium),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Configure platform-wide defaults for all societies',
+                          style: AppTextStyles.bodyMedium
+                              .copyWith(color: AppColors.textMuted),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.refresh_rounded),
-                  tooltip: 'Refresh',
-                  onPressed: () => ref.invalidate(platformSettingsProvider),
-                ),
-              ],
+                  IconButton(
+                    icon: const Icon(Icons.refresh_rounded),
+                    tooltip: 'Refresh',
+                    onPressed: () => ref.invalidate(platformSettingsProvider),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const Divider(height: 1),
+            const Divider(height: 1),
+          ],
 
           // ── Body ────────────────────────────────────────────────────
           Expanded(

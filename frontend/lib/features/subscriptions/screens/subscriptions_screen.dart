@@ -55,36 +55,36 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: isDesktop
-          ? null
-          : AppBar(
-              backgroundColor: AppColors.primary,
-              title: Text(
-                'Subscriptions',
-                style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary),
-              ),
-              actions: [
-                Padding(
-                  padding: const EdgeInsets.only(right: AppDimensions.md),
-                  child: FilledButton.icon(
-                    onPressed: () => _showAssignDialog(context),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.textOnPrimary,
-                      foregroundColor: AppColors.primary,
-                    ),
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Assign Plan'),
-                  ),
-                ),
-              ],
-            ),
-      body: isDesktop ? _buildDesktop(context, state) : _buildMobile(context, state),
+      appBar: null,
+      body: isDesktop ? _buildDesktop(context, state, isDesktop) : _buildMobile(context, state),
     );
   }
 
   Widget _buildMobile(BuildContext context, SubscriptionsState state) {
     return Column(
       children: [
+        // Action bar on mobile
+        Padding(
+          padding: const EdgeInsets.fromLTRB(AppDimensions.screenPadding, AppDimensions.sm, AppDimensions.screenPadding, 0),
+          child: Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () => _showAssignDialog(context),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Assign Plan'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: () => context.go('/sa/subscriptions/report'),
+                icon: const Icon(Icons.table_view_rounded, size: 18),
+                label: const Text('Report'),
+              ),
+            ],
+          ),
+        ),
+
         // Filter bar
         Container(
           color: AppColors.surface,
@@ -221,7 +221,7 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
     );
   }
 
-  Widget _buildDesktop(BuildContext context, SubscriptionsState state) {
+  Widget _buildDesktop(BuildContext context, SubscriptionsState state, bool isDesktop) {
     final dist = <String, int>{};
     for (final s in state.subscriptions) {
       final st = (s['status'] ?? (s['society']?['status']) ?? '')
@@ -235,35 +235,37 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Subscriptions', style: AppTextStyles.displayMedium),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Manage plans, renewals and cancellations',
-                      style: AppTextStyles.bodyMedium,
-                    ),
-                  ],
+          if (isDesktop) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Subscriptions', style: AppTextStyles.displayMedium),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Manage plans, renewals and cancellations',
+                        style: AppTextStyles.bodyMedium,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              FilledButton.icon(
-                onPressed: () => _showAssignDialog(context),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('Assign Plan'),
-              ),
-              const SizedBox(width: 10),
-              OutlinedButton.icon(
-                onPressed: () => context.go('/sa/subscriptions/report'),
-                icon: const Icon(Icons.table_view_rounded, size: 18),
-                label: const Text('Report'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
+                FilledButton.icon(
+                  onPressed: () => _showAssignDialog(context),
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('Assign Plan'),
+                ),
+                const SizedBox(width: 10),
+                OutlinedButton.icon(
+                  onPressed: () => context.go('/sa/subscriptions/report'),
+                  icon: const Icon(Icons.table_view_rounded, size: 18),
+                  label: const Text('Report'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+          ],
           Row(
             children: [
               _StatMiniCard(

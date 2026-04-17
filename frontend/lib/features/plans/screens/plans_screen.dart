@@ -25,6 +25,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(plansProvider);
+    final isWide = MediaQuery.of(context).size.width >= 768;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -33,25 +34,38 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Subscription Plans', style: AppTextStyles.displayMedium),
-                      const SizedBox(height: 4),
-                      Text('Manage pricing and feature limits', style: AppTextStyles.bodyMedium),
-                    ],
+            if (isWide)
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Subscription Plans', style: AppTextStyles.displayMedium),
+                        const SizedBox(height: 4),
+                        Text('Manage pricing and feature limits', style: AppTextStyles.bodyMedium),
+                      ],
+                    ),
+                  ),
+                  FilledButton.icon(
+                    onPressed: () => _showPlanDialog(context),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Plan'),
+                  ),
+                ],
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => _showPlanDialog(context),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Plan'),
                   ),
                 ),
-                FilledButton.icon(
-                  onPressed: () => _showPlanDialog(context),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add Plan'),
-                ),
-              ],
-            ),
+              ),
             const SizedBox(height: 24),
             Expanded(
               child: state.isLoading

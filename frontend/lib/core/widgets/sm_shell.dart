@@ -512,15 +512,21 @@ class _SMShellState extends ConsumerState<SMShell> {
 
             // Logout
             const Divider(color: Color(0xFF1E293B), height: 1),
-            ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-              leading: const Icon(Icons.logout_rounded, color: Color(0xFF94A3B8), size: 20),
-              title: const Text('Logout', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14)),
-              onTap: () async {
-                Navigator.pop(context);
-                await ref.read(authProvider.notifier).logout();
-                if (mounted) context.go('/');
-              },
+            ColoredBox(
+              color: const Color(0xFF0F172A),
+              child: SafeArea(
+                top: false,
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  leading: const Icon(Icons.logout_rounded, color: Color(0xFF94A3B8), size: 20),
+                  title: const Text('Logout', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14)),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    await ref.read(authProvider.notifier).logout();
+                    if (mounted) context.go('/');
+                  },
+                ),
+              ),
             ),
           ],
         ),

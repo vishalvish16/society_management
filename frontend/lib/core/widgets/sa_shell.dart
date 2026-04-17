@@ -14,6 +14,7 @@ class SAShell extends ConsumerStatefulWidget {
 
 class _SAShellState extends ConsumerState<SAShell> {
   int _selectedIndex = 0;
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   static const _navItems = [
     _NavItem(icon: Icons.dashboard_rounded, label: 'Dashboard', path: '/sa/dashboard'),
@@ -47,6 +48,32 @@ class _SAShellState extends ConsumerState<SAShell> {
     final isWide = MediaQuery.of(context).size.width >= 768;
 
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: isWide ? null : _buildDrawer(authState),
+      appBar: isWide
+          ? null
+          : AppBar(
+              backgroundColor: const Color(0xFF0F172A),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.menu_rounded),
+                onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+              ),
+              title: Text(
+                _navItems[_selectedIndex].label,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.logout_rounded),
+                  onPressed: () async {
+                    await ref.read(authProvider.notifier).logout();
+                    if (context.mounted) context.go('/');
+                  },
+                ),
+              ],
+            ),
       body: Row(
         children: [
           if (isWide) _buildSidebar(authState),
@@ -65,6 +92,89 @@ class _SAShellState extends ConsumerState<SAShell> {
                       ))
                   .toList(),
             ),
+    );
+  }
+
+  Widget _buildDrawer(AuthState authState) {
+    return Drawer(
+      backgroundColor: const Color(0xFF0F172A),
+      child: SafeArea(
+        child: Column(
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.apartment_rounded, color: Colors.white, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Society Manager',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                        Text('Super Admin Portal',
+                            style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(color: Color(0xFF1E293B), height: 1),
+
+            // Nav items
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                itemCount: _navItems.length,
+                itemBuilder: (context, i) {
+                  final item = _navItems[i];
+                  final isSelected = _selectedIndex == i;
+                  return ListTile(
+                    leading: Icon(item.icon,
+                        color: isSelected ? AppColors.primaryLight : const Color(0xFF94A3B8)),
+                    title: Text(item.label,
+                        style: TextStyle(
+                          color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                        )),
+                    selected: isSelected,
+                    selectedTileColor: AppColors.primary.withValues(alpha: 0.15),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _onNavTap(i);
+                    },
+                  );
+                },
+              ),
+            ),
+
+            // Footer / Logout
+            const Divider(color: Color(0xFF1E293B), height: 1),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              leading: const Icon(Icons.logout_rounded, color: Color(0xFF94A3B8)),
+              title: const Text('Logout', style: TextStyle(color: Color(0xFF94A3B8))),
+              onTap: () async {
+                Navigator.pop(context);
+                await ref.read(authProvider.notifier).logout();
+                if (mounted) context.go('/');
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 

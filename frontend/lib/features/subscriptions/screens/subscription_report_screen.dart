@@ -100,6 +100,7 @@ class _SubscriptionReportScreenState extends State<SubscriptionReportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Padding(
@@ -107,29 +108,31 @@ class _SubscriptionReportScreenState extends State<SubscriptionReportScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Subscription Report', style: AppTextStyles.displayMedium),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Date-wise payments with filters and sorting',
-                        style: AppTextStyles.bodyMedium,
-                      ),
-                    ],
+            if (!isMobile) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Subscription Report', style: AppTextStyles.displayMedium),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Date-wise payments with filters and sorting',
+                          style: AppTextStyles.bodyMedium,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                IconButton(
-                  tooltip: 'Refresh',
-                  onPressed: () => _load(page: _page),
-                  icon: const Icon(Icons.refresh_rounded),
-                )
-              ],
-            ),
-            const SizedBox(height: 16),
+                  IconButton(
+                    tooltip: 'Refresh',
+                    onPressed: () => _load(page: _page),
+                    icon: const Icon(Icons.refresh_rounded),
+                  )
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
             Card(
               elevation: 0,
               shape: RoundedRectangleBorder(

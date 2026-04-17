@@ -12,6 +12,7 @@ class SADashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final statsAsync = ref.watch(dashboardProvider);
     final recentAsync = ref.watch(recentSocietiesProvider);
+    final isWide = MediaQuery.of(context).size.width >= 768;
     final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '\u20B9', decimalDigits: 0);
 
     return Scaffold(
@@ -27,30 +28,32 @@ class SADashboardScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Page Header
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Dashboard', style: AppTextStyles.displayMedium),
-                        const SizedBox(height: 4),
-                        Text('Platform overview and key metrics',
-                            style: AppTextStyles.bodyMedium),
-                      ],
+              // Page Header - Only shown on wide screens
+              if (isWide) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Dashboard', style: AppTextStyles.displayMedium),
+                          const SizedBox(height: 4),
+                          Text('Platform overview and key metrics',
+                              style: AppTextStyles.bodyMedium),
+                        ],
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.refresh_rounded),
-                    onPressed: () {
-                      ref.invalidate(dashboardProvider);
-                      ref.invalidate(recentSocietiesProvider);
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
+                    IconButton(
+                      icon: const Icon(Icons.refresh_rounded),
+                      onPressed: () {
+                        ref.invalidate(dashboardProvider);
+                        ref.invalidate(recentSocietiesProvider);
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+              ],
 
               // Stats Cards
               statsAsync.when(

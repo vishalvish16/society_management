@@ -50,15 +50,18 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
     final currentUser = ref.watch(authProvider).user;
     final canManage = !(currentUser?.isUnitLocked ?? false);
 
+    final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        title: Text(
-          'Members',
-          style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary),
-        ),
-      ),
+      appBar: isWide
+          ? AppBar(
+              backgroundColor: AppColors.primary,
+              title: Text(
+                'Members',
+                style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary),
+              ),
+            )
+          : null,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddEditDialog(context, ref),
         backgroundColor: AppColors.primary,

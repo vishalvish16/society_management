@@ -63,53 +63,45 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
-            isMobile
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Societies', style: AppTextStyles.displayMedium),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Manage all registered societies',
-                        style: AppTextStyles.bodyMedium,
-                      ),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: () => _showRegisterStepper(context),
-                          icon: const Icon(Icons.add_rounded),
-                          label: const Text('Register Society'),
-                        ),
-                      ),
-                    ],
-                  )
-                : Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Societies',
-                              style: AppTextStyles.displayMedium,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Manage all registered societies',
-                              style: AppTextStyles.bodyMedium,
-                            ),
-                          ],
-                        ),
-                      ),
-                      FilledButton.icon(
-                        onPressed: () => _showRegisterStepper(context),
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('Register Society'),
-                      ),
-                    ],
+            // Header - Hide title on mobile as it's in the AppBar
+            if (isMobile) 
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => _showRegisterStepper(context),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Register Society'),
                   ),
+                ),
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Societies',
+                          style: AppTextStyles.displayMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Manage all registered societies',
+                          style: AppTextStyles.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                  FilledButton.icon(
+                    onPressed: () => _showRegisterStepper(context),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Register Society'),
+                  ),
+                ],
+              ),
             const SizedBox(height: 20),
 
             _StatsRow(

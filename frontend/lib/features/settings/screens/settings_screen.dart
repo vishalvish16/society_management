@@ -27,11 +27,7 @@ class SettingsScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        title: Text('Settings',
-            style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
-      ),
+      appBar: null, // Shells (SAShell/SMShell) provide the header
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppDimensions.screenPadding),
         child: Column(
