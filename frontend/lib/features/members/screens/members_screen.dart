@@ -13,6 +13,7 @@ import '../providers/members_provider.dart';
 import '../../units/providers/unit_provider.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
+import '../../../shared/widgets/app_card_grid.dart';
 
 class MembersScreen extends ConsumerStatefulWidget {
   const MembersScreen({super.key});
@@ -23,6 +24,7 @@ class MembersScreen extends ConsumerStatefulWidget {
 
 class _MembersScreenState extends ConsumerState<MembersScreen> {
   final ScrollController _scrollController = ScrollController();
+  String _selectedRole = 'All';
 
   @override
   void initState() {
@@ -34,6 +36,11 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _updateFilter(String role) {
+    setState(() => _selectedRole = role);
+    ref.read(membersProvider.notifier).loadMembers(role: role);
   }
 
   void _onScroll() {
@@ -51,6 +58,22 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
     final canManage = !(currentUser?.isUnitLocked ?? false);
 
     final isWide = MediaQuery.of(context).size.width >= 768;
+    final filtersWidget = SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppDimensions.lg, vertical: AppDimensions.md),
+      child: Row(
+        children: [
+          _FilterChip(label: 'All', isSelected: _selectedRole == 'All', onTap: () => _updateFilter('All')),
+          _FilterChip(label: 'Chairman', isSelected: _selectedRole == 'Chairman', onTap: () => _updateFilter('Chairman')),
+          _FilterChip(label: 'Secretary', isSelected: _selectedRole == 'Secretary', onTap: () => _updateFilter('Secretary')),
+          _FilterChip(label: 'Member', isSelected: _selectedRole == 'Member', onTap: () => _updateFilter('Member')),
+          _FilterChip(label: 'Resident', isSelected: _selectedRole == 'Resident', onTap: () => _updateFilter('Resident')),
+          _FilterChip(label: 'Watchman', isSelected: _selectedRole == 'Watchman', onTap: () => _updateFilter('Watchman')),
+        ],
+      ),
+    );
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: isWide
@@ -60,169 +83,183 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                 'Members',
                 style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary),
               ),
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(60),
+                child: filtersWidget,
+              ),
             )
-          : null,
+          : AppBar(
+              backgroundColor: AppColors.primary,
+              toolbarHeight: 0,
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(60),
+                child: filtersWidget,
+              ),
+            ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddEditDialog(context, ref),
         backgroundColor: AppColors.primary,
-        icon: const Icon(
-          Icons.person_add_rounded,
-          color: AppColors.textOnPrimary,
-        ),
-        label: Text(
-          'Add Member',
-          style: AppTextStyles.labelLarge.copyWith(
-            color: AppColors.textOnPrimary,
-          ),
-        ),
+        icon: const Icon(Icons.person_add_rounded, color: AppColors.textOnPrimary),
+        label: Text('Add Member',
+            style: AppTextStyles.labelLarge
+                .copyWith(color: AppColors.textOnPrimary)),
       ),
       body: membersAsync.when(
         loading: () => const AppLoadingShimmer(),
-        error: (e, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(AppDimensions.screenPadding),
-            child: AppCard(
-              backgroundColor: AppColors.dangerSurface,
-              child: Row(
-                children: [
-                  const Icon(Icons.error_outline, color: AppColors.danger),
-                  const SizedBox(width: AppDimensions.sm),
-                  Expanded(
-                    child: Text(
-                      'Failed to load members: $e',
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.dangerText,
-                      ),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () =>
-                        ref.read(membersProvider.notifier).loadMembers(),
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+        error: (e, _) => Center(child: Text('Error: $e')),
         data: (members) {
           if (members.isEmpty) {
             return const AppEmptyState(
-              emoji: '👥',
-              title: 'No Members',
-              subtitle: 'No members have been added yet.',
-            );
+                emoji: '👥',
+                title: 'No Members',
+                subtitle: 'No members matched your filters.');
           }
           return RefreshIndicator(
-            onRefresh: () => ref.read(membersProvider.notifier).loadMembers(),
-            child: ListView.separated(
+            onRefresh: () async => ref.read(membersProvider.notifier).loadMembers(),
+            child: CustomScrollView(
               controller: _scrollController,
-              padding: const EdgeInsets.all(AppDimensions.screenPadding),
-              itemCount: members.length + (notifier.hasMore ? 1 : 0),
-              separatorBuilder: (_, index) =>
-                  const SizedBox(height: AppDimensions.sm),
-              itemBuilder: (_, i) {
-                if (i == members.length) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: AppDimensions.md),
-                      child: CircularProgressIndicator(),
-                    ),
-                  );
-                }
-                final m = members[i];
-                return AppCard(
-                  padding: const EdgeInsets.all(AppDimensions.md),
-                  leftBorderColor: m.isActive
-                      ? AppColors.success
-                      : AppColors.textMuted,
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundColor: m.isActive
-                            ? AppColors.primarySurface
-                            : AppColors.background,
-                        child: Text(
-                          m.name.isNotEmpty ? m.name[0].toUpperCase() : '?',
-                          style: AppTextStyles.h3.copyWith(
-                            color: m.isActive
-                                ? AppColors.primary
-                                : AppColors.textMuted,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: AppDimensions.md),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              m.name,
-                              style: AppTextStyles.h3.copyWith(
-                                color: m.isActive
-                                    ? AppColors.textPrimary
-                                    : AppColors.textMuted,
-                                decoration: m.isActive
-                                    ? null
-                                    : TextDecoration.lineThrough,
-                              ),
-                            ),
-                            const SizedBox(height: AppDimensions.xs),
-                            Text(
-                              '${m.unitCode} • ${m.phone}',
-                              style: AppTextStyles.bodySmall.copyWith(
-                                color: AppColors.textMuted,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          AppStatusChip(
-                            status: m.isActive ? m.role : 'Disabled',
-                          ),
-                          if (canManage) ...[
-                            const SizedBox(height: AppDimensions.xs),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.edit_outlined,
-                                    size: 18,
-                                    color: AppColors.primary,
-                                  ),
-                                  onPressed: () => _showAddEditDialog(
-                                    context,
-                                    ref,
-                                    member: m,
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.lock_reset,
-                                    size: 18,
-                                    color: AppColors.warning,
-                                  ),
-                                  onPressed: () => _showResetPasswordDialog(
-                                    context,
-                                    ref,
-                                    m.id,
-                                    m.name,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ],
-                      ),
-                    ],
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppDimensions.lg,
+                    vertical: AppDimensions.md,
                   ),
-                );
-              },
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) {
+                        final m = members[i];
+                        return LayoutBuilder(
+                          builder: (context, constraints) {
+                            final double maxWidth = constraints.maxWidth > 800 ? 800 : constraints.maxWidth;
+                            return Center(
+                              child: Container(
+                                width: maxWidth,
+                                margin: const EdgeInsets.only(bottom: AppDimensions.md),
+                                child: AppCard(
+                                  onTap: () => _showAddEditDialog(context, ref, member: m),
+                                  leftBorderColor: m.isActive ? AppColors.success : AppColors.textMuted,
+                                  padding: const EdgeInsets.all(AppDimensions.md),
+                                  child: Row(
+                                    children: [
+                                      // Avatar and Basic Info
+                                      Expanded(
+                                        flex: 3,
+                                        child: Row(
+                                          children: [
+                                            CircleAvatar(
+                                              radius: 20,
+                                              backgroundColor: m.isActive ? AppColors.primarySurface : AppColors.background,
+                                              child: Text(
+                                                m.name.isNotEmpty ? m.name[0].toUpperCase() : '?',
+                                                style: AppTextStyles.h3.copyWith(color: m.isActive ? AppColors.primary : AppColors.textMuted),
+                                              ),
+                                            ),
+                                            const SizedBox(width: AppDimensions.sm),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    m.name,
+                                                    style: AppTextStyles.h3.copyWith(
+                                                      color: m.isActive ? AppColors.textPrimary : AppColors.textMuted,
+                                                      decoration: m.isActive ? null : TextDecoration.lineThrough,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                  Text(m.role, style: AppTextStyles.caption.copyWith(color: AppColors.primary)),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: AppDimensions.xs),
+
+                                      // Contact and Unit
+                                      Expanded(
+                                        flex: 3,
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                const Icon(Icons.phone_outlined, size: 14, color: AppColors.textMuted),
+                                                const SizedBox(width: 4),
+                                                Expanded(
+                                                  child: Text(m.phone, style: AppTextStyles.bodySmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Row(
+                                              children: [
+                                                const Icon(Icons.apartment_rounded, size: 14, color: AppColors.textMuted),
+                                                const SizedBox(width: 4),
+                                                Expanded(
+                                                  child: Text(m.unitCode ?? 'No Unit', style: AppTextStyles.bodySmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: AppDimensions.xs),
+
+                                      // Status and Actions
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.end,
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          AppStatusChip(status: m.isActive ? 'active' : 'disabled'),
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              IconButton(
+                                                icon: const Icon(Icons.lock_reset, size: 20, color: AppColors.warning),
+                                                onPressed: () => _showResetPasswordDialog(context, ref, m.id, m.name),
+                                                constraints: const BoxConstraints(),
+                                                padding: EdgeInsets.zero,
+                                              ),
+                                              const SizedBox(width: AppDimensions.sm),
+                                              IconButton(
+                                                icon: const Icon(Icons.edit_outlined, size: 20, color: AppColors.primary),
+                                                onPressed: () => _showAddEditDialog(context, ref, member: m),
+                                                constraints: const BoxConstraints(),
+                                                padding: EdgeInsets.zero,
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                      childCount: members.length,
+                    ),
+                  ),
+                ),
+                if (notifier.hasMore)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 32),
+                      child: Center(
+                        child: notifier.isLoadingMore 
+                          ? const CircularProgressIndicator()
+                          : const SizedBox.shrink(),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           );
         },
@@ -638,6 +675,36 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
           },
         );
       },
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _FilterChip({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: AppDimensions.sm),
+      child: FilterChip(
+        label: Text(label),
+        selected: isSelected,
+        onSelected: (_) => onTap(),
+        selectedColor: AppColors.primary.withOpacity(0.2),
+        checkmarkColor: AppColors.primary,
+        labelStyle: AppTextStyles.bodySmall.copyWith(
+          color: isSelected ? AppColors.primary : AppColors.textSecondary,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
     );
   }
 }

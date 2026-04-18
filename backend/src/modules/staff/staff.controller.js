@@ -161,8 +161,8 @@ async function markAttendance(req, res) {
 
     const attendance = await prisma.staffAttendance.upsert({
       where: { staffId_date: { staffId, date: new Date(date) } },
-      update: { status, markedById, markedAt: new Date() },
-      create: { staffId, date: new Date(date), status, markedById },
+      update: { status: status.toUpperCase(), markedById, markedAt: new Date() },
+      create: { staffId, date: new Date(date), status: status.toUpperCase(), markedById },
     });
 
     return sendSuccess(res, attendance, 'Attendance marked');

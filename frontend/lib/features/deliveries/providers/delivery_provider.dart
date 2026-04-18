@@ -88,6 +88,21 @@ class DeliveryNotifier extends StateNotifier<DeliveryState> {
       return e.toString();
     }
   }
+
+  Future<String?> markReturned(String id) async {
+    try {
+      final res = await _client.dio.patch('/deliveries/$id/return');
+      if (res.data['success'] == true) {
+        await loadDeliveries();
+        return null;
+      }
+      return res.data['message'] ?? 'Failed to mark as returned';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to mark as returned';
+    } catch (e) {
+      return e.toString();
+    }
+  }
 }
 
 final deliveryProvider =

@@ -93,7 +93,7 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
 
   bool get _isAdmin {
     final role = ref.read(authProvider).user?.role.toUpperCase() ?? '';
-    return role == 'PRAMUKH' || role == 'CHAIRMAN' || role == 'SECRETARY';
+    return role == 'PRAMUKH' || role == 'CHAIRMAN';
   }
 
   // ── Razorpay ─────────────────────────────────────────────────────────────
@@ -313,7 +313,7 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
     showDialog(
       context: nav.context,
       barrierDismissible: false,
-      builder: (_) => Dialog(
+      builder: (ctx) => Dialog(
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -385,7 +385,7 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: () => nav.pop(),
+              onPressed: () => Navigator.pop(ctx),
               style: FilledButton.styleFrom(backgroundColor: AppColors.success),
               child: const Text('Done'),
             ),

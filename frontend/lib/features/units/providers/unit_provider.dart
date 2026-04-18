@@ -22,7 +22,7 @@ class UnitsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
   final AuthState authState;
 
   int _currentPage = 1;
-  static const int _limit = 20;
+  static const int _limit = 50;
   bool _hasMore = true;
   bool _isLoadingMore = false;
 
@@ -63,8 +63,9 @@ class UnitsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
       });
       
       if (response.data['success'] == true) {
-        final List newUnits = response.data['data']['units'] ?? [];
-        _hasMore = newUnits.length >= _limit;
+        final data = response.data['data'];
+        final List newUnits = data['units'] ?? [];
+        final total = data['total'] ?? 0;
         
         if (refresh) {
           state = AsyncValue.data(newUnits);
@@ -72,6 +73,8 @@ class UnitsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
           final currentUnits = state.value ?? [];
           state = AsyncValue.data([...currentUnits, ...newUnits]);
         }
+        
+        _hasMore = (state.value?.length ?? 0) < total;
         
         if (_hasMore) {
           _currentPage++;
@@ -92,10 +95,18 @@ class UnitsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
     } finally {
       if (!refresh) {
         _isLoadingMore = false;
-        // Trigger UI update if needed (Riverpod should handle it via state change)
         if (state.hasValue) {
           state = AsyncValue.data(state.value!);
         }
+      }
+      // Automagically load more if the first page didn't fill enough space
+      // This is a helper for large screens where 1 batch < screen height
+      if (refresh && _hasMore) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (ref.read(unitsProvider.notifier)._hasMore) {
+             // The scroll controller in the UI will handle the actual check
+          }
+        });
       }
     }
   }

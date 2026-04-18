@@ -28,9 +28,22 @@ class ComplaintsNotifier extends StateNotifier<ComplaintsState> {
     }
   }
 
-  Future<String?> createComplaint(Map<String, dynamic> data) async {
+  Future<String?> createComplaint(Map<String, dynamic> data, {List<dynamic>? attachments}) async {
     try {
-      final res = await _client.dio.post('/complaints', data: data);
+      dynamic postData;
+      if (attachments != null && attachments.isNotEmpty) {
+        final formData = FormData.fromMap(data);
+        for (final file in attachments) {
+           formData.files.add(MapEntry(
+             'attachments', 
+             await MultipartFile.fromFile(file.path!, filename: file.name)
+           ));
+        }
+        postData = formData;
+      } else {
+        postData = data;
+      }
+      final res = await _client.dio.post('/complaints', data: postData);
       if (res.data['success'] == true) {
         await loadComplaints();
         return null;

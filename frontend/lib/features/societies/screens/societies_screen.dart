@@ -2136,14 +2136,20 @@ class _StatsRow extends StatelessWidget {
     ];
 
     if (isMobile) {
-      return Column(
-        children: [
-          for (final it in items)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _StatCard(item: it),
-            ),
-        ],
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        clipBehavior: Clip.none,
+        child: Row(
+          children: [
+            for (int i = 0; i < items.length; i++) ...[
+              SizedBox(
+                width: 180,
+                child: _StatCard(item: items[i]),
+              ),
+              if (i != items.length - 1) const SizedBox(width: 12),
+            ],
+          ],
+        ),
       );
     }
 
@@ -2180,6 +2186,7 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       elevation: 0,
+      margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: const BorderSide(color: Color(0xFFE2E8F0)),

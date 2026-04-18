@@ -40,13 +40,16 @@ class StaffScreen extends ConsumerWidget {
     final staffAsync = ref.watch(staffProvider);
     final canManage = _canManage(ref);
 
+    final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        title: Text('Staff',
-            style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
-      ),
+      appBar: isWide
+          ? AppBar(
+              backgroundColor: AppColors.primary,
+              title: Text('Staff',
+                  style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
+            )
+          : null,
       floatingActionButton: canManage
           ? FloatingActionButton.extended(
               onPressed: () => _showAddEditDialog(context, ref),

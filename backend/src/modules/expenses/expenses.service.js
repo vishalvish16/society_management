@@ -184,4 +184,18 @@ async function getExpenseSummary(societyId, startDate, endDate) {
   });
 }
 
-module.exports = { listExpenses, submitExpense, updateExpense, reviewExpense, getExpenseSummary };
+async function getExpenseById(id, societyId) {
+  return prisma.expense.findFirst({
+    where: { id, societyId },
+    include: { attachments: true }
+  });
+}
+
+module.exports = {
+  listExpenses,
+  submitExpense,
+  updateExpense,
+  reviewExpense,
+  getExpenseSummary,
+  getExpenseById,
+};

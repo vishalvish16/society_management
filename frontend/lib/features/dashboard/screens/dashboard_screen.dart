@@ -31,33 +31,35 @@ class DashboardScreen extends ConsumerWidget {
     // Role label for AppBar subtitle
     final roleLabel = _roleLabelFor(role);
 
+    final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        elevation: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Dashboard',
-                style:
-                    AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
-            Text(
-              '${user.name}  ·  $roleLabel',
-              style: AppTextStyles.caption.copyWith(
-                  color: AppColors.textOnPrimary.withValues(alpha: 0.8)),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined,
-                color: AppColors.textOnPrimary),
-            onPressed: () => context.go('/notifications'),
-          ),
-          const SizedBox(width: AppDimensions.sm),
-        ],
-      ),
+      appBar: isWide
+          ? AppBar(
+              backgroundColor: AppColors.primary,
+              elevation: 0,
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Dashboard',
+                      style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
+                  Text(
+                    '${user.name}  ·  $roleLabel',
+                    style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textOnPrimary.withValues(alpha: 0.8)),
+                  ),
+                ],
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.notifications_outlined,
+                      color: AppColors.textOnPrimary),
+                  onPressed: () => context.go('/notifications'),
+                ),
+                const SizedBox(width: AppDimensions.sm),
+              ],
+            )
+          : null,
       body: _bodyForRole(role),
     );
   }

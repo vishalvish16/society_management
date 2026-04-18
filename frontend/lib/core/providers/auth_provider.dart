@@ -14,7 +14,7 @@ class AuthState {
   const AuthState({
     this.user,
     this.token,
-    this.isLoading = false,
+    this.isLoading = true,
     this.error,
     this.isAuthenticated = false,
   });
@@ -37,7 +37,8 @@ class AuthState {
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier() : super(const AuthState());
+  final Ref ref;
+  AuthNotifier(this.ref) : super(const AuthState());
 
   final _client = DioClient();
   DioClient get client => _client;
@@ -66,7 +67,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         );
 
         // Register FCM token now that we have a valid auth token
-        NotificationService().registerTokenAfterLogin();
+        ref.read(notificationServiceProvider).registerTokenAfterLogin();
 
         return true;
       }
@@ -145,25 +146,31 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> tryAutoLogin() async {
     final token = await _client.storage.read(key: 'accessToken');
-    if (token == null) return;
+    if (token == null) {
+      state = state.copyWith(isLoading: false, isAuthenticated: false);
+      return;
+    }
 
+    state = state.copyWith(isLoading: true);
     try {
       final response = await _client.dio.get('users/me');
       if (response.statusCode == 200 && response.data['success'] == true) {
         final user = UserModel.fromJson(response.data['data']);
-        state = AuthState(user: user, token: token, isAuthenticated: true);
+        state = AuthState(user: user, token: token, isAuthenticated: true, isLoading: false);
         // Re-register FCM token on auto-login (token may have rotated)
-        NotificationService().registerTokenAfterLogin();
+        ref.read(notificationServiceProvider).registerTokenAfterLogin();
+      } else {
+        throw Exception('Me failed');
       }
     } catch (_) {
       await _client.storage.delete(key: 'accessToken');
       await _client.storage.delete(key: 'userRole');
       await _client.storage.delete(key: 'userId');
-      state = const AuthState();
+      state = const AuthState(isLoading: false, isAuthenticated: false);
     }
   }
 }
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier();
+  return AuthNotifier(ref);
 });

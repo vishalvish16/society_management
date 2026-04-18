@@ -36,22 +36,31 @@ exports.getStats = async (req, res) => {
     const societyAdminRoles = ['PRAMUKH', 'CHAIRMAN', 'VICE_CHAIRMAN', 'SECRETARY', 'ASSISTANT_SECRETARY', 'TREASURER', 'ASSISTANT_TREASURER', 'MEMBER'];
     if (societyAdminRoles.includes(role)) {
       const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
       const [
         totalUnits, occupiedUnits,
-        pendingBills, totalRevenue,
+        pendingBills,
+        totalBillIncome, totalDonations, totalExpenses,
         pendingExpenses,
         openComplaints,
         todayVisitors,
         pendingDeliveries,
+        activeCampaigns,
       ] = await Promise.all([
         prisma.unit.count({ where: { societyId, deletedAt: null } }),
         prisma.unit.count({ where: { societyId, status: 'OCCUPIED', deletedAt: null } }),
         prisma.maintenanceBill.count({ where: { societyId, status: { in: ['PENDING', 'PARTIAL'] } } }),
         prisma.maintenanceBill.aggregate({
-          where: { societyId, status: 'PAID', paidAt: { gte: startOfMonth } },
+          where: { societyId, status: 'PAID', deletedAt: null },
           _sum: { paidAmount: true },
+        }),
+        prisma.donation.aggregate({
+          where: { societyId },
+          _sum: { amount: true },
+        }),
+        prisma.expense.aggregate({
+          where: { societyId, status: 'APPROVED' },
+          _sum: { totalAmount: true },
         }),
         prisma.expense.count({ where: { societyId, status: 'PENDING' } }),
         prisma.complaint.count({ where: { societyId, status: { in: ['OPEN', 'ASSIGNED', 'IN_PROGRESS'] } } }),
@@ -65,18 +74,42 @@ exports.getStats = async (req, res) => {
           },
         }),
         prisma.delivery.count({ where: { societyId, status: 'PENDING' } }),
+        prisma.donationCampaign.findMany({
+          where: {
+            societyId,
+            isActive: true,
+            OR: [{ endDate: null }, { endDate: { gte: now } }],
+          },
+          include: {
+            donations: {
+              where: { donorId: userId },
+              select: { id: true, amount: true },
+            },
+          },
+        }),
       ]);
+
+      const societyIncome = Number(totalBillIncome._sum.paidAmount || 0) + Number(totalDonations._sum.amount || 0);
+      const societyExpense = Number(totalExpenses._sum.totalAmount || 0);
 
       return sendSuccess(res, {
         units: { total: totalUnits, occupied: occupiedUnits, vacant: totalUnits - occupiedUnits },
         billing: {
           pendingCount: pendingBills,
-          collectedThisMonth: Number(totalRevenue._sum.paidAmount || 0),
+          societyBalance: societyIncome - societyExpense,
+          totalIncome: societyIncome,
+          totalExpense: societyExpense,
         },
         expenses: { pendingApproval: pendingExpenses },
         complaints: { open: openComplaints },
         visitors: { today: todayVisitors },
         deliveries: { pending: pendingDeliveries },
+        activeCampaigns: activeCampaigns
+          .filter(c => c.donations.length === 0)
+          .map(c => ({
+            ...c,
+            hasPaid: false,
+          })),
       });
     }
 
@@ -100,10 +133,23 @@ exports.getStats = async (req, res) => {
         },
       });
 
-      const [myComplaints, myVisitors, myDeliveries] = await Promise.all([
+      const [myComplaints, myVisitors, myDeliveries, activeCampaigns] = await Promise.all([
         prisma.complaint.count({ where: { raisedById: userId, societyId, status: { not: 'CLOSED' } } }),
         prisma.visitor.count({ where: { societyId, invitedById: userId, status: 'PENDING' } }),
         prisma.delivery.count({ where: { societyId, unitId: myUnit?.unit?.id, status: 'PENDING' } }),
+        prisma.donationCampaign.findMany({
+          where: {
+            societyId,
+            isActive: true,
+            OR: [{ endDate: null }, { endDate: { gte: new Date() } }],
+          },
+          include: {
+            donations: {
+              where: { donorId: userId },
+              select: { id: true, amount: true },
+            },
+          },
+        }),
       ]);
 
       const outstanding = myUnit?.unit?.bills?.reduce(
@@ -117,6 +163,15 @@ exports.getStats = async (req, res) => {
         activeComplaints: myComplaints,
         pendingVisitors: myVisitors,
         pendingDeliveries: myDeliveries,
+        activeCampaigns: activeCampaigns
+          .filter((c) => c.donations.length === 0)
+          .map((c) => ({
+            id: c.id,
+            title: c.title,
+            description: c.description,
+            targetAmount: c.targetAmount,
+            endDate: c.endDate,
+          })),
       });
     }
 

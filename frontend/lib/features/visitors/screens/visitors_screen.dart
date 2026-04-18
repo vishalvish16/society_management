@@ -12,6 +12,7 @@ import '../providers/visitors_provider.dart';
 import '../providers/visitor_config_provider.dart';
 import '../../units/providers/unit_provider.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
+import 'visitor_qr_pass_screen.dart';
 
 class VisitorsScreen extends ConsumerStatefulWidget {
   const VisitorsScreen({super.key});
@@ -36,19 +37,22 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
   Widget build(BuildContext context) {
     final visitorsAsync = ref.watch(visitorsProvider);
 
+    final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        title: Text('Visitors', style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.qr_code_scanner_rounded, color: AppColors.textOnPrimary),
-            onPressed: () {},
-          ),
-          const SizedBox(width: AppDimensions.sm),
-        ],
-      ),
+      appBar: isWide
+          ? AppBar(
+              backgroundColor: AppColors.primary,
+              title: Text('Visitors', style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.qr_code_scanner_rounded, color: AppColors.textOnPrimary),
+                  onPressed: () {},
+                ),
+                const SizedBox(width: AppDimensions.sm),
+              ],
+            )
+          : null,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showLogDialog(context),
         backgroundColor: AppColors.primary,
@@ -65,11 +69,11 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  for (final s in ['all', 'valid', 'used', 'expired'])
+                  for (final s in ['all', 'pending', 'used', 'expired'])
                     Padding(
                       padding: const EdgeInsets.only(right: AppDimensions.sm),
                       child: ChoiceChip(
-                        label: Text(s == 'all' ? 'All' : s[0].toUpperCase() + s.substring(1)),
+                        label: Text(s == 'all' ? 'All' : s == 'pending' ? 'Upcoming' : s[0].toUpperCase() + s.substring(1)),
                         selected: _filter == s,
                         selectedColor: AppColors.primarySurface,
                         labelStyle: AppTextStyles.labelMedium.copyWith(
@@ -114,9 +118,18 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
                     separatorBuilder: (_, index) => const SizedBox(height: AppDimensions.sm),
                     itemBuilder: (_, i) {
                       final v = filtered[i];
-                      final status = v['status'] as String? ?? 'pending';
+                      final status = (v['status'] as String? ?? 'pending').toLowerCase();
                       final unitCode = v['unit'] is Map ? v['unit']['fullCode'] : (v['unit'] ?? '-');
-                      
+                      final isPending = status == 'pending';
+                      final qrToken = v['qrToken'] as String?;
+                      final currentUser = ref.read(authProvider).user;
+                      final currentUserId = currentUser?.id ?? '';
+                      final currentRole = currentUser?.role.toUpperCase() ?? '';
+                      final inviterId = v['invitedById'] as String? ?? (v['inviter'] is Map ? v['inviter']['id'] : null);
+                      final inviterName = v['inviter'] is Map ? (v['inviter']['name'] as String?) : null;
+                      final isAdmin = ['PRAMUKH', 'CHAIRMAN', 'SECRETARY'].contains(currentRole);
+                      final canEdit = isPending && (isAdmin || inviterId == currentUserId);
+
                       return AppCard(
                         leftBorderColor: _borderColor(status),
                         padding: const EdgeInsets.all(AppDimensions.md),
@@ -140,10 +153,16 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
                                   Text(v['visitorName'] as String? ?? '-', style: AppTextStyles.h3),
                                   const SizedBox(height: AppDimensions.xs),
                                   Text(
-                                    'Unit $unitCode${v['numberOfAdults'] != null && v['numberOfAdults'] > 1 ? ' • ${v['numberOfAdults']} Adults' : ''}${v['description'] != null ? ' • ${v['description']}' : ''}',
-                                    style: AppTextStyles.bodySmall
-                                        .copyWith(color: AppColors.textMuted),
+                                    'Unit $unitCode'
+                                    '${v['numberOfAdults'] != null && v['numberOfAdults'] > 1 ? ' • ${v['numberOfAdults']} Adults' : ''}'
+                                    '${v['description'] != null ? ' • ${v['description']}' : ''}',
+                                    style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
                                   ),
+                                  if (inviterName != null)
+                                    Text(
+                                      'Invited by $inviterName',
+                                      style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                                    ),
                                   if (v['noteForWatchman'] != null)
                                     Text(
                                       v['noteForWatchman'],
@@ -153,6 +172,32 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
                                 ],
                               ),
                             ),
+                            // ── QR button (pending with a token) ────────
+                            if (isPending && qrToken != null) ...[
+                              _actionIcon(
+                                icon: Icons.qr_code_rounded,
+                                color: AppColors.primary,
+                                bgColor: AppColors.primarySurface,
+                                tooltip: 'View / Download QR Pass',
+                                onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => VisitorQrPassScreen(visitor: v),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: AppDimensions.sm),
+                            ],
+                            // ── Edit button (pending + owner or admin) ──
+                            if (canEdit) ...[
+                              _actionIcon(
+                                icon: Icons.edit_rounded,
+                                color: AppColors.warning,
+                                bgColor: AppColors.warningSurface,
+                                tooltip: 'Edit visitor',
+                                onTap: () => _showEditVisitorSheet(context, v),
+                              ),
+                              const SizedBox(width: AppDimensions.sm),
+                            ],
                             AppStatusChip(status: status),
                           ],
                         ),
@@ -180,7 +225,241 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
       builder: (_) => const _LogVisitorForm(),
     );
   }
+
+  void _showEditVisitorSheet(BuildContext context, Map<String, dynamic> visitor) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
+      ),
+      builder: (_) => _EditVisitorForm(visitor: visitor),
+    );
+  }
+
+  Widget _actionIcon({
+    required IconData icon,
+    required Color color,
+    required Color bgColor,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+        child: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+          ),
+          child: Icon(icon, color: color, size: 18),
+        ),
+      ),
+    );
+  }
 }
+
+// ─── Edit Visitor Form ────────────────────────────────────────────────────────
+
+class _EditVisitorForm extends ConsumerStatefulWidget {
+  final Map<String, dynamic> visitor;
+  const _EditVisitorForm({required this.visitor});
+
+  @override
+  ConsumerState<_EditVisitorForm> createState() => _EditVisitorFormState();
+}
+
+class _EditVisitorFormState extends ConsumerState<_EditVisitorForm> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _phoneCtrl;
+  late final TextEditingController _emailCtrl;
+  late final TextEditingController _adultsCtrl;
+  late final TextEditingController _descCtrl;
+  late final TextEditingController _noteCtrl;
+  bool _isLoading = false;
+  String? _errorMsg;
+
+  @override
+  void initState() {
+    super.initState();
+    final v = widget.visitor;
+    _nameCtrl   = TextEditingController(text: v['visitorName']    as String? ?? '');
+    _phoneCtrl  = TextEditingController(text: v['visitorPhone']   as String? ?? '');
+    _emailCtrl  = TextEditingController(text: v['visitorEmail']   as String? ?? '');
+    _adultsCtrl = TextEditingController(text: (v['numberOfAdults'] ?? 1).toString());
+    _descCtrl   = TextEditingController(text: v['description']    as String? ?? '');
+    _noteCtrl   = TextEditingController(text: v['noteForWatchman'] as String? ?? '');
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose(); _phoneCtrl.dispose(); _emailCtrl.dispose();
+    _adultsCtrl.dispose(); _descCtrl.dispose(); _noteCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() { _isLoading = true; _errorMsg = null; });
+
+    final error = await ref.read(visitorsProvider.notifier).updateVisitor(
+      widget.visitor['id'] as String,
+      {
+        'visitorName':      _nameCtrl.text.trim(),
+        'visitorPhone':     _phoneCtrl.text.trim(),
+        'visitorEmail':     _emailCtrl.text.trim(),
+        'numberOfAdults':   int.tryParse(_adultsCtrl.text) ?? 1,
+        'description':      _descCtrl.text.trim(),
+        'noteForWatchman':  _noteCtrl.text.trim(),
+      },
+    );
+
+    if (mounted) {
+      if (error == null) {
+        setState(() => _isLoading = false);
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('Visitor updated successfully'),
+          backgroundColor: AppColors.success,
+        ));
+      } else {
+        setState(() { _isLoading = false; _errorMsg = error; });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppDimensions.screenPadding, AppDimensions.lg,
+        AppDimensions.screenPadding,
+        MediaQuery.of(context).viewInsets.bottom + AppDimensions.lg,
+      ),
+      child: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(child: Container(
+                width: 36, height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              )),
+              const SizedBox(height: AppDimensions.lg),
+              Text('Edit Visitor', style: AppTextStyles.h1),
+              const SizedBox(height: AppDimensions.lg),
+
+              TextFormField(
+                controller: _nameCtrl,
+                decoration: const InputDecoration(labelText: 'Visitor Name *', prefixIcon: Icon(Icons.person)),
+                textCapitalization: TextCapitalization.words,
+                validator: (v) => v?.trim().isEmpty == true ? 'Required' : null,
+              ),
+              const SizedBox(height: AppDimensions.md),
+
+              TextFormField(
+                controller: _phoneCtrl,
+                decoration: const InputDecoration(labelText: 'Phone Number *', prefixIcon: Icon(Icons.phone)),
+                keyboardType: TextInputType.phone,
+                validator: (v) => v?.trim().isEmpty == true ? 'Required' : null,
+              ),
+              const SizedBox(height: AppDimensions.md),
+
+              TextFormField(
+                controller: _emailCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Email (Optional)',
+                  prefixIcon: Icon(Icons.email_outlined),
+                ),
+                keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: AppDimensions.md),
+
+              Row(children: [
+                Expanded(
+                  flex: 1,
+                  child: TextFormField(
+                    controller: _adultsCtrl,
+                    decoration: const InputDecoration(labelText: 'Adults *', prefixIcon: Icon(Icons.people_outline)),
+                    keyboardType: TextInputType.number,
+                    validator: (v) => (int.tryParse(v ?? '') ?? 0) < 1 ? 'Min 1' : null,
+                  ),
+                ),
+                const SizedBox(width: AppDimensions.md),
+                Expanded(
+                  flex: 2,
+                  child: TextFormField(
+                    controller: _descCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Vehicle No / Desc',
+                      prefixIcon: Icon(Icons.directions_car_outlined),
+                    ),
+                    textCapitalization: TextCapitalization.characters,
+                  ),
+                ),
+              ]),
+              const SizedBox(height: AppDimensions.md),
+
+              TextFormField(
+                controller: _noteCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Purpose / Note for Watchman',
+                  prefixIcon: Icon(Icons.notes),
+                ),
+              ),
+              const SizedBox(height: AppDimensions.md),
+
+              if (_errorMsg != null) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(AppDimensions.sm),
+                  margin: const EdgeInsets.only(bottom: AppDimensions.md),
+                  decoration: BoxDecoration(
+                    color: AppColors.dangerSurface,
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                  ),
+                  child: Text(_errorMsg!,
+                      style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText)),
+                ),
+              ],
+
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: _isLoading ? null : _submit,
+                  icon: _isLoading
+                      ? const SizedBox(width: 18, height: 18,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Icon(Icons.save_rounded, size: 18),
+                  label: Text(_isLoading ? 'Saving…' : 'Save Changes'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.textOnPrimary,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Log Visitor Form ─────────────────────────────────────────────────────────
 
 class _LogVisitorForm extends ConsumerStatefulWidget {
   const _LogVisitorForm();

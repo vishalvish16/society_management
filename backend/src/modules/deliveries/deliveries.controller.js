@@ -163,6 +163,9 @@ exports.markCollected = async (req, res) => {
     if (!delivery || delivery.societyId !== societyId) {
       return sendError(res, 'Delivery not found', 404);
     }
+    if (!['PENDING', 'ALLOWED'].includes(delivery.status)) {
+      return sendError(res, `Delivery is already ${delivery.status}`, 400);
+    }
 
     const updated = await prisma.delivery.update({
       where: { id },
@@ -170,6 +173,31 @@ exports.markCollected = async (req, res) => {
     });
 
     return sendSuccess(res, updated, 'Delivery marked as collected');
+  } catch (error) {
+    return sendError(res, error.message, 500);
+  }
+};
+
+// PATCH /api/deliveries/:id/return  (Watchman marks returned to sender)
+exports.markReturned = async (req, res) => {
+  try {
+    const { societyId } = req.user;
+    const { id } = req.params;
+
+    const delivery = await prisma.delivery.findUnique({ where: { id } });
+    if (!delivery || delivery.societyId !== societyId) {
+      return sendError(res, 'Delivery not found', 404);
+    }
+    if (!['PENDING', 'DENIED'].includes(delivery.status)) {
+      return sendError(res, `Delivery is already ${delivery.status}`, 400);
+    }
+
+    const updated = await prisma.delivery.update({
+      where: { id },
+      data: { status: 'RETURNED', returnedAt: new Date() },
+    });
+
+    return sendSuccess(res, updated, 'Delivery marked as returned');
   } catch (error) {
     return sendError(res, error.message, 500);
   }

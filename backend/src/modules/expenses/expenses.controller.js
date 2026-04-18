@@ -1,4 +1,5 @@
 const expensesService = require('./expenses.service');
+const billsService = require('../bills/bills.service');
 const { sendSuccess, sendError } = require('../../utils/response');
 
 /**
@@ -125,6 +126,33 @@ async function rejectExpense(req, res) {
   }
 }
 
+async function convertToBill(req, res) {
+  try {
+    const { id } = req.params;
+    const { title, description } = req.body;
+    
+    // 1. Get expense
+    const expense = await expensesService.getExpenseById(id, req.user.societyId);
+    if (!expense) return sendError(res, 'Expense not found', 404);
+    if (expense.status !== 'APPROVED') return sendError(res, 'Only approved expenses can be converted to bills', 400);
+
+    // 2. Call billsService.splitExpenseAmongUnits
+    const result = await billsService.splitExpenseAmongUnits(
+      req.user.societyId,
+      id,
+      expense.totalAmount,
+      title || expense.title,
+      description || expense.description,
+      req.user.id
+    );
+
+    return sendSuccess(res, result, 'Expense split across all units successfully');
+  } catch (error) {
+    console.error('Convert expense to bill error:', error.message);
+    return sendError(res, error.message, error.status || 500);
+  }
+}
+
 module.exports = {
   getExpenses,
   submitExpense,
@@ -134,4 +162,5 @@ module.exports = {
   getPendingExpenses,
   approveExpense,
   rejectExpense,
+  convertToBill,
 };

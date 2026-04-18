@@ -134,6 +134,57 @@ async function getMyVisitors(req, res) {
   }
 }
 
+async function updateVisitor(req, res) {
+  try {
+    const { id } = req.params;
+    const { societyId, id: userId, role } = req.user;
+    const prisma = require('../../config/db');
+
+    const visitor = await prisma.visitor.findUnique({ where: { id } });
+    if (!visitor || visitor.societyId !== societyId) {
+      return sendError(res, 'Visitor not found', 404);
+    }
+    if (visitor.status !== 'PENDING') {
+      return sendError(res, 'Only pending visitors can be edited', 400);
+    }
+
+    const isAdmin = ['PRAMUKH', 'CHAIRMAN', 'SECRETARY'].includes(role);
+    if (!isAdmin && visitor.invitedById !== userId) {
+      return sendError(res, 'You can only edit visitors you invited', 403);
+    }
+
+    const { visitorName, visitorPhone, visitorEmail, numberOfAdults, description, noteForWatchman, expiryHours } = req.body;
+
+    const updateData = {};
+    if (visitorName)    updateData.visitorName    = visitorName;
+    if (visitorPhone)   updateData.visitorPhone   = visitorPhone;
+    if (visitorEmail !== undefined) updateData.visitorEmail = visitorEmail || null;
+    if (numberOfAdults) updateData.numberOfAdults = parseInt(numberOfAdults, 10);
+    if (description !== undefined)     updateData.description     = description || null;
+    if (noteForWatchman !== undefined) updateData.noteForWatchman = noteForWatchman || null;
+    if (expiryHours) {
+      const hrs = Math.max(1, parseInt(expiryHours, 10));
+      const newExpiry = new Date();
+      newExpiry.setHours(newExpiry.getHours() + hrs);
+      updateData.qrExpiresAt = newExpiry;
+    }
+
+    const updated = await prisma.visitor.update({
+      where: { id },
+      data:  updateData,
+      include: {
+        unit:    { select: { fullCode: true } },
+        inviter: { select: { id: true, name: true } },
+      },
+    });
+
+    return sendSuccess(res, updated, 'Visitor updated');
+  } catch (error) {
+    console.error('Update visitor error:', error.message);
+    return sendError(res, error.message, error.status || 500);
+  }
+}
+
 async function logWalkin(req, res) {
   try {
     const { unitId, visitorName, visitorPhone, numberOfAdults, description, noteForWatchman } = req.body;
@@ -189,6 +240,7 @@ async function getVisitorConfig(req, res) {
 module.exports = {
   getVisitors,
   inviteVisitor,
+  updateVisitor,
   validateToken,
   getMyVisitors,
   getVisitorLog,

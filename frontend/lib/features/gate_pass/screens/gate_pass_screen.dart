@@ -8,9 +8,10 @@ class GatePassScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
-      appBar: AppBar(title: Text('Gate Pass')),
-      body: Center(child: Text('Gate Pass Screen')),
+      appBar: isWide ? AppBar(title: const Text('Gate Pass')) : null,
+      body: const Center(child: Text('Gate Pass Screen')),
     );
   }
 }

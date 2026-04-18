@@ -26,9 +26,12 @@ const _channel = AndroidNotificationChannel(
 
 final _localNotifications = FlutterLocalNotificationsPlugin();
 
-final notificationServiceProvider = Provider((ref) => NotificationService());
+final notificationServiceProvider = Provider((ref) => NotificationService(ref));
 
 class NotificationService {
+  final Ref ref;
+  NotificationService(this.ref);
+
   FirebaseMessaging get _fcm => FirebaseMessaging.instance;
   final _logger = Logger();
   final _client = DioClient();
@@ -63,7 +66,7 @@ class NotificationService {
       onDidReceiveNotificationResponse: (details) {
         final route = details.payload;
         if (route != null && route.isNotEmpty) {
-          appRouter.go(route);
+          ref.read(appRouterProvider).go(route);
         }
       },
     );
@@ -146,7 +149,7 @@ class NotificationService {
   void _handleNavigation(Map<String, dynamic> data) {
     final route = data['route'] as String?;
     if (route != null && route.isNotEmpty) {
-      appRouter.go(route);
+      ref.read(appRouterProvider).go(route);
     }
   }
 }

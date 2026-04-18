@@ -10,6 +10,7 @@ import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_loading_shimmer.dart';
 import '../../bills/providers/my_pending_bills_provider.dart';
 import '../../bills/screens/upi_pay_sheet.dart';
+import '../../donations/screens/donate_sheet.dart';
 import '../providers/dashboard_provider.dart';
 
 /// Dashboard for MEMBER role — unit resident with committee privileges
@@ -89,6 +90,8 @@ class _WebMemberLayout extends StatelessWidget {
           ],
         ),
         const SizedBox(height: AppDimensions.md),
+        _CampaignBanner(stats: stats),
+        const SizedBox(height: AppDimensions.md),
 
         // KPI row (4 across on web)
         _MemberKpiRow(stats: stats, crossAxisCount: 4),
@@ -132,6 +135,7 @@ class _MobileMemberLayout extends StatelessWidget {
           const SizedBox(height: AppDimensions.md),
         ],
         _PendingBillsBanner(pendingBills: pendingBills),
+        _CampaignBanner(stats: stats),
         _MemberKpiRow(stats: stats, crossAxisCount: 2),
         const SizedBox(height: AppDimensions.lg),
 
@@ -285,6 +289,122 @@ class _PendingBillsBanner extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+// ─── Campaign banner ─────────────────────────────────────────────────────────
+
+class _CampaignBanner extends StatelessWidget {
+  final Map<String, dynamic> stats;
+  const _CampaignBanner({required this.stats});
+
+  @override
+  Widget build(BuildContext context) {
+    final campaigns = (stats['activeCampaigns'] as List?) ?? [];
+    // Only show campaigns where user hasn't paid yet
+    final filtered = campaigns.where((c) => c['hasPaid'] == false).toList();
+
+    if (filtered.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      children: [
+        ...filtered.map((c) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: AppDimensions.md),
+            child: AppCard(
+              padding: EdgeInsets.zero,
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () => showDonateSheet(
+                  context,
+                  campaignId: c['id'],
+                  campaignTitle: c['title'],
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.primary,
+                        AppColors.primary.withValues(alpha: 0.8),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppDimensions.lg),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.volunteer_activism_rounded,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: AppDimensions.md),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Active Campaign',
+                                style: AppTextStyles.labelSmall.copyWith(
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                c['title'] ?? 'Donation Campaign',
+                                style: AppTextStyles.h3.copyWith(color: Colors.white),
+                              ),
+                              if (c['description'] != null)
+                                Text(
+                                  c['description'],
+                                  style: AppTextStyles.bodySmall.copyWith(
+                                    color: Colors.white.withValues(alpha: 0.8),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: AppDimensions.md),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            'Donate',
+                            style: AppTextStyles.labelMedium.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
     );
   }
 }

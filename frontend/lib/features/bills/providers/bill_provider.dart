@@ -58,9 +58,9 @@ class BillsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
       });
 
       if (response.data['success'] == true) {
-        final raw = response.data['data'];
-        final List list = (raw is Map ? raw['bills'] : raw) ?? [];
-        _hasMore = list.length >= _limit;
+        final data = response.data['data'];
+        final List list = (data is Map ? data['bills'] : data) ?? [];
+        final total = (data is Map ? data['total'] : 0) ?? 0;
 
         if (refresh) {
           state = AsyncValue.data(list);
@@ -68,6 +68,7 @@ class BillsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
           final current = state.value ?? [];
           state = AsyncValue.data([...current, ...list]);
         }
+        _hasMore = (state.value?.length ?? 0) < total;
         if (_hasMore) _currentPage++;
       } else {
         if (refresh) {
@@ -96,13 +97,14 @@ class BillsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
     await fetchBills(refresh: false);
   }
 
-  Future<String?> bulkGenerate(DateTime month, double amount, DateTime dueDate) async {
+  Future<String?> bulkGenerate(DateTime month, double amount, DateTime dueDate, {int cycles = 1}) async {
     try {
       final dio = ref.read(dioProvider);
       final response = await dio.post('bills/generate', data: {
         'month': month.toIso8601String(),
         'defaultAmount': amount,
         'dueDate': dueDate.toIso8601String(),
+        'cycles': cycles,
       });
       if (response.data['success'] == true) {
         fetchBills();
@@ -132,6 +134,92 @@ class BillsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
     } catch (e) {
       if (e is DioException) return e.response?.data['message'] ?? e.message;
       return e.toString();
+    }
+  }
+
+  Future<String?> payAdvance({
+    required String unitId,
+    required int monthsCount,
+    required double amountPerMonth,
+    required String paymentMethod,
+    required DateTime startDate,
+    String? notes,
+  }) async {
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.post('bills/pay-advance', data: {
+        'unitId': unitId,
+        'monthsCount': monthsCount,
+        'amountPerMonth': amountPerMonth,
+        'paymentMethod': paymentMethod,
+        'startDate': startDate.toIso8601String(),
+        'notes': notes,
+      });
+      if (response.data['success'] == true) {
+        fetchBills();
+        return null;
+      }
+      return response.data['message'] ?? 'Failed to pay advance';
+    } catch (e) {
+      if (e is DioException) return e.response?.data['message'] ?? e.message;
+      return e.toString();
+    }
+  }
+
+  Future<String?> deleteBill(String billId) async {
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.delete('bills/$billId');
+      if (response.data['success'] == true) {
+        await fetchBills();
+        return null;
+      }
+      return response.data['message'] ?? 'Failed to delete bill';
+    } catch (e) {
+      if (e is DioException) return e.response?.data['message'] ?? e.message;
+      return e.toString();
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getBillAuditLogs(String billId) async {
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.get('bills/$billId/audit-logs');
+      if (response.data['success'] == true) {
+        return List<Map<String, dynamic>>.from(response.data['data'] ?? const []);
+      }
+      throw Exception(response.data['message'] ?? 'Failed to load bill audit logs');
+    } catch (e) {
+      if (e is DioException) {
+        throw Exception(e.response?.data['message'] ?? e.message);
+      }
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> getAllBillAuditLogs({
+    int page = 1,
+    int limit = 20,
+    String? action,
+    String? billId,
+  }) async {
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.get('bills/audit-logs', queryParameters: {
+        'page': page,
+        'limit': limit,
+        if (action != null && action.isNotEmpty) 'action': action,
+        if (billId != null && billId.isNotEmpty) 'billId': billId,
+      });
+      if (response.data['success'] == true) {
+        return Map<String, dynamic>.from(response.data['data'] ?? const {});
+      }
+      throw Exception(response.data['message'] ?? 'Failed to load audit logs');
+    } catch (e) {
+      if (e is DioException) {
+        throw Exception(e.response?.data['message'] ?? e.message);
+      }
+      rethrow;
     }
   }
 }

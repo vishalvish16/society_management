@@ -23,5 +23,6 @@ router.put('/:id', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'WATCHMAN']), 
 router.patch('/:id/approve', roleGuard(['PRAMUKH', 'CHAIRMAN']), expensesController.approveExpense);
 router.patch('/:id/reject', roleGuard(['PRAMUKH', 'CHAIRMAN']), expensesController.rejectExpense);
 router.patch('/:id/review', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), expensesController.reviewExpense);
+router.post('/:id/convert-to-bill', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), expensesController.convertToBill);
 
 module.exports = router;

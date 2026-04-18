@@ -93,7 +93,7 @@ async function listVisitors(societyId, filters = {}) {
       where,
       include: {
         unit:    { select: { fullCode: true } },
-        inviter: { select: { name: true } },
+        inviter: { select: { id: true, name: true } },
         log:     { include: { scanner: { select: { name: true } } } },
       },
       skip,

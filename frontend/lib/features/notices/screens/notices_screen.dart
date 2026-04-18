@@ -21,13 +21,16 @@ class NoticesScreen extends ConsumerWidget {
     final isAdmin = _adminRoles.contains(role);
     final state = ref.watch(noticesProvider);
 
+    final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        title: Text('Notices',
-            style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
-      ),
+      appBar: isWide
+          ? AppBar(
+              backgroundColor: AppColors.primary,
+              title: Text('Notices',
+                  style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
+            )
+          : null,
       floatingActionButton: isAdmin
           ? FloatingActionButton.extended(
               onPressed: () => _showNoticeSheet(context, ref, null),
@@ -143,7 +146,7 @@ class _NoticeCard extends StatelessWidget {
     final body = n['body'] as String? ?? '';
     final isPinned = n['isPinned'] as bool? ?? false;
     final createdAt = n['createdAt'] as String? ?? '';
-    final createdBy = (n['createdBy'] as Map?)?['name'] as String? ?? '-';
+    final createdBy = (n['creator'] as Map?)?['name'] as String? ?? '-';
 
     return AppCard(
       padding: const EdgeInsets.all(AppDimensions.md),

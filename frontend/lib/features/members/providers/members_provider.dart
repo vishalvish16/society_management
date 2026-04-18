@@ -61,7 +61,7 @@ class MembersNotifier extends StateNotifier<AsyncValue<List<Member>>> {
   bool get hasMore => _hasMore;
   bool get isLoadingMore => _isLoadingMore;
 
-  Future<void> loadMembers({bool refresh = true}) async {
+  Future<void> loadMembers({bool refresh = true, String? role}) async {
     if (!authState.isAuthenticated) return;
     
     if (refresh) {
@@ -81,12 +81,14 @@ class MembersNotifier extends StateNotifier<AsyncValue<List<Member>>> {
       final response = await dio.get('members', queryParameters: {
         'page': _currentPage,
         'limit': _limit,
+        if (role != null && role != 'All') 'role': role.toUpperCase(),
       });
       
       if (response.data['success'] == true) {
-        final List list = response.data['data']['members'] ?? [];
+        final data = response.data['data'];
+        final List list = data['members'] ?? [];
+        final total = data['total'] ?? 0;
         final List<Member> members = list.map((e) => Member.fromJson(e)).toList();
-        _hasMore = members.length >= _limit;
         
         if (refresh) {
           state = AsyncValue.data(members);
@@ -94,6 +96,8 @@ class MembersNotifier extends StateNotifier<AsyncValue<List<Member>>> {
           final current = state.value ?? [];
           state = AsyncValue.data([...current, ...members]);
         }
+        
+        _hasMore = (state.value?.length ?? 0) < total;
         
         if (_hasMore) {
           _currentPage++;

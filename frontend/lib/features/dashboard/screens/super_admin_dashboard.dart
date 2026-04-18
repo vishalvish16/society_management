@@ -21,17 +21,20 @@ class SuperAdminDashboard extends ConsumerWidget {
       {'name': 'Royal Heights', 'plan': 'basic', 'units': 32, 'status': 'suspended', 'city': 'Nashik'},
     ];
 
+    final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.surface,
-        elevation: 0,
-        title: Text('Super Admin', style: AppTextStyles.titleLarge),
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: () {}),
-          const SizedBox(width: 8),
-        ],
-      ),
+      appBar: isWide
+          ? AppBar(
+              backgroundColor: AppColors.surface,
+              elevation: 0,
+              title: Text('Super Admin', style: AppTextStyles.titleLarge),
+              actions: [
+                IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: () {}),
+                const SizedBox(width: 8),
+              ],
+            )
+          : null,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(

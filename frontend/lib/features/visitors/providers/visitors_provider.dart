@@ -114,6 +114,23 @@ class VisitorsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
     }
   }
 
+  /// Update a pending visitor invitation.
+  Future<String?> updateVisitor(String id, Map<String, dynamic> data) async {
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.patch('visitors/$id', data: data);
+      if (response.data['success'] == true) {
+        fetchVisitors();
+        return null;
+      }
+      return response.data['message'] ?? 'Failed to update visitor';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to update visitor';
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
   /// Invite visitor — generates QR and dispatches via WhatsApp + email.
   Future<String?> inviteVisitor(Map<String, dynamic> data) async {
     try {

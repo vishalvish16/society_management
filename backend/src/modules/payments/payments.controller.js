@@ -155,4 +155,205 @@ async function verifyPayment(req, res) {
   }
 }
 
-module.exports = { getPaymentConfig, createOrder, verifyPayment };
+/**
+ * POST /api/payments/create-donation-order
+ */
+async function createDonationOrder(req, res) {
+  try {
+    const { amount, campaignId } = req.body;
+    if (!amount || amount <= 0) return sendError(res, 'amount is required and must be > 0', 400);
+
+    const razorpay = await getRazorpayForSociety(req.user.societyId);
+    if (!razorpay)
+      return sendError(res, 'Payment gateway not configured. Contact your admin.', 400);
+
+    const order = await razorpay.orders.create({
+      amount: Math.round(amount * 100), // paise
+      currency: 'INR',
+      receipt: `don_${Date.now()}`,
+      notes: {
+        campaignId: campaignId || '',
+        societyId: req.user.societyId,
+        isDonation: 'true'
+      },
+    });
+
+    return sendSuccess(res, {
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+    }, 'Donation order created');
+  } catch (err) {
+    console.error('Create donation order error:', err.message);
+    return sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * POST /api/payments/verify-donation
+ */
+async function verifyDonationPayment(req, res) {
+  try {
+    const { razorpayOrderId, razorpayPaymentId, razorpaySignature, amount, campaignId, note } = req.body;
+
+    if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature || !amount) {
+      return sendError(res, 'Missing payment verification fields', 400);
+    }
+
+    const society = await prisma.society.findUnique({
+      where: { id: req.user.societyId },
+      select: { settings: true },
+    });
+    const keySecret = society?.settings?.razorpayKeySecret;
+    if (!keySecret) return sendError(res, 'Payment gateway not configured', 400);
+
+    const expectedSignature = crypto
+      .createHmac('sha256', keySecret)
+      .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+      .digest('hex');
+
+    if (expectedSignature !== razorpaySignature) {
+      return sendError(res, 'Payment verification failed — invalid signature', 400);
+    }
+
+    const donation = await prisma.donation.create({
+      data: {
+        societyId: req.user.societyId,
+        donorId: req.user.id,
+        campaignId: campaignId || null,
+        amount: Number(amount),
+        paymentMethod: 'ONLINE',
+        note: `Razorpay | Order: ${razorpayOrderId} | Payment: ${razorpayPaymentId}${note ? ' | User Note: ' + note : ''}`,
+        paidAt: new Date(),
+      }
+    });
+
+    return sendSuccess(res, {
+      donation,
+      razorpayPaymentId,
+      razorpayOrderId,
+    }, 'Donation verified and recorded');
+  } catch (err) {
+    console.error('Verify donation payment error:', err.message);
+    return sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * POST /api/payments/create-complaint-order
+ */
+async function createComplaintOrder(req, res) {
+  try {
+    const { complaintId } = req.body;
+    if (!complaintId) return sendError(res, 'complaintId is required', 400);
+
+    const complaint = await prisma.complaint.findUnique({
+      where: { id: complaintId },
+      include: { unit: { select: { fullCode: true } } },
+    });
+
+    if (!complaint) return sendError(res, 'Complaint not found', 404);
+    if (complaint.societyId !== req.user.societyId)
+      return sendError(res, 'Access denied', 403);
+    if (complaint.paymentStatus === 'PAID')
+      return sendError(res, 'Complaint is already paid', 400);
+
+    const amount = Number(complaint.amount) || 0;
+    const paid = Number(complaint.paidAmount) || 0;
+    const remaining = amount - paid;
+    if (remaining <= 0) return sendError(res, 'No outstanding amount', 400);
+
+    const razorpay = await getRazorpayForSociety(req.user.societyId);
+    if (!razorpay)
+      return sendError(res, 'Payment gateway not configured. Contact your admin.', 400);
+
+    const order = await razorpay.orders.create({
+      amount: Math.round(remaining * 100), // paise
+      currency: 'INR',
+      receipt: `comp_${complaintId.slice(0, 20)}`,
+      notes: {
+        complaintId,
+        unitCode: complaint.unit?.fullCode ?? '',
+        societyId: req.user.societyId,
+      },
+    });
+
+    return sendSuccess(res, {
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      complaintId,
+      remaining,
+    }, 'Complaint order created');
+  } catch (err) {
+    console.error('Create complaint order error:', err.message);
+    return sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * POST /api/payments/verify-complaint
+ */
+async function verifyComplaintPayment(req, res) {
+  try {
+    const { complaintId, razorpayOrderId, razorpayPaymentId, razorpaySignature, paidAmount } = req.body;
+
+    if (!complaintId || !razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+      return sendError(res, 'Missing payment verification fields', 400);
+    }
+
+    const society = await prisma.society.findUnique({
+      where: { id: req.user.societyId },
+      select: { settings: true },
+    });
+    const keySecret = society?.settings?.razorpayKeySecret;
+    if (!keySecret) return sendError(res, 'Payment gateway not configured', 400);
+
+    const expectedSignature = crypto
+      .createHmac('sha256', keySecret)
+      .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+      .digest('hex');
+
+    if (expectedSignature !== razorpaySignature) {
+      return sendError(res, 'Payment verification failed — invalid signature', 400);
+    }
+
+    const complaint = await prisma.complaint.findUnique({ where: { id: complaintId } });
+    if (!complaint) return sendError(res, 'Complaint not found', 404);
+
+    const amount = paidAmount ? Number(paidAmount) : (Number(complaint.amount) - Number(complaint.paidAmount));
+    const newPaidAmount = Number(complaint.paidAmount) + amount;
+    const remaining = Number(complaint.amount) - newPaidAmount;
+    const newStatus = remaining <= 0 ? 'PAID' : 'PARTIAL';
+
+    const updated = await prisma.complaint.update({
+      where: { id: complaintId },
+      data: {
+        paidAmount: newPaidAmount,
+        paidAt: new Date(),
+        paymentMethod: 'ONLINE',
+        transactionId: razorpayPaymentId,
+        paymentStatus: newStatus,
+      },
+    });
+
+    return sendSuccess(res, {
+      complaint: updated,
+      razorpayPaymentId,
+      razorpayOrderId,
+    }, 'Complaint payment verified and recorded');
+  } catch (err) {
+    console.error('Verify complaint payment error:', err.message);
+    return sendError(res, err.message, 500);
+  }
+}
+
+module.exports = { 
+  getPaymentConfig, 
+  createOrder, 
+  verifyPayment, 
+  createDonationOrder, 
+  verifyDonationPayment,
+  createComplaintOrder,
+  verifyComplaintPayment
+};

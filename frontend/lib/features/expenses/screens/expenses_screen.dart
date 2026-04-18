@@ -70,15 +70,18 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
     final notifier = ref.read(expensesProvider.notifier);
     final fmt = NumberFormat('#,##0');
 
+    final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        title: Text(
-          'Expenses',
-          style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary),
-        ),
-      ),
+      appBar: isWide
+          ? AppBar(
+              backgroundColor: AppColors.primary,
+              title: Text(
+                'Expenses',
+                style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary),
+              ),
+            )
+          : null,
       floatingActionButton: isAdmin
           ? FloatingActionButton.extended(
               onPressed: () => _showAddDialog(context),
@@ -581,6 +584,26 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                 ),
               ),
             ],
+            const SizedBox(height: AppDimensions.xl),
+            if (isAdmin && status == 'approved')
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    final error = await ref.read(expensesProvider.notifier).convertToBill(ex['id']);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(error ?? 'Expense split and bill generated for all units'),
+                        backgroundColor: error == null ? AppColors.success : AppColors.danger,
+                      ));
+                    }
+                  },
+                  icon: const Icon(Icons.receipt_long_rounded),
+                  label: const Text('Split Among Units (Generate Bills)'),
+                  style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+                ),
+              ),
             const SizedBox(height: AppDimensions.xl),
           ],
         ),

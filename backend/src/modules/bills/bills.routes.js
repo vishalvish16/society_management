@@ -12,9 +12,13 @@ router.use(authMiddleware);
 router.get('/mine', billsController.getMyBills);
 
 // Admin-only
+router.get('/audit-logs', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), billsController.getAllBillAuditLogs);
 router.get('/defaulters', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), billsController.getDefaulters);
 router.get('/', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), billsController.getBills);
 router.post('/generate', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), billsController.bulkGenerate);
+router.post('/pay-advance', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'RESIDENT']), billsController.payAdvance);
+router.get('/:id/audit-logs', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), billsController.getBillAuditLogs);
+router.delete('/:id', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), billsController.deleteBill);
 
 // Any authenticated user can pay their own bill (service enforces ownership)
 router.post('/:id/pay', billsController.recordPayment);

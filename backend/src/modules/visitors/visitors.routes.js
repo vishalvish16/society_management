@@ -24,6 +24,9 @@ router.post('/invite', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'RESIDENT'
 // Manual Log (Walk-in, only watchmen and admins)
 router.post('/log-entry', roleGuard(['WATCHMAN', 'PRAMUKH', 'CHAIRMAN', 'SECRETARY']), checkPlanLimit('visitors'), visitorsController.logWalkin);
 
+// Update pending visitor (inviter or admin)
+router.patch('/:id', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'RESIDENT', 'MEMBER']), visitorsController.updateVisitor);
+
 // Validate (Only watchmen)
 router.post('/validate', roleGuard(['WATCHMAN']), visitorsController.validateToken);
 

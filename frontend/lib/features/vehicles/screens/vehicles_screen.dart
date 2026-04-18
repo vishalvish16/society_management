@@ -431,13 +431,16 @@ class _VehiclesScreenState extends ConsumerState<VehiclesScreen> {
       );
     }
 
+    final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        title: Text('Vehicles',
-            style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
-      ),
+      appBar: isWide
+          ? AppBar(
+              backgroundColor: AppColors.primary,
+              title: Text('Vehicles',
+                  style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
+            )
+          : null,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showVehicleSheet(context),
         backgroundColor: AppColors.primary,

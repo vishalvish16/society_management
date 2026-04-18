@@ -21,7 +21,8 @@ class DeliveryScreen extends ConsumerStatefulWidget {
 class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
   String _filter = 'all';
 
-  static const _staffRoles = {'WATCHMAN', 'PRAMUKH', 'SECRETARY'};
+  static const _staffRoles  = {'WATCHMAN', 'PRAMUKH', 'SECRETARY', 'CHAIRMAN'};
+  static const _residentRoles = {'RESIDENT', 'MEMBER'};
 
   Color _borderColor(String status) {
     switch (status) {
@@ -46,17 +47,21 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
   Widget build(BuildContext context) {
     final deliveryState = ref.watch(deliveryProvider);
     final role = ref.watch(authProvider).user?.role ?? '';
-    final isStaff = _staffRoles.contains(role);
+    final isStaff    = _staffRoles.contains(role);
+    final isResident = _residentRoles.contains(role);
 
+    final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        title: Text(
-          'Deliveries',
-          style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary),
-        ),
-      ),
+      appBar: isWide
+          ? AppBar(
+              backgroundColor: AppColors.primary,
+              title: Text(
+                'Deliveries',
+                style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary),
+              ),
+            )
+          : null,
       floatingActionButton: isStaff
           ? FloatingActionButton.extended(
               onPressed: () => _showLogDeliverySheet(context),
@@ -203,24 +208,75 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
                               style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
                             ),
                           ],
-                          // Mark Collected button for staff on pending deliveries
-                          if (isStaff && status == 'pending' && id.isNotEmpty) ...[
+                          // ── Resident: Allow / Deny on PENDING ──────────
+                          if (isResident && status == 'pending' && id.isNotEmpty) ...[
+                            const SizedBox(height: AppDimensions.sm),
+                            Row(children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () => _respond(id, 'ALLOWED'),
+                                  icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
+                                  label: const Text('Allow'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.success,
+                                    side: const BorderSide(color: AppColors.success),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
+                                    padding: const EdgeInsets.symmetric(vertical: AppDimensions.sm),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: AppDimensions.sm),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () => _respond(id, 'DENIED'),
+                                  icon: const Icon(Icons.cancel_outlined, size: 16),
+                                  label: const Text('Deny'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.danger,
+                                    side: const BorderSide(color: AppColors.danger),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
+                                    padding: const EdgeInsets.symmetric(vertical: AppDimensions.sm),
+                                  ),
+                                ),
+                              ),
+                            ]),
+                          ],
+                          // ── Staff: Mark Collected on PENDING or ALLOWED ─
+                          if (isStaff && (status == 'pending' || status == 'allowed') && id.isNotEmpty) ...[
                             const SizedBox(height: AppDimensions.sm),
                             SizedBox(
                               width: double.infinity,
-                              child: OutlinedButton(
+                              child: OutlinedButton.icon(
                                 onPressed: () => _markCollected(id),
+                                icon: const Icon(Icons.check_rounded, size: 16),
+                                label: const Text('Mark Collected'),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: AppColors.success,
                                   side: const BorderSide(color: AppColors.success),
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                                  ),
+                                      borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
                                   padding: const EdgeInsets.symmetric(vertical: AppDimensions.sm),
                                 ),
-                                child: Text(
-                                  'Mark Collected',
-                                  style: AppTextStyles.labelLarge.copyWith(color: AppColors.success),
+                              ),
+                            ),
+                          ],
+                          // ── Staff: Mark Returned on PENDING or DENIED ───
+                          if (isStaff && (status == 'pending' || status == 'denied') && id.isNotEmpty) ...[
+                            const SizedBox(height: AppDimensions.sm),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: () => _markReturned(id),
+                                icon: const Icon(Icons.undo_rounded, size: 16),
+                                label: const Text('Mark Returned to Sender'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.textMuted,
+                                  side: const BorderSide(color: AppColors.border),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
+                                  padding: const EdgeInsets.symmetric(vertical: AppDimensions.sm),
                                 ),
                               ),
                             ),
@@ -241,12 +297,30 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
   Future<void> _markCollected(String id) async {
     final error = await ref.read(deliveryProvider.notifier).markCollected(id);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error ?? 'Marked as collected'),
-          backgroundColor: error == null ? AppColors.success : AppColors.danger,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(error ?? 'Marked as collected'),
+        backgroundColor: error == null ? AppColors.success : AppColors.danger,
+      ));
+    }
+  }
+
+  Future<void> _markReturned(String id) async {
+    final error = await ref.read(deliveryProvider.notifier).markReturned(id);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(error ?? 'Marked as returned to sender'),
+        backgroundColor: error == null ? AppColors.success : AppColors.danger,
+      ));
+    }
+  }
+
+  Future<void> _respond(String id, String action) async {
+    final error = await ref.read(deliveryProvider.notifier).respondDelivery(id, action);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(error ?? (action == 'ALLOWED' ? 'Delivery allowed' : 'Delivery denied')),
+        backgroundColor: error == null ? AppColors.success : AppColors.danger,
+      ));
     }
   }
 

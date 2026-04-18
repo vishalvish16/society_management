@@ -14,6 +14,19 @@ const createComplaint = async (req, res) => {
       include: { raisedBy: { select: { name: true } } },
     });
 
+    if (req.files && req.files.length > 0) {
+      const attachmentsData = req.files.map(f => ({
+        complaintId: complaint.id,
+        fileName: f.originalname,
+        fileType: f.mimetype,
+        fileSize: f.size,
+        fileUrl: `/uploads/complaints/${f.filename}`,
+      }));
+      await prisma.complaintAttachment.createMany({ data: attachmentsData });
+      // include attachments in the response
+      complaint.attachments = await prisma.complaintAttachment.findMany({ where: { complaintId: complaint.id } });
+    }
+
     // Notify admins about new complaint
     setImmediate(() => notificationsService.sendNotification(raisedById, societyId, {
       targetType: 'role',
@@ -47,6 +60,7 @@ const getComplaints = async (req, res) => {
           raisedBy: { select: { name: true, phone: true } },
           assignedTo: { select: { name: true } },
           unit: { select: { fullCode: true } },
+          attachments: true,
         },
         orderBy: { createdAt: 'desc' },
       }),
@@ -68,6 +82,7 @@ const getComplaintById = async (req, res) => {
         raisedBy: { select: { name: true, phone: true } },
         assignedTo: { select: { name: true } },
         unit: { select: { fullCode: true } },
+        attachments: true,
       },
     });
     if (!complaint || complaint.societyId !== societyId) return sendError(res, 'Complaint not found', 404);
@@ -81,7 +96,8 @@ const updateComplaint = async (req, res) => {
   try {
     const { societyId } = req.user;
     const { id } = req.params;
-    const { status, assignedToId, resolutionNote } = req.body;
+    const { status, assignedToId, resolutionNote, amount, paidAmount, paymentMethod, transactionId } = req.body;
+    const userRole = req.user.role.toUpperCase();
 
     const complaint = await prisma.complaint.findUnique({
       where: { id },
@@ -92,6 +108,11 @@ const updateComplaint = async (req, res) => {
     });
     if (!complaint || complaint.societyId !== societyId) return sendError(res, 'Complaint not found', 404);
 
+    // Only PRAMUKH or CHAIRMAN can record manual payments
+    if (paidAmount !== undefined && !['PRAMUKH', 'CHAIRMAN'].includes(userRole)) {
+      return sendError(res, 'Only Pramukh or Chairman can record manual payments', 403);
+    }
+
     const updateData = {};
     if (status) updateData.status = status.toUpperCase();
     if (assignedToId !== undefined) updateData.assignedToId = assignedToId || null;
@@ -99,6 +120,27 @@ const updateComplaint = async (req, res) => {
     if (status?.toUpperCase() === 'RESOLVED') updateData.resolvedAt = new Date();
     // Auto-set ASSIGNED when assignee is set
     if (assignedToId && !status) updateData.status = 'ASSIGNED';
+
+    if (amount !== undefined) updateData.amount = amount;
+    if (paidAmount !== undefined) {
+      updateData.paidAmount = paidAmount;
+      updateData.paidAt = new Date();
+      if (paymentMethod) updateData.paymentMethod = paymentMethod;
+      if (transactionId) updateData.transactionId = transactionId;
+    }
+
+    // Recalculate payment status if relevant fields changed
+    if (amount !== undefined || paidAmount !== undefined) {
+      const curAmount = Number(amount !== undefined ? amount : complaint.amount);
+      const curPaid = Number(paidAmount !== undefined ? paidAmount : complaint.paidAmount);
+      if (curPaid >= curAmount && curAmount > 0) {
+        updateData.paymentStatus = 'PAID';
+      } else if (curPaid > 0) {
+        updateData.paymentStatus = 'PARTIAL';
+      } else {
+        updateData.paymentStatus = 'UNPAID';
+      }
+    }
 
     const updated = await prisma.complaint.update({ where: { id }, data: updateData });
 

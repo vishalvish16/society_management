@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
@@ -13,6 +15,7 @@ import '../../../shared/widgets/unit_picker_field.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
 import '../../members/providers/members_provider.dart';
+import 'pay_complaint_sheet.dart';
 
 class ComplaintsScreen extends ConsumerStatefulWidget {
   const ComplaintsScreen({super.key});
@@ -70,20 +73,23 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
                 statusMap[_filter])
             .toList();
 
+    final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        title: Text('Complaints',
-            style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: AppColors.textOnPrimary),
-            onPressed: () => ref.read(complaintsProvider.notifier).loadComplaints(
-                status: _filter == 'all' ? null : statusMap[_filter]),
-          ),
-        ],
-      ),
+      appBar: isWide
+          ? AppBar(
+              backgroundColor: AppColors.primary,
+              title: Text('Complaints',
+                  style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh_rounded, color: AppColors.textOnPrimary),
+                  onPressed: () => ref.read(complaintsProvider.notifier).loadComplaints(
+                      status: _filter == 'all' ? null : statusMap[_filter]),
+                ),
+              ],
+            )
+          : null,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showRaiseSheet(context),
         backgroundColor: AppColors.primary,
@@ -184,8 +190,8 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
         lockUnit: lockUnit,
         preUnitId: lockUnit ? user?.unitId : null,
         preUnitCode: lockUnit ? user?.unitCode : null,
-        onSubmit: (data) async {
-          return await ref.read(complaintsProvider.notifier).createComplaint(data);
+        onSubmit: (data, attachments) async {
+          return await ref.read(complaintsProvider.notifier).createComplaint(data, attachments: attachments);
         },
       ),
     );
@@ -195,7 +201,7 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
 // ── Raise Complaint Bottom Sheet ──────────────────────────────────────────────
 
 class _RaiseComplaintSheet extends StatefulWidget {
-  final Future<String?> Function(Map<String, dynamic>) onSubmit;
+  final Future<String?> Function(Map<String, dynamic>, List<PlatformFile>?) onSubmit;
   final bool lockUnit;
   final String? preUnitId;
   final String? preUnitCode;
@@ -219,6 +225,7 @@ class _RaiseComplaintSheetState extends State<_RaiseComplaintSheet> {
   String _priority = 'medium';
   bool _submitting = false;
   String? _errorMsg;
+  List<PlatformFile> _attachments = [];
 
   @override
   void initState() {
@@ -295,6 +302,32 @@ class _RaiseComplaintSheetState extends State<_RaiseComplaintSheet> {
               items: _priorities.map((v) => AppDropdownItem(value: v, label: v.toUpperCase())).toList(),
               onChanged: (v) { if (v != null) setState(() => _priority = v); },
             ),
+            const SizedBox(height: AppDimensions.md),
+            _label('Attachments (Optional)'),
+            const SizedBox(height: AppDimensions.xs),
+            OutlinedButton.icon(
+              onPressed: _pickFiles,
+              icon: const Icon(Icons.attach_file_rounded, size: 18),
+              label: const Text('Attach Photos, Videos, or Docs'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.border),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
+              ),
+            ),
+            if (_attachments.isNotEmpty) ...[
+              const SizedBox(height: AppDimensions.sm),
+              Wrap(
+                spacing: AppDimensions.sm,
+                runSpacing: AppDimensions.sm,
+                children: _attachments.map((file) => Chip(
+                  label: Text(file.name, style: AppTextStyles.caption.copyWith(color: AppColors.textPrimary)),
+                  backgroundColor: AppColors.surfaceVariant,
+                  deleteIcon: const Icon(Icons.close, size: 16),
+                  onDeleted: () => setState(() => _attachments.remove(file)),
+                )).toList(),
+              ),
+            ],
             if (_errorMsg != null) ...[
               const SizedBox(height: AppDimensions.md),
               Container(
@@ -383,7 +416,7 @@ class _RaiseComplaintSheetState extends State<_RaiseComplaintSheet> {
       'category': _category,
       'unitId': _selectedUnitId!,
       'priority': _priority,
-    });
+    }, _attachments);
     if (mounted) {
       if (error == null) {
         Navigator.pop(context);
@@ -397,6 +430,19 @@ class _RaiseComplaintSheetState extends State<_RaiseComplaintSheet> {
           _errorMsg = error;
         });
       }
+    }
+  }
+
+  Future<void> _pickFiles() async {
+    final result = await FilePicker.pickFiles(
+      allowMultiple: true,
+      type: FileType.custom,
+      allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf', 'mp4', 'doc', 'docx'],
+    );
+    if (result != null) {
+      setState(() {
+        _attachments.addAll(result.files);
+      });
     }
   }
 }
@@ -427,6 +473,12 @@ class _ComplaintCard extends ConsumerWidget {
     final createdAt = c['createdAt'] as String? ?? '';
     final id = c['id'] as String? ?? '';
     final resolutionNote = c['resolutionNote'] as String?;
+    
+    // Payment info
+    final amount = double.tryParse(c['amount']?.toString() ?? '0') ?? 0;
+    final paidAmount = double.tryParse(c['paidAmount']?.toString() ?? '0') ?? 0;
+    final paymentStatus = c['paymentStatus'] as String? ?? 'UNPAID';
+    final isPaid = paymentStatus == 'PAID' || (amount > 0 && paidAmount >= amount);
 
     return GestureDetector(
       onTap: () => _showDetailSheet(context, c),
@@ -505,6 +557,38 @@ class _ComplaintCard extends ConsumerWidget {
                 ],
               ),
             ],
+            if (amount > 0) ...[
+              const SizedBox(height: AppDimensions.sm),
+              const Divider(height: 1),
+              const SizedBox(height: AppDimensions.sm),
+              Row(
+                children: [
+                   Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Amount Due', style: AppTextStyles.caption.copyWith(color: AppColors.textMuted)),
+                      Text('₹${(amount - paidAmount).toStringAsFixed(0)}', 
+                        style: AppTextStyles.labelLarge.copyWith(color: isPaid ? AppColors.success : AppColors.danger)),
+                    ],
+                  ),
+                  const Spacer(),
+                  if (!isPaid)
+                    ElevatedButton.icon(
+                      onPressed: () => showPayComplaintSheet(context, c),
+                      icon: const Icon(Icons.payment_rounded, size: 14),
+                      label: const Text('PAY'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    )
+                  else
+                    _badge('PAID', AppColors.successSurface, AppColors.successText),
+                ],
+              ),
+            ],
             if (isAdmin) ...[
               const SizedBox(height: AppDimensions.sm),
               Row(
@@ -564,6 +648,11 @@ class _ComplaintDetailSheet extends StatelessWidget {
     final resolutionNote = c['resolutionNote'] as String?;
     final createdAt = c['createdAt'] as String? ?? '';
     final resolvedAt = c['resolvedAt'] as String?;
+
+    final amount = double.tryParse(c['amount']?.toString() ?? '0') ?? 0;
+    final paidAmount = double.tryParse(c['paidAmount']?.toString() ?? '0') ?? 0;
+    final paymentStatus = (c['paymentStatus'] as String? ?? 'UNPAID').toUpperCase();
+    final isPaid = paymentStatus == 'PAID' || (amount > 0 && paidAmount >= amount);
 
     return DraggableScrollableSheet(
       expand: false,
@@ -626,6 +715,34 @@ class _ComplaintDetailSheet extends StatelessWidget {
                 child: Text(resolutionNote,
                     style: AppTextStyles.bodyMedium.copyWith(color: AppColors.successText)),
               ),
+            ],
+            if (amount > 0) ...[
+              const SizedBox(height: AppDimensions.md),
+              const Divider(),
+              const SizedBox(height: AppDimensions.sm),
+              Text('Payment Information', style: AppTextStyles.labelLarge.copyWith(color: AppColors.textSecondary)),
+              const SizedBox(height: AppDimensions.sm),
+              _row('Total Charges', '₹${amount.toStringAsFixed(2)}'),
+              _row('Paid Amount', '₹${paidAmount.toStringAsFixed(2)}'),
+              _row('Due Amount', '₹${(amount - paidAmount).toStringAsFixed(2)}'),
+              _row('Payment Status', paymentStatus),
+              if (c['paymentMethod'] != null) _row('Method', c['paymentMethod']),
+              if (c['transactionId'] != null) _row('Transaction ID', c['transactionId']),
+              if (c['paidAt'] != null) _row('Paid At', DateFormat('dd MMM yyyy HH:mm').format(DateTime.parse(c['paidAt']))),
+              if (!isPaid) ...[
+                const SizedBox(height: AppDimensions.lg),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      showPayComplaintSheet(context, c);
+                    },
+                    icon: const Icon(Icons.payment_rounded),
+                    label: const Text('Make Payment'),
+                  ),
+                ),
+              ],
             ],
           ],
         ),
@@ -792,6 +909,7 @@ class _UpdateStatusButton extends ConsumerWidget {
 
   void _showResolveDialog(BuildContext context, WidgetRef ref, String newStatus) {
     final noteCtrl = TextEditingController();
+    final amountCtrl = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -814,6 +932,21 @@ class _UpdateStatusButton extends ConsumerWidget {
                 ),
               ),
             ),
+            const SizedBox(height: AppDimensions.md),
+            Text('Amount to charge (if any):',
+                style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary)),
+            const SizedBox(height: AppDimensions.sm),
+            TextField(
+              controller: amountCtrl,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                hintText: '0.00',
+                prefixText: '₹ ',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                ),
+              ),
+            ),
           ],
         ),
         actions: [
@@ -828,6 +961,9 @@ class _UpdateStatusButton extends ConsumerWidget {
               final data = <String, dynamic>{'status': newStatus};
               if (noteCtrl.text.trim().isNotEmpty) {
                 data['resolutionNote'] = noteCtrl.text.trim();
+              }
+              if (amountCtrl.text.isNotEmpty) {
+                data['amount'] = double.tryParse(amountCtrl.text);
               }
               final error = await ref
                   .read(complaintsProvider.notifier)

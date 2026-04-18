@@ -12,6 +12,7 @@ import '../../../shared/widgets/app_status_chip.dart';
 import '../providers/gate_pass_provider.dart';
 import '../../../shared/widgets/unit_picker_field.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
+import 'gate_pass_qr_screen.dart';
 
 class GatePassScreen extends ConsumerStatefulWidget {
   const GatePassScreen({super.key});
@@ -459,7 +460,26 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
                             style: AppTextStyles.bodySmall
                                 .copyWith(color: AppColors.textMuted)),
                       ),
-                      if (isActive && canCancel)
+                      if (isActive)
+                        InkWell(
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => GatePassQrScreen(pass: p),
+                            ),
+                          ),
+                          borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: AppColors.primarySurface,
+                              borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                            ),
+                            child: const Icon(Icons.qr_code_rounded,
+                                color: AppColors.primary, size: 20),
+                          ),
+                        ),
+                      if (isActive && canCancel) ...[
+                        const SizedBox(width: AppDimensions.sm),
                         IconButton(
                           icon: const Icon(Icons.delete_outline_rounded,
                               color: AppColors.danger, size: 20),
@@ -489,6 +509,7 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
                             }
                           },
                         ),
+                      ],
                     ],
                   ),
                 ],
@@ -499,22 +520,25 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
       );
     }
 
+    final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        title: Text('Gate Passes',
-            style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
-        actions: [
-          if (canScan)
-            IconButton(
-              icon: const Icon(Icons.qr_code_scanner_rounded,
-                  color: AppColors.textOnPrimary),
-              onPressed: () => _showScanDialog(context),
-            ),
-          const SizedBox(width: AppDimensions.sm),
-        ],
-      ),
+      appBar: isWide
+          ? AppBar(
+              backgroundColor: AppColors.primary,
+              title: Text('Gate Passes',
+                  style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
+              actions: [
+                if (canScan)
+                  IconButton(
+                    icon: const Icon(Icons.qr_code_scanner_rounded,
+                        color: AppColors.textOnPrimary),
+                    onPressed: () => _showScanDialog(context),
+                  ),
+                const SizedBox(width: AppDimensions.sm),
+              ],
+            )
+          : null,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showGeneratePassSheet(context),
         backgroundColor: AppColors.primary,

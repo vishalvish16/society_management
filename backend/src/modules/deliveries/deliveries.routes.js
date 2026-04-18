@@ -12,5 +12,6 @@ router.get('/', c.getAllDeliveries);
 router.post('/', roleGuard(['WATCHMAN', 'PRAMUKH', 'CHAIRMAN', 'SECRETARY']), c.createDelivery);
 router.patch('/:id/respond', roleGuard(['RESIDENT', 'PRAMUKH', 'CHAIRMAN', 'SECRETARY']), c.respondToDelivery);
 router.patch('/:id/collect', roleGuard(['WATCHMAN', 'PRAMUKH', 'CHAIRMAN', 'SECRETARY']), c.markCollected);
+router.patch('/:id/return', roleGuard(['WATCHMAN', 'PRAMUKH', 'CHAIRMAN', 'SECRETARY']), c.markReturned);
 
 module.exports = router;

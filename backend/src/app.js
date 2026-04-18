@@ -60,6 +60,8 @@ app.use('/api/payments', require('./modules/payments/payments.routes'));
 app.use('/api/superadmin', require('./modules/superadmin/superadmin.routes'));
 app.use('/api/users', require('./modules/users/users.routes'));
 app.use('/api/parking', require('./modules/parking/parking.routes'));
+app.use('/api/donations', require('./modules/donations/donations.routes'));
+app.use('/api/reports', require('./modules/reports/reports.routes'));
 
 // ── Health check ──────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ status: 'ok' }));

@@ -8,6 +8,7 @@ class AppCard extends StatelessWidget {
   final Color? leftBorderColor;
   final EdgeInsetsGeometry? padding;
   final Color? backgroundColor;
+  final Clip? clipBehavior;
 
   const AppCard({
     super.key,
@@ -16,6 +17,7 @@ class AppCard extends StatelessWidget {
     this.leftBorderColor,
     this.padding,
     this.backgroundColor,
+    this.clipBehavior,
   });
 
   @override
@@ -26,6 +28,7 @@ class AppCard extends StatelessWidget {
       // Use ClipRRect + Row to avoid Flutter's restriction on borderRadius with non-uniform border colors
       content = ClipRRect(
         borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+        clipBehavior: clipBehavior ?? Clip.none,
         child: Container(
           decoration: BoxDecoration(
             color: backgroundColor ?? AppColors.surface,
@@ -55,6 +58,7 @@ class AppCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
           border: Border.all(color: AppColors.border),
         ),
+        clipBehavior: clipBehavior ?? Clip.none,
         child: Padding(
           padding: padding ?? const EdgeInsets.all(AppDimensions.lg),
           child: child,

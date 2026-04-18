@@ -92,7 +92,6 @@ enum NotificationType {
   GATE_PASS
 }
 
-
 enum BillingCycle {
   MONTHLY
   QUARTERLY
@@ -157,6 +156,7 @@ enum DeliveryStatus {
   ALLOWED
   DENIED
   COLLECTED
+  RETURNED
   LEFT_AT_GATE
 }
 
@@ -171,6 +171,17 @@ enum AmenityStatus {
   ACTIVE
   INACTIVE
   UNDER_MAINTENANCE
+}
+
+// FREE = no booking needed (temple etc.)
+// SLOT = hourly/duration slots
+// HALF_DAY = first-half / second-half / full-day
+// MONTHLY = subscribe for N hrs/day per month
+enum AmenityBookingType {
+  FREE
+  SLOT
+  HALF_DAY
+  MONTHLY
 }
 
 enum BookingStatus {
@@ -224,6 +235,7 @@ model Plan {
   societies      Society[]
 
   subscriptionPayments SubscriptionPayment[]
+
   @@map("plans")
 }
 
@@ -265,8 +277,46 @@ model Society {
   amenities            Amenity[]
   amenityBookings      AmenityBooking[]
   gatePasses           GatePass[]
+  donations            Donation[]
 
   @@map("societies")
+}
+
+model DonationCampaign {
+  id           String     @id @default(uuid())
+  societyId    String
+  title        String
+  description  String?
+  targetAmount Decimal?   @db.Decimal(10, 2)
+  startDate    DateTime
+  endDate      DateTime?
+  isActive     Boolean    @default(true)
+  createdById  String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  donations    Donation[]
+
+  @@index([societyId])
+  @@map("donation_campaigns")
+}
+
+model Donation {
+  id            String            @id @default(uuid())
+  societyId     String
+  society       Society           @relation(fields: [societyId], references: [id])
+  campaignId    String?
+  campaign      DonationCampaign? @relation(fields: [campaignId], references: [id])
+  donorId       String
+  donor         User              @relation("MadeDonations", fields: [donorId], references: [id])
+  amount        Decimal           @db.Decimal(10, 2)
+  paymentMethod PaymentMethod
+  note          String?
+  paidAt        DateTime          @default(now())
+  createdAt     DateTime          @default(now())
+
+  @@index([societyId])
+  @@index([campaignId])
+  @@map("donations")
 }
 
 // ── HIGH PRIORITY FEATURE MODELS ──────────────────────────────────────
@@ -325,6 +375,7 @@ model Delivery {
   respondedAt DateTime?
   respondedBy String?
   collectedAt DateTime?
+  returnedAt  DateTime?
   photoUrl    String?
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
@@ -408,24 +459,33 @@ model MoveRequest {
 }
 
 model Amenity {
-  id              String           @id @default(uuid())
+  id              String             @id @default(uuid())
   societyId       String
-  society         Society          @relation(fields: [societyId], references: [id])
+  society         Society            @relation(fields: [societyId], references: [id])
   name            String
   description     String?
   capacity        Int?
-  bookingDuration Int              @default(60) // minutes per slot
-  openTime        String // "06:00"
-  closeTime       String // "22:00"
-  bookingFee      Decimal          @default(0) @db.Decimal(10, 2)
-  maxAdvanceDays  Int              @default(7)
+  bookingType     AmenityBookingType @default(SLOT)
+  // SLOT fields
+  bookingDuration Int                @default(60) // minutes per slot
+  openTime        String             @default("06:00")
+  closeTime       String             @default("22:00")
+  // HALF_DAY fields – firstHalfEnd marks the split (e.g. "13:00")
+  firstHalfEnd    String?
+  // MONTHLY fields – max hrs per day a single member can book
+  maxDailyHours   Int?
+  bookingFee      Decimal            @default(0) @db.Decimal(10, 2)
+  halfDayFee      Decimal            @default(0) @db.Decimal(10, 2) // per half
+  fullDayFee      Decimal            @default(0) @db.Decimal(10, 2)
+  monthlyFee      Decimal            @default(0) @db.Decimal(10, 2)
+  maxAdvanceDays  Int                @default(30)
   photoUrl        String?
-  status          AmenityStatus    @default(ACTIVE)
+  status          AmenityStatus      @default(ACTIVE)
   closurePeriods  Json? // [{from,to,reason}]
   rules           String?
-  requireApproval Boolean          @default(false)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  requireApproval Boolean            @default(false)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
   bookings        AmenityBooking[]
 
   @@index([societyId])
@@ -441,15 +501,21 @@ model AmenityBooking {
   unitId          String
   unit            Unit          @relation(fields: [unitId], references: [id])
   bookedById      String
-  bookingDate     DateTime      @db.Date
-  startTime       String
-  endTime         String
+  bookedBy        User          @relation("AmenityBookings", fields: [bookedById], references: [id])
+  // For SLOT / HALF_DAY bookings
+  bookingDate     DateTime?     @db.Date
+  startTime       String? // "09:00"
+  endTime         String? // "10:00"
+  // half_day slot: FULL | FIRST_HALF | SECOND_HALF
+  halfDaySlot     String?
+  // For MONTHLY bookings
+  monthYear       String? // "2025-06"
+  dailyHoursLimit Int?
   status          BookingStatus @default(PENDING)
   guestCount      Int?
   purpose         String?
   feeCharged      Decimal       @default(0) @db.Decimal(10, 2)
   paymentStatus   String?
-  razorpayOrderId String?
   approvedById    String?
   approvedAt      DateTime?
   cancelledAt     DateTime?
@@ -457,8 +523,8 @@ model AmenityBooking {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  @@unique([amenityId, bookingDate, startTime])
   @@index([societyId])
+  @@index([amenityId, bookingDate])
   @@map("amenity_bookings")
 }
 
@@ -503,6 +569,9 @@ model User {
 
   unitResidents      UnitResident[]
   bills              MaintenanceBill[]
+  generatedBills     MaintenanceBill[] @relation("GeneratedBills")
+  deletedBills       MaintenanceBill[] @relation("DeletedBills")
+  billAuditLogs      BillAuditLog[]
   raisedComplaints   Complaint[]       @relation("RaisedBy")
   assignedComplaints Complaint[]       @relation("AssignedTo")
   markedAttendance   StaffAttendance[]
@@ -514,6 +583,8 @@ model User {
   sentNotifications  Notification[]    @relation("sentNotifications")
   createdNotices     Notice[]          @relation("createdNotices")
   staffProfile       Staff?
+  donations          Donation[]        @relation("MadeDonations")
+  amenityBookings    AmenityBooking[]  @relation("AmenityBookings")
 
   @@map("users")
 }
@@ -530,20 +601,23 @@ model RefreshToken {
 }
 
 model Unit {
-  id         String     @id @default(uuid())
-  societyId  String
-  society    Society    @relation(fields: [societyId], references: [id])
-  wing       String?
-  floor      Int?
-  unitNumber String
-  subUnit    String?
-  fullCode   String // auto-generated: wing+floor+unit+subUnit
-  status     UnitStatus @default(OCCUPIED)
-  areaSqft   Decimal?   @db.Decimal(8, 2)
-  notes      String?
-  deletedAt  DateTime?
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
+  id                String     @id @default(uuid())
+  societyId         String
+  society           Society    @relation(fields: [societyId], references: [id])
+  wing              String?
+  floor             Int?
+  unitNumber        String
+  subUnit           String?
+  fullCode          String // auto-generated: wing+floor+unit+subUnit
+  status            UnitStatus @default(OCCUPIED)
+  areaSqft          Decimal?   @db.Decimal(8, 2)
+  notes             String?
+  advanceBalance    Decimal    @default(0) @db.Decimal(10, 2)
+  maintenanceAmount Decimal?   @db.Decimal(10, 2)
+  prepaidUntil      DateTime?
+  deletedAt         DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 
   residents       UnitResident[]
   bills           MaintenanceBill[]
@@ -582,6 +656,8 @@ model MaintenanceBill {
   societyId         String
   unitId            String
   unit              Unit           @relation(fields: [unitId], references: [id])
+  createdById       String?
+  createdBy         User?          @relation("GeneratedBills", fields: [createdById], references: [id])
   billingMonth      DateTime
   amount            Decimal        @db.Decimal(10, 2)
   lateFee           Decimal        @default(0) @db.Decimal(10, 2)
@@ -597,15 +673,43 @@ model MaintenanceBill {
   razorpayPaymentId String?
   receiptUrl        String?
   notes             String?
+  coverageFrom      DateTime?
+  coverageTo        DateTime?
+  lastReminderAt    DateTime?
+  deletedAt         DateTime?
+  deletedById       String?
+  deletedBy         User?          @relation("DeletedBills", fields: [deletedById], references: [id])
   gstAmount         Decimal        @default(0) @db.Decimal(10, 2)
+  title             String?
+  description       String?
+  category          String         @default("MAINTENANCE")
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
+  auditLogs         BillAuditLog[]
 
-  @@unique([unitId, billingMonth])
   @@index([societyId])
   @@index([unitId])
   @@index([status])
   @@map("maintenance_bills")
+}
+
+model BillAuditLog {
+  id        String          @id @default(uuid())
+  billId    String
+  bill      MaintenanceBill @relation(fields: [billId], references: [id])
+  societyId String
+  unitId    String
+  actorId   String?
+  actor     User?           @relation(fields: [actorId], references: [id])
+  action    String
+  note      String?
+  metadata  Json?
+  createdAt DateTime        @default(now())
+
+  @@index([billId])
+  @@index([societyId])
+  @@index([unitId])
+  @@map("bill_audit_logs")
 }
 
 model Expense {
@@ -735,28 +839,51 @@ model Notice {
 }
 
 model Complaint {
-  id           String            @id @default(uuid())
-  societyId    String
-  society      Society           @relation(fields: [societyId], references: [id])
-  unitId       String
-  unit         Unit              @relation(fields: [unitId], references: [id])
-  raisedById   String
-  raisedBy     User              @relation("RaisedBy", fields: [raisedById], references: [id])
+  id             String                @id @default(uuid())
+  societyId      String
+  society        Society               @relation(fields: [societyId], references: [id])
+  unitId         String
+  unit           Unit                  @relation(fields: [unitId], references: [id])
+  raisedById     String
+  raisedBy       User                  @relation("RaisedBy", fields: [raisedById], references: [id])
   category       ComplaintCategory
   title          String
   description    String?
-  priority       String?           @default("medium")
-  status         ComplaintStatus   @default(OPEN)
+  priority       String?               @default("medium")
+  status         ComplaintStatus       @default(OPEN)
   assignedToId   String?
-  assignedTo     User?             @relation("AssignedTo", fields: [assignedToId], references: [id])
+  assignedTo     User?                 @relation("AssignedTo", fields: [assignedToId], references: [id])
   resolutionNote String?
   resolvedAt     DateTime?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+  attachments    ComplaintAttachment[]
+
+  amount         Decimal?              @default(0) @db.Decimal(10, 2)
+  paidAmount     Decimal?              @default(0) @db.Decimal(10, 2)
+  paymentMethod  String?
+  paymentStatus  String?               @default("UNPAID")
+  transactionId  String?
+  paidAt         DateTime?
+
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
 
   @@index([societyId])
   @@index([status])
   @@map("complaints")
+}
+
+model ComplaintAttachment {
+  id          String    @id @default(uuid())
+  complaintId String
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  fileName    String
+  fileType    String // mime type: image/jpeg, application/pdf, video/mp4, etc
+  fileSize    Int // in bytes
+  fileUrl     String // local path or S3 URL
+  uploadedAt  DateTime  @default(now())
+
+  @@index([complaintId])
+  @@map("complaint_attachments")
 }
 
 model Staff {
@@ -830,12 +957,12 @@ model RazorpayPayment {
 /// Known keys:
 ///   visitor_qr_max_hrs  – maximum hours a visitor QR code can be valid (default 3)
 model PlatformSetting {
-  key       String   @id          // e.g. "visitor_qr_max_hrs"
-  value     String                // stored as string; parse per key
-  label     String                // human-readable label shown in SA UI
-  dataType  String   @default("number")  // "number" | "boolean" | "string"
+  key       String   @id // e.g. "visitor_qr_max_hrs"
+  value     String // stored as string; parse per key
+  label     String // human-readable label shown in SA UI
+  dataType  String   @default("number") // "number" | "boolean" | "string"
   updatedAt DateTime @updatedAt
-  updatedBy String?               // userId of last SA who changed it
+  updatedBy String? // userId of last SA who changed it
 
   @@map("platform_settings")
 }

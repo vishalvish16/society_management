@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const app = require('./app');
 const prisma = require('./config/db');
+const { startBillingJobs } = require('./modules/bills/bills.scheduler');
 
 const PORT = process.env.PORT || 3000;
 
@@ -14,6 +15,8 @@ async function start() {
     const server = app.listen(PORT, () => {
       console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
     });
+
+    startBillingJobs();
 
     server.on('error', (err) => {
       if (err.code === 'EADDRINUSE') {

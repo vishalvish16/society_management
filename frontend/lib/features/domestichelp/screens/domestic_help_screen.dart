@@ -34,15 +34,18 @@ class _DomesticHelpScreenState extends ConsumerState<DomesticHelpScreen> {
     final canAdd = _canAddRoles.contains(role);
     final isAdmin = _adminRoles.contains(role);
 
+    final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        title: Text(
-          'Domestic Help',
-          style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary),
-        ),
-      ),
+      appBar: isWide
+          ? AppBar(
+              backgroundColor: AppColors.primary,
+              title: Text(
+                'Domestic Help',
+                style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary),
+              ),
+            )
+          : null,
       floatingActionButton: canAdd
           ? FloatingActionButton.extended(
               onPressed: () => _showHelperSheet(context, role: role),

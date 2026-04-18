@@ -26,28 +26,31 @@ class NotificationsScreen extends ConsumerWidget {
     final isAdmin = _isAdmin(role);
     final notificationsAsync = ref.watch(notificationsProvider);
 
+    final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        title: Text('Notifications',
-            style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
-        actions: [
-          if (isAdmin)
-            IconButton(
-              icon: const Icon(Icons.send_rounded, color: AppColors.textOnPrimary),
-              tooltip: 'Send Notification',
-              onPressed: () => _showSendSheet(context, ref),
-            ),
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: AppColors.textOnPrimary),
-            onPressed: () {
-              ref.invalidate(adminNotificationsProvider);
-              ref.invalidate(myNotificationsProvider);
-            },
-          ),
-        ],
-      ),
+      appBar: isWide
+          ? AppBar(
+              backgroundColor: AppColors.primary,
+              title: Text('Notifications',
+                  style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
+              actions: [
+                if (isAdmin)
+                  IconButton(
+                    icon: const Icon(Icons.send_rounded, color: AppColors.textOnPrimary),
+                    tooltip: 'Send Notification',
+                    onPressed: () => _showSendSheet(context, ref),
+                  ),
+                IconButton(
+                  icon: const Icon(Icons.refresh_rounded, color: AppColors.textOnPrimary),
+                  onPressed: () {
+                    ref.invalidate(adminNotificationsProvider);
+                    ref.invalidate(myNotificationsProvider);
+                  },
+                ),
+              ],
+            )
+          : null,
       floatingActionButton: isAdmin
           ? FloatingActionButton.extended(
               onPressed: () => _showSendSheet(context, ref),

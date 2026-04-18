@@ -8,6 +8,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_loading_shimmer.dart';
 import '../../bills/screens/upi_pay_sheet.dart';
+import '../../donations/screens/donate_sheet.dart';
 import '../providers/dashboard_provider.dart';
 
 /// Dashboard for RESIDENT role — personal unit-centric view
@@ -52,6 +53,8 @@ class _WebResidentLayout extends StatelessWidget {
       children: [
         // Unit + balance hero
         _UnitBalanceHero(stats: stats),
+        const SizedBox(height: AppDimensions.md),
+        _CampaignBanner(stats: stats),
         const SizedBox(height: AppDimensions.xxl),
 
         Row(
@@ -60,7 +63,13 @@ class _WebResidentLayout extends StatelessWidget {
             // Pending bills (left column)
             Expanded(
               flex: 3,
-              child: _PendingBillsSection(stats: stats),
+              child: Column(
+                children: [
+                  _PendingBillsSection(stats: stats),
+                  const SizedBox(height: AppDimensions.lg),
+                  _DonationCampaignsSection(stats: stats),
+                ],
+              ),
             ),
             const SizedBox(width: AppDimensions.lg),
             // Activity + quick actions (right column)
@@ -93,12 +102,16 @@ class _MobileResidentLayout extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _UnitBalanceHero(stats: stats),
+        const SizedBox(height: AppDimensions.md),
+        _CampaignBanner(stats: stats),
         const SizedBox(height: AppDimensions.lg),
 
         Text('Pending Bills', style: AppTextStyles.h2),
         const SizedBox(height: AppDimensions.md),
         _PendingBillsSection(stats: stats),
         const SizedBox(height: AppDimensions.lg),
+
+        _DonationCampaignsSection(stats: stats),
 
         Text('Quick Actions', style: AppTextStyles.h2),
         const SizedBox(height: AppDimensions.md),
@@ -434,6 +447,122 @@ class _PendingBillsSection extends StatelessWidget {
   }
 }
 
+// ─── Campaign banner ─────────────────────────────────────────────────────────
+
+class _CampaignBanner extends StatelessWidget {
+  final Map<String, dynamic> stats;
+  const _CampaignBanner({required this.stats});
+
+  @override
+  Widget build(BuildContext context) {
+    final campaigns = (stats['activeCampaigns'] as List?) ?? [];
+    // Only show campaigns where user hasn't paid yet
+    final filtered = campaigns.where((c) => c['hasPaid'] == false).toList();
+
+    if (filtered.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      children: [
+        ...filtered.map((c) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: AppDimensions.md),
+            child: AppCard(
+              padding: EdgeInsets.zero,
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () => showDonateSheet(
+                  context,
+                  campaignId: c['id'],
+                  campaignTitle: c['title'],
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.primary,
+                        AppColors.primary.withValues(alpha: 0.8),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppDimensions.lg),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.volunteer_activism_rounded,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: AppDimensions.md),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Active Campaign',
+                                style: AppTextStyles.labelSmall.copyWith(
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                c['title'] ?? 'Donation Campaign',
+                                style: AppTextStyles.h3.copyWith(color: Colors.white),
+                              ),
+                              if (c['description'] != null)
+                                Text(
+                                  c['description'],
+                                  style: AppTextStyles.bodySmall.copyWith(
+                                    color: Colors.white.withValues(alpha: 0.8),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: AppDimensions.md),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            'Donate',
+                            style: AppTextStyles.labelMedium.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+}
+
 // ─── Activity table (web) ─────────────────────────────────────────────────────
 
 class _ResidentActivityTable extends StatelessWidget {
@@ -596,6 +725,91 @@ class _ResidentQuickActions extends StatelessWidget {
       child: Row(
         children: chips.expand((c) => [c, const SizedBox(width: AppDimensions.sm)]).toList(),
       ),
+    );
+  }
+}
+
+// ─── Donation Campaigns section ──────────────────────────────────────────────
+
+class _DonationCampaignsSection extends StatelessWidget {
+  final Map<String, dynamic> stats;
+  const _DonationCampaignsSection({required this.stats});
+
+  @override
+  Widget build(BuildContext context) {
+    final campaigns = (stats['activeCampaigns'] as List?) ?? [];
+    if (campaigns.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Active Campaigns', style: AppTextStyles.h2),
+            if (campaigns.length > 1)
+              TextButton(
+                onPressed: () => context.go('/donations'),
+                child: const Text('View All'),
+              ),
+          ],
+        ),
+        const SizedBox(height: AppDimensions.md),
+        ...campaigns.take(2).map((c) {
+          final campaign = c as Map<String, dynamic>;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: AppDimensions.sm),
+            child: AppCard(
+              backgroundColor: AppColors.primarySurface,
+              padding: const EdgeInsets.all(AppDimensions.md),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(AppDimensions.sm),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                    ),
+                    child: const Icon(Icons.campaign_rounded, color: AppColors.primary, size: 24),
+                  ),
+                  const SizedBox(width: AppDimensions.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          campaign['title'] ?? 'Untitled Campaign',
+                          style: AppTextStyles.labelLarge.copyWith(color: AppColors.primary),
+                        ),
+                        if (campaign['description'] != null)
+                          Text(
+                            campaign['description'],
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppDimensions.md),
+                  ElevatedButton(
+                    onPressed: () => context.go('/donations'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text('Donate'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+        const SizedBox(height: AppDimensions.lg),
+      ],
     );
   }
 }

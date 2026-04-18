@@ -8,9 +8,10 @@ class DomesticHelpScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
-      appBar: AppBar(title: Text('Domestic Help')),
-      body: Center(child: Text('Domestic Help Screen')),
+      appBar: isWide ? AppBar(title: const Text('Domestic Help')) : null,
+      body: const Center(child: Text('Domestic Help Screen')),
     );
   }
 }

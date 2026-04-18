@@ -8,9 +8,10 @@ class DeliveryScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
-      appBar: AppBar(title: Text('Delivery')),
-      body: Center(child: Text('Delivery Screen')),
+      appBar: isWide ? AppBar(title: const Text('Delivery')) : null,
+      body: const Center(child: Text('Delivery Screen')),
     );
   }
 }

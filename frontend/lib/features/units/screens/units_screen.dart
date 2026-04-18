@@ -11,6 +11,8 @@ import '../../../shared/widgets/app_text_field.dart';
 import '../providers/unit_provider.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
 import '../../../shared/widgets/show_app_dialog.dart';
+import '../../../shared/widgets/app_card_grid.dart';
+import '../../../shared/widgets/app_status_chip.dart';
 
 class UnitsScreen extends ConsumerStatefulWidget {
   const UnitsScreen({super.key});
@@ -48,15 +50,18 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
     final currentUser = ref.watch(authProvider).user;
     final canManage = !(currentUser?.isUnitLocked ?? false);
 
+    final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        title: Text(
-          'Units',
-          style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary),
-        ),
-      ),
+      appBar: isWide
+          ? AppBar(
+              backgroundColor: AppColors.primary,
+              title: Text(
+                'Units',
+                style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary),
+              ),
+            )
+          : null,
       floatingActionButton: canManage
           ? FloatingActionButton.extended(
               onPressed: () => _showAddDialog(context, ref),
@@ -111,132 +116,120 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
             );
           }
           return RefreshIndicator(
-            onRefresh: () async =>
-                ref.read(unitsProvider.notifier).fetchUnits(),
-            child: ListView.separated(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(AppDimensions.screenPadding),
-              itemCount: units.length + (notifier.hasMore ? 1 : 0),
-              separatorBuilder: (_, index) =>
-                  const SizedBox(height: AppDimensions.sm),
-              itemBuilder: (_, i) {
-                if (i == units.length) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: AppDimensions.md),
-                      child: CircularProgressIndicator(),
-                    ),
-                  );
+            onRefresh: () async => ref.read(unitsProvider.notifier).fetchUnits(),
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification is ScrollEndNotification) {
+                  // If we are at the bottom or the content is smaller than screen
+                  if (_scrollController.position.extentAfter < 500) {
+                    ref.read(unitsProvider.notifier).fetchNextPage();
+                  }
                 }
-                final u = units[i] as Map<String, dynamic>;
-                final isOccupied =
-                    (u['status'] as String? ?? '').toUpperCase() == 'OCCUPIED';
-                final residents =
-                    (u['residents'] as List? ??
-                    u['unitResidents'] as List? ??
-                    []);
-                final names = residents
-                    .map((r) => r['user']?['name'] ?? '')
-                    .where((n) => n.isNotEmpty)
-                    .join(', ');
-                final floor = u['floor'];
-                final wing = u['wing'] as String? ?? '';
-                return AppCard(
-                  padding: const EdgeInsets.all(AppDimensions.md),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: isOccupied
-                              ? AppColors.primarySurface
-                              : AppColors.background,
-                          borderRadius: BorderRadius.circular(
-                            AppDimensions.radiusMd,
-                          ),
-                        ),
-                        child: Icon(
-                          isOccupied
-                              ? Icons.people_rounded
-                              : Icons.apartment_rounded,
-                          color: isOccupied
-                              ? AppColors.primary
-                              : AppColors.textMuted,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: AppDimensions.md),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              u['fullCode'] as String? ?? '-',
-                              style: AppTextStyles.unitCode,
-                            ),
-                            const SizedBox(height: AppDimensions.xs),
-                            if (names.isNotEmpty)
-                              Text(
-                                names,
-                                style: AppTextStyles.bodySmall.copyWith(
-                                  color: AppColors.textSecondary,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              )
-                            else
+                return false;
+              },
+              child: CustomScrollView(
+                controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.all(AppDimensions.lg),
+                  sliver: SliverGrid(
+                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 140,
+                      mainAxisSpacing: AppDimensions.md,
+                      crossAxisSpacing: AppDimensions.md,
+                      childAspectRatio: 0.9,
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) {
+                        final u = units[i] as Map<String, dynamic>;
+                        final status = (u['status'] as String? ?? 'VACANT').toUpperCase();
+                        final residents = (u['residents'] as List? ?? u['unitResidents'] as List? ?? []);
+                        final residentNames = residents.map((r) => r['name'] ?? r['user']?['name'] ?? '').where((n) => n.isNotEmpty).join(', ');
+                        final floor = u['floor'];
+                        final wing = u['wing'] as String? ?? '';
+                        final (bgColor, borderColor) = _getUnitColors(status);
+
+                        return AppCard(
+                          onTap: () => _showEditSheet(context, ref, u),
+                          backgroundColor: bgColor.withOpacity(0.5),
+                          leftBorderColor: borderColor,
+                          padding: const EdgeInsets.all(AppDimensions.sm),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                               Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  if (wing.isNotEmpty) ...[
-                                    Text(
-                                      'Wing $wing',
-                                      style: AppTextStyles.caption,
+                                  Expanded(
+                                    child: Text(
+                                      u['fullCode'] as String? ?? '-',
+                                      style: AppTextStyles.h3.copyWith(
+                                        color: borderColor,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
-                                    const SizedBox(width: AppDimensions.sm),
-                                  ],
-                                  if (floor != null)
-                                    Text(
-                                      'Floor $floor',
-                                      style: AppTextStyles.caption,
-                                    ),
+                                  ),
+                                  AppStatusChip(status: status),
                                 ],
                               ),
-                          ],
-                        ),
-                      ),
-                      if (canManage) ...[
-                        IconButton(
-                          icon: const Icon(
-                            Icons.edit_outlined,
-                            color: AppColors.primary,
-                            size: 18,
+                              const SizedBox(height: AppDimensions.xs),
+                              if (wing.isNotEmpty || floor != null)
+                                Text(
+                                  '${wing.isNotEmpty ? 'W: $wing' : ''}${wing.isNotEmpty && floor != null ? ' | ' : ''}${floor != null ? 'F: $floor' : ''}',
+                                  style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                                  maxLines: 1,
+                                ),
+                              const Spacer(),
+                              Row(
+                                children: [
+                                  Icon(Icons.person_pin_rounded, size: 14, color: borderColor.withOpacity(0.7)),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      residentNames.isNotEmpty ? residentNames : 'Vacant',
+                                      style: AppTextStyles.bodySmall.copyWith(
+                                        fontSize: 11,
+                                        color: AppColors.textPrimary,
+                                        fontStyle: residentNames.isNotEmpty ? FontStyle.normal : FontStyle.italic,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (canManage && status == 'VACANT')
+                                Align(
+                                  alignment: Alignment.bottomRight,
+                                  child: GestureDetector(
+                                    onTap: () => _confirmDelete(context, ref, u['id'], u['fullCode'] ?? ''),
+                                    child: const Icon(Icons.delete_outline_rounded, color: AppColors.danger, size: 16),
+                                  ),
+                                ),
+                            ],
                           ),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          onPressed: () => _showEditSheet(context, ref, u),
-                        ),
-                        const SizedBox(width: AppDimensions.sm),
-                        InkWell(
-                          onTap: () => _confirmDelete(
-                            context,
-                            ref,
-                            u['id'] as String,
-                            u['fullCode'] as String? ?? '',
-                          ),
-                          child: const Icon(
-                            Icons.delete_outline_rounded,
-                            color: AppColors.danger,
-                            size: 18,
-                          ),
-                        ),
-                      ],
-                    ],
+                        );
+                      },
+                      childCount: units.length,
+                    ),
                   ),
-                );
-              },
+                ),
+                if (notifier.hasMore)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 32),
+                      child: Center(
+                        child: notifier.isLoadingMore 
+                          ? const CircularProgressIndicator()
+                          : const SizedBox.shrink(),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-          );
+          ),
+        );
         },
       ),
     );
@@ -562,6 +555,54 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
             );
           },
         ),
+      ),
+    );
+  }
+
+  (Color bg, Color border) _getUnitColors(String status) {
+    if (status == 'OCCUPIED') {
+      return (const Color(0xFFE8F5E9), const Color(0xFF2E7D32)); // Green pastel
+    } else if (status == 'VACANT') {
+      return (const Color(0xFFE3F2FD), const Color(0xFF1565C0)); // Blue pastel
+    }
+    return (AppColors.background, AppColors.border);
+  }
+}
+
+class _UnitInfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color accentColor;
+
+  const _UnitInfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.accentColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Row(
+        children: [
+          Icon(icon, size: 12, color: accentColor.withOpacity(0.6)),
+          const SizedBox(width: 4),
+          Text(
+            '$label: ',
+            style: AppTextStyles.caption.copyWith(color: AppColors.textMuted, fontSize: 10),
+          ),
+          Text(
+            value,
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+              fontSize: 10,
+            ),
+          ),
+        ],
       ),
     );
   }
