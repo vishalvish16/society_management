@@ -73,6 +73,39 @@ async function listGatePasses(req, res, next) {
   }
 }
 
+/**
+ * GET /api/gatepasses/verify/:passCode — read-only check for QR scanner (does not mark USED).
+ */
+async function verifyGatePass(req, res, next) {
+  try {
+    const raw = (req.params.passCode || '').trim().toUpperCase();
+    if (!raw) return sendError(res, 'passCode is required', 400);
+
+    const gatePass = await prisma.gatePass.findUnique({
+      where: { passCode: raw },
+      select: {
+        id: true,
+        societyId: true,
+        status: true,
+        validFrom: true,
+        validTo: true,
+        itemDescription: true,
+        reason: true,
+        unit: { select: { id: true, fullCode: true } },
+      },
+    });
+
+    if (!gatePass) return sendError(res, 'Invalid pass code', 404);
+    if (gatePass.societyId !== req.user.societyId) {
+      return sendError(res, 'Pass not for this society', 403);
+    }
+
+    return sendSuccess(res, { pass: gatePass }, 'Gate pass verified');
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function scanGatePass(req, res, next) {
   try {
     const { passCode } = req.body;
@@ -149,4 +182,11 @@ async function listMyGatePasses(req, res, next) {
   }
 }
 
-module.exports = { createGatePass, listGatePasses, listMyGatePasses, scanGatePass, cancelGatePass };
+module.exports = {
+  createGatePass,
+  listGatePasses,
+  listMyGatePasses,
+  verifyGatePass,
+  scanGatePass,
+  cancelGatePass,
+};

@@ -54,7 +54,11 @@ async function validateToken(req, res) {
     if (result.success) {
       return sendSuccess(res, result.visitor, `Access granted for ${result.visitor.name}`);
     } else {
-      return sendError(res, result.message, 401, { result: result.result });
+      return sendError(res, result.message, 401, {
+        result: result.result,
+        scannedAt: result.scannedAt ?? null,
+        scannedBy: result.scannedBy ?? null,
+      });
     }
   } catch (error) {
     console.error('Validate token error:', error.message);

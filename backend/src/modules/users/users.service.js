@@ -12,6 +12,12 @@ const USER_SELECT = {
   email: true,
   phone: true,
   fcmToken: true,
+  profilePhotoUrl: true,
+  dateOfBirth: true,
+  householdMemberCount: true,
+  bio: true,
+  emergencyContactName: true,
+  emergencyContactPhone: true,
   isActive: true,
   createdAt: true,
   updatedAt: true,
@@ -24,12 +30,12 @@ const USER_SELECT = {
  * @throws {Error} If user not found
  */
 async function getProfile(userId) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
+  const user = await prisma.user.findFirst({
+    where: { id: userId, deletedAt: null },
     select: {
       ...USER_SELECT,
       society: {
-        select: { id: true, name: true },
+        select: { id: true, name: true, logoUrl: true },
       },
       unitResidents: {
         select: {
@@ -127,7 +133,7 @@ async function createUser(data) {
 /**
  * Update a user's profile.
  * @param {string} userId - ID of the user to update
- * @param {{ name?: string, email?: string, phone?: string, fcmToken?: string, isActive?: boolean }} data
+ * @param {{ name?: string, email?: string, phone?: string, fcmToken?: string, isActive?: boolean, profilePhotoUrl?: string|null, dateOfBirth?: Date|null, householdMemberCount?: number|null, bio?: string|null, emergencyContactName?: string|null, emergencyContactPhone?: string|null }} data
  * @param {string|null} callerSocietyId - Society ID of the caller (null for SUPER_ADMIN)
  * @returns {Promise<object>} Updated user without passwordHash
  * @throws {Error} If user not found, society mismatch, or unique constraint violation
@@ -159,7 +165,11 @@ async function updateUser(userId, data, callerSocietyId) {
   }
 
   // Only allow updating specific fields
-  const allowedFields = ['name', 'email', 'phone', 'fcmToken', 'isActive'];
+  const allowedFields = [
+    'name', 'email', 'phone', 'fcmToken', 'isActive',
+    'profilePhotoUrl', 'dateOfBirth', 'householdMemberCount', 'bio',
+    'emergencyContactName', 'emergencyContactPhone',
+  ];
   const updateData = {};
   for (const field of allowedFields) {
     if (data[field] !== undefined) {

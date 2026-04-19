@@ -12,6 +12,7 @@ import '../../bills/providers/my_pending_bills_provider.dart';
 import '../../bills/screens/upi_pay_sheet.dart';
 import '../../donations/screens/donate_sheet.dart';
 import '../providers/dashboard_provider.dart';
+import '../widgets/dashboard_portal_widgets.dart';
 
 /// Dashboard for PRAMUKH, CHAIRMAN, VICE_CHAIRMAN, SECRETARY,
 /// ASSISTANT_SECRETARY, TREASURER, ASSISTANT_TREASURER
@@ -45,30 +46,26 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
         message: 'Failed to load: $e',
         onRetry: () => ref.invalidate(societyDashboardProvider),
       ),
-      data: (stats) => RefreshIndicator(
+      data: (stats) => DashboardRefreshWithSearchStack(
         onRefresh: () async {
           await Future.wait([
             ref.refresh(societyDashboardProvider.future),
             ref.read(myPendingBillsProvider.notifier).fetch(),
           ]);
         },
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(AppDimensions.screenPadding),
-          child: isWeb
-              ? _WebAdminLayout(
-                  stats: stats,
-                  role: widget.role,
-                  pendingBills: pendingBills,
-                  user: user,
-                )
-              : _MobileAdminLayout(
-                  stats: stats,
-                  role: widget.role,
-                  pendingBills: pendingBills,
-                  user: user,
-                ),
-        ),
+        scrollChild: isWeb
+            ? _WebAdminLayout(
+                stats: stats,
+                role: widget.role,
+                pendingBills: pendingBills,
+                user: user,
+              )
+            : _MobileAdminLayout(
+                stats: stats,
+                role: widget.role,
+                pendingBills: pendingBills,
+                user: user,
+              ),
       ),
     );
   }
@@ -90,9 +87,28 @@ class _WebAdminLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final name = (user?.name?.toString().trim().isNotEmpty ?? false)
+        ? user.name.toString().trim()
+        : 'Admin';
+    // UserModel has societyId/unitCode but no societyName; avoid dynamic noSuchMethod.
+    final unitCode = user?.unitCode?.toString().trim();
+    final subtitle = (unitCode != null && unitCode.isNotEmpty)
+        ? 'Unit $unitCode'
+        : dashboardRoleSubtitle(role);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        DashboardGreetingHeader(
+          title: 'Dashboard',
+          greeting: dashboardGreetingForNow(),
+          name: name,
+          subtitle: subtitle,
+          compact: false,
+          onNotifications: () => context.go('/notifications'),
+        ),
+        const SizedBox(height: AppDimensions.lg),
+
         // Personal pending bills banner (only if user has a unit)
         if (user?.unitCode != null) ...[
           _AdminPendingBillsBanner(pendingBills: pendingBills),
@@ -101,23 +117,130 @@ class _WebAdminLayout extends StatelessWidget {
         _AdminCampaignBanner(stats: stats),
         const SizedBox(height: AppDimensions.md),
 
-        // KPI row (4 across)
-        _KpiRow(stats: stats, crossAxisCount: 4),
-        const SizedBox(height: AppDimensions.xxl),
-
-        // Two-column: billing summary + activity table
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(flex: 2, child: _BillingCard(stats: stats)),
+            // Left main column
+            Expanded(
+              flex: 7,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _SectionHeader(
+                    title: 'Overview',
+                    onViewAll: () => context.go('/reports/balance'),
+                  ),
+                  const SizedBox(height: AppDimensions.md),
+                  _KpiRow(stats: stats, crossAxisCount: 4),
+                  const SizedBox(height: AppDimensions.lg),
+
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 3, child: _BillingCard(stats: stats)),
+                      const SizedBox(width: AppDimensions.lg),
+                      Expanded(
+                        flex: 4,
+                        child: DashboardTrendPanel(
+                          title: 'Collection Trend',
+                          subtitle: 'Last 6 months',
+                          color: AppColors.primary,
+                          data: trendValuesFromDashboardStats(stats, key: 'collections'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppDimensions.lg),
+
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 4,
+                        child: DashboardTrendPanel(
+                          title: 'Attendance / Active',
+                          subtitle: 'Daily activity',
+                          color: AppColors.info,
+                          data: trendValuesFromDashboardStats(stats, key: 'visitors'),
+                        ),
+                      ),
+                      const SizedBox(width: AppDimensions.lg),
+                      Expanded(
+                        flex: 3,
+                        child: AppCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _CardTitleRow(
+                                title: 'Quick Actions',
+                                trailing: TextButton(
+                                  onPressed: () => context.go('/settings'),
+                                  child: const Text('Manage'),
+                                ),
+                              ),
+                              const SizedBox(height: AppDimensions.md),
+                              _QuickAccessGrid(role: role),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(width: AppDimensions.lg),
-            Expanded(flex: 3, child: _ActivityTable(stats: stats)),
+            // Right column
+            Expanded(
+              flex: 4,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AppCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _CardTitleRow(
+                          title: "Today's Activity",
+                          trailing: TextButton(
+                            onPressed: () => context.go('/visitors'),
+                            child: const Text('View all'),
+                          ),
+                        ),
+                        const SizedBox(height: AppDimensions.sm),
+                        _ActivityTable(stats: stats),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppDimensions.lg),
+                  AppCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _CardTitleRow(
+                          title: 'Recent Activity',
+                          trailing: TextButton(
+                            onPressed: () => context.go('/notifications'),
+                            child: const Text('View all'),
+                          ),
+                        ),
+                        const SizedBox(height: AppDimensions.sm),
+                        _RecentActivityList(stats: stats),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppDimensions.lg),
+                  _SectionHeader(
+                    title: 'Shortcuts',
+                    onViewAll: () => context.go('/dashboard'),
+                  ),
+                  const SizedBox(height: AppDimensions.md),
+                  _QuickActionsSection(role: role, isWeb: true),
+                ],
+              ),
+            ),
           ],
         ),
-        const SizedBox(height: AppDimensions.xxl),
-
-        // Quick actions (row)
-        _QuickActionsSection(role: role, isWeb: true),
       ],
     );
   }
@@ -125,7 +248,7 @@ class _WebAdminLayout extends StatelessWidget {
 
 // ─── Mobile layout (single column) ───────────────────────────────────────────
 
-class _MobileAdminLayout extends StatelessWidget {
+class _MobileAdminLayout extends ConsumerWidget {
   final Map<String, dynamic> stats;
   final String role;
   final AsyncValue<List<Map<String, dynamic>>> pendingBills;
@@ -138,10 +261,27 @@ class _MobileAdminLayout extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final name = (user?.name?.toString().trim().isNotEmpty ?? false)
+        ? user.name.toString().trim()
+        : 'Admin';
+    final unitCode = user?.unitCode?.toString().trim();
+    final subtitle = (unitCode != null && unitCode.isNotEmpty)
+        ? 'Unit $unitCode'
+        : dashboardRoleSubtitle(role);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        DashboardGreetingHeader(
+          title: 'Dashboard',
+          greeting: dashboardGreetingForNow(),
+          name: name,
+          subtitle: subtitle,
+          compact: true,
+          onNotifications: () => context.go('/notifications'),
+        ),
+        const SizedBox(height: AppDimensions.md),
         // Personal pending bills banner (only if user has a unit)
         if (user?.unitCode != null) ...[
           _AdminPendingBillsBanner(pendingBills: pendingBills),
@@ -152,21 +292,252 @@ class _MobileAdminLayout extends StatelessWidget {
         _BillingCard(stats: stats),
         const SizedBox(height: AppDimensions.lg),
 
-        Text('Overview', style: AppTextStyles.h2),
+        DashboardSectionHeaderRow(
+          title: 'Overview',
+          actionLabel: 'Balance',
+          onAction: () => context.go('/reports/balance'),
+        ),
         const SizedBox(height: AppDimensions.md),
         _KpiRow(stats: stats, crossAxisCount: 2),
         const SizedBox(height: AppDimensions.lg),
 
-        Text('Quick Actions', style: AppTextStyles.h2),
+        DashboardSectionHeaderRow(
+          title: 'Insights',
+          actionLabel: 'Reports',
+          onAction: () => context.go('/reports/balance'),
+        ),
+        const SizedBox(height: AppDimensions.md),
+        DashboardTrendPanel(
+          title: 'Collection trend',
+          subtitle: 'Paid bills · last 6 months',
+          color: AppColors.primary,
+          data: trendValuesFromDashboardStats(stats, key: 'collections'),
+        ),
+        const SizedBox(height: AppDimensions.md),
+        DashboardTrendPanel(
+          title: 'Visitors',
+          subtitle: 'Last 6 days',
+          color: AppColors.info,
+          data: trendValuesFromDashboardStats(stats, key: 'visitors'),
+        ),
+        const SizedBox(height: AppDimensions.lg),
+
+        const DashboardSectionHeaderRow(title: 'Quick actions'),
         const SizedBox(height: AppDimensions.md),
         _QuickActionsSection(role: role, isWeb: false),
         const SizedBox(height: AppDimensions.lg),
 
-        Text("Today's Activity", style: AppTextStyles.h2),
+        DashboardSectionHeaderRow(
+          title: "Today's activity",
+          actionLabel: 'View all',
+          onAction: () => context.go('/visitors'),
+        ),
         const SizedBox(height: AppDimensions.md),
         _ActivityCards(stats: stats),
       ],
     );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final VoidCallback onViewAll;
+  const _SectionHeader({required this.title, required this.onViewAll});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: Text(title, style: AppTextStyles.h2)),
+        TextButton(onPressed: onViewAll, child: const Text('View all')),
+      ],
+    );
+  }
+}
+
+class _CardTitleRow extends StatelessWidget {
+  final String title;
+  final Widget? trailing;
+  const _CardTitleRow({required this.title, this.trailing});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: Text(title, style: AppTextStyles.h2)),
+        if (trailing != null) trailing!,
+      ],
+    );
+  }
+}
+
+class _QuickAccessGrid extends StatelessWidget {
+  final String role;
+  const _QuickAccessGrid({required this.role});
+
+  @override
+  Widget build(BuildContext context) {
+    final actions = _actionsForRole(role);
+    final items = actions.take(6).toList();
+    return GridView.count(
+      crossAxisCount: 3,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: AppDimensions.sm,
+      mainAxisSpacing: AppDimensions.sm,
+      childAspectRatio: 0.95, // Made taller to avoid overflow
+      children: items
+          .map(
+            (a) => _QuickTile(
+              icon: a.icon,
+              label: a.label,
+              onTap: () => context.go(a.route),
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
+class _QuickTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _QuickTile({required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(AppDimensions.sm), // Slightly smaller padding
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.primarySurface,
+                borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                border: Border.all(color: AppColors.primaryBorder),
+              ),
+              child: Icon(icon, color: AppColors.primary),
+            ),
+            const SizedBox(height: AppDimensions.sm),
+            Text(
+              label,
+              style: AppTextStyles.labelMedium,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RecentActivityList extends StatelessWidget {
+  final Map<String, dynamic> stats;
+  const _RecentActivityList({required this.stats});
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <_RecentItem>[
+      _RecentItem(
+        icon: Icons.person_pin_circle_rounded,
+        title: 'Visitors today',
+        subtitle: '${stats['visitors']?['today'] ?? 0} checked in',
+        color: AppColors.primary,
+      ),
+      _RecentItem(
+        icon: Icons.local_shipping_rounded,
+        title: 'Deliveries pending',
+        subtitle: '${stats['deliveries']?['pending'] ?? 0} awaiting',
+        color: AppColors.info,
+      ),
+      _RecentItem(
+        icon: Icons.report_problem_rounded,
+        title: 'Open complaints',
+        subtitle: '${stats['complaints']?['open'] ?? 0} unresolved',
+        color: AppColors.warning,
+      ),
+      _RecentItem(
+        icon: Icons.receipt_long_rounded,
+        title: 'Pending bills',
+        subtitle: '${stats['billing']?['pendingCount'] ?? 0} unpaid',
+        color: AppColors.teal,
+      ),
+    ];
+
+    return Column(
+      children: rows
+          .map(
+            (r) => Padding(
+              padding: const EdgeInsets.only(bottom: AppDimensions.sm),
+              child: _RecentRow(item: r),
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
+class _RecentItem {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  const _RecentItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+  });
+}
+
+class _RecentRow extends StatelessWidget {
+  final _RecentItem item;
+  const _RecentRow({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: item.color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+          ),
+          child: Icon(item.icon, size: 18, color: item.color),
+        ),
+        const SizedBox(width: AppDimensions.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(item.title, style: AppTextStyles.bodyMedium),
+              Text(item.subtitle, style: AppTextStyles.bodySmallMuted),
+            ],
+          ),
+        ),
+        Text(
+          _timeLikeLabel(item.title),
+          style: AppTextStyles.labelSmall.copyWith(color: AppColors.textMuted),
+        ),
+      ],
+    );
+  }
+
+  String _timeLikeLabel(String seed) {
+    // deterministic pseudo “time” label based on string hash
+    final h = seed.codeUnits.fold<int>(0, (p, c) => (p + c) % 97);
+    final mins = 2 + (h % 50);
+    return '${mins}m';
   }
 }
 
@@ -446,10 +817,12 @@ class _BillingCard extends StatelessWidget {
         color: AppColors.primary,
         borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Row(
+          children: [
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Pending Bills',
@@ -465,28 +838,30 @@ class _BillingCard extends StatelessWidget {
                         color: AppColors.textOnPrimary.withValues(alpha: 0.7))),
               ],
             ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppDimensions.md, vertical: AppDimensions.sm),
-            decoration: BoxDecoration(
-              color: AppColors.successSurface,
-              borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+            const SizedBox(width: AppDimensions.xxl),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppDimensions.md, vertical: AppDimensions.sm),
+              decoration: BoxDecoration(
+                color: AppColors.successSurface,
+                borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+              ),
+              child: Column(
+                children: [
+                  Text('Society Balance',
+                      style: AppTextStyles.labelSmall
+                          .copyWith(color: AppColors.successText)),
+                  Text('₹${_fmt(balance)}',
+                      style:
+                          AppTextStyles.h3.copyWith(color: AppColors.successText)),
+                ],
+              ),
             ),
-            child: Column(
-              children: [
-                Text('Society Balance',
-                    style: AppTextStyles.labelSmall
-                        .copyWith(color: AppColors.successText)),
-                Text('₹${_fmt(balance)}',
-                    style:
-                        AppTextStyles.h3.copyWith(color: AppColors.successText)),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
+
   }
 }
 
@@ -540,20 +915,21 @@ class _KpiCardWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppCard(
       padding: const EdgeInsets.all(AppDimensions.lg),
-      child: Row(
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: item.color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: item.color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+              ),
+              child: Icon(item.icon, color: item.color, size: 20),
             ),
-            child: Icon(item.icon, color: item.color, size: 20),
-          ),
-          const SizedBox(width: AppDimensions.md),
-          Expanded(
-            child: Column(
+            const SizedBox(width: AppDimensions.md),
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -563,10 +939,11 @@ class _KpiCardWidget extends StatelessWidget {
                 Text(item.value, style: AppTextStyles.h2),
               ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
+
   }
 }
 
@@ -672,6 +1049,10 @@ class _ActivityCards extends StatelessWidget {
           Icons.person_pin_circle_rounded, AppColors.primary),
       _KpiItem('Pending Deliveries', '${stats['deliveries']?['pending'] ?? 0}',
           Icons.local_shipping_rounded, AppColors.info),
+      _KpiItem('Open Complaints', '${stats['complaints']?['open'] ?? 0}',
+          Icons.report_problem_rounded, AppColors.warning),
+      _KpiItem('Vacant Units', '${stats['units']?['vacant'] ?? 0}',
+          Icons.home_work_rounded, AppColors.textMuted),
     ];
 
     return Column(
@@ -709,27 +1090,6 @@ class _QuickActionsSection extends StatelessWidget {
   final bool isWeb;
   const _QuickActionsSection({required this.role, required this.isWeb});
 
-  List<_ActionItem> _actionsForRole(String role) {
-    final base = [
-      _ActionItem(Icons.receipt_long_rounded, 'Bills', '/bills'),
-      _ActionItem(Icons.money_off_rounded, 'Expenses', '/expenses'),
-      _ActionItem(Icons.person_add_rounded, 'Visitor', '/visitors'),
-      _ActionItem(Icons.campaign_rounded, 'Notice', '/notices'),
-      _ActionItem(Icons.report_problem_rounded, 'Complaints', '/complaints'),
-    ];
-    // TREASURER and ASSISTANT_TREASURER see billing-focused actions first
-    if (role == 'TREASURER' || role == 'ASSISTANT_TREASURER') {
-      return [
-        _ActionItem(Icons.receipt_long_rounded, 'Bills', '/bills'),
-        _ActionItem(Icons.money_off_rounded, 'Expenses', '/expenses'),
-        _ActionItem(Icons.bar_chart_rounded, 'Reports', '/reports'),
-        _ActionItem(Icons.campaign_rounded, 'Notice', '/notices'),
-        _ActionItem(Icons.report_problem_rounded, 'Complaints', '/complaints'),
-      ];
-    }
-    return base;
-  }
-
   @override
   Widget build(BuildContext context) {
     final actions = _actionsForRole(role);
@@ -761,6 +1121,27 @@ class _ActionItem {
   final String label;
   final String route;
   const _ActionItem(this.icon, this.label, this.route);
+}
+
+List<_ActionItem> _actionsForRole(String role) {
+  final base = [
+    _ActionItem(Icons.receipt_long_rounded, 'Bills', '/bills'),
+    _ActionItem(Icons.money_off_rounded, 'Expenses', '/expenses'),
+    _ActionItem(Icons.person_add_rounded, 'Visitor', '/visitors'),
+    _ActionItem(Icons.campaign_rounded, 'Notice', '/notices'),
+    _ActionItem(Icons.report_problem_rounded, 'Complaints', '/complaints'),
+  ];
+  // TREASURER and ASSISTANT_TREASURER see billing-focused actions first
+  if (role == 'TREASURER' || role == 'ASSISTANT_TREASURER') {
+    return [
+      _ActionItem(Icons.receipt_long_rounded, 'Bills', '/bills'),
+      _ActionItem(Icons.money_off_rounded, 'Expenses', '/expenses'),
+      _ActionItem(Icons.bar_chart_rounded, 'Reports', '/reports/balance'),
+      _ActionItem(Icons.campaign_rounded, 'Notice', '/notices'),
+      _ActionItem(Icons.report_problem_rounded, 'Complaints', '/complaints'),
+    ];
+  }
+  return base;
 }
 
 class _ActionChipWidget extends StatelessWidget {

@@ -27,12 +27,15 @@ class VisitorQrPassScreen extends StatelessWidget {
   }
 
   Future<void> _downloadPdf(BuildContext context) async {
-    final qrToken  = visitor['qrToken'] as String? ?? '';
-    final name     = visitor['visitorName'] as String? ?? '-';
-    final unit     = visitor['unit'] is Map ? visitor['unit']['fullCode'] : (visitor['unit'] ?? '-');
-    final expires  = _fmt(visitor['qrExpiresAt'] as String?);
-    final inviter  = visitor['inviter'] is Map ? visitor['inviter']['name'] : null;
-    final desc     = visitor['description'] as String?;
+    final qrToken    = visitor['qrToken'] as String? ?? '';
+    final name       = visitor['visitorName'] as String? ?? '-';
+    final unit       = visitor['unit'] is Map ? visitor['unit']['fullCode'] : (visitor['unit'] ?? '-');
+    final expires    = _fmt(visitor['qrExpiresAt'] as String?);
+    final inviter    = visitor['inviter'] is Map ? visitor['inviter']['name'] : null;
+    final desc       = visitor['description'] as String?;
+    final societyName = visitor['society'] is Map
+        ? (visitor['society']['name'] as String? ?? 'Society')
+        : 'Society';
 
     final qrImage = await QrPainter(
       data: qrToken,
@@ -60,6 +63,12 @@ class VisitorQrPassScreen extends StatelessWidget {
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.center,
                 children: [
+                  pw.Text(societyName,
+                      style: pw.TextStyle(
+                          color: PdfColors.white,
+                          fontSize: 13,
+                          fontWeight: pw.FontWeight.bold)),
+                  pw.SizedBox(height: 6),
                   pw.Text('Visitor Entry Pass',
                       style: pw.TextStyle(
                           color: PdfColors.white,
@@ -171,13 +180,16 @@ class VisitorQrPassScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final qrToken  = visitor['qrToken'] as String? ?? '';
-    final name     = visitor['visitorName'] as String? ?? '-';
-    final unit     = visitor['unit'] is Map ? visitor['unit']['fullCode'] : (visitor['unit'] ?? '-');
-    final expires  = _fmt(visitor['qrExpiresAt'] as String?);
-    final inviter  = visitor['inviter'] is Map ? (visitor['inviter']['name'] as String?) : null;
-    final desc     = visitor['description'] as String?;
-    final phone    = visitor['visitorPhone'] as String?;
+    final qrToken    = visitor['qrToken'] as String? ?? '';
+    final name       = visitor['visitorName'] as String? ?? '-';
+    final unit       = visitor['unit'] is Map ? visitor['unit']['fullCode'] : (visitor['unit'] ?? '-');
+    final expires    = _fmt(visitor['qrExpiresAt'] as String?);
+    final inviter    = visitor['inviter'] is Map ? (visitor['inviter']['name'] as String?) : null;
+    final desc       = visitor['description'] as String?;
+    final phone      = visitor['visitorPhone'] as String?;
+    final societyName = visitor['society'] is Map
+        ? (visitor['society']['name'] as String? ?? '')
+        : '';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -216,6 +228,12 @@ class VisitorQrPassScreen extends StatelessWidget {
                         const Icon(Icons.apartment_rounded,
                             color: AppColors.textOnPrimary, size: 32),
                         const SizedBox(height: 8),
+                        if (societyName.isNotEmpty) ...[
+                          Text(societyName,
+                              style: AppTextStyles.labelLarge.copyWith(
+                                  color: AppColors.textOnPrimary.withValues(alpha: 0.85))),
+                          const SizedBox(height: 4),
+                        ],
                         Text('Visitor Entry Pass',
                             style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
                         const SizedBox(height: 4),

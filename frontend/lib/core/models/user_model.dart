@@ -10,6 +10,13 @@ class UserModel {
   final String? unitId;
   final String? unitCode;
 
+  final String? profilePhotoUrl;
+  final DateTime? dateOfBirth;
+  final int? householdMemberCount;
+  final String? bio;
+  final String? emergencyContactName;
+  final String? emergencyContactPhone;
+
   UserModel({
     required this.id,
     required this.name,
@@ -20,6 +27,12 @@ class UserModel {
     this.isActive = true,
     this.unitId,
     this.unitCode,
+    this.profilePhotoUrl,
+    this.dateOfBirth,
+    this.householdMemberCount,
+    this.bio,
+    this.emergencyContactName,
+    this.emergencyContactPhone,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -32,6 +45,20 @@ class UserModel {
         : null;
     final resolvedUnit = unitMap ?? firstUnit;
 
+    DateTime? dob;
+    final rawDob = json['dateOfBirth'];
+    if (rawDob is String && rawDob.isNotEmpty) {
+      dob = DateTime.tryParse(rawDob);
+    }
+
+    int? members;
+    final rawM = json['householdMemberCount'];
+    if (rawM is int) {
+      members = rawM;
+    } else if (rawM is num) {
+      members = rawM.toInt();
+    }
+
     return UserModel(
       id: json['id'] ?? '',
       name: json['name'] ?? '',
@@ -42,7 +69,31 @@ class UserModel {
       isActive: json['isActive'] ?? true,
       unitId: resolvedUnit?['id'] as String?,
       unitCode: resolvedUnit?['fullCode'] as String?,
+      profilePhotoUrl: json['profilePhotoUrl'] as String?,
+      dateOfBirth: dob,
+      householdMemberCount: members,
+      bio: json['bio'] as String?,
+      emergencyContactName: json['emergencyContactName'] as String?,
+      emergencyContactPhone: json['emergencyContactPhone'] as String?,
     );
+  }
+
+  /// Rough completeness score (0–100) for nudging users to fill their profile.
+  int get profileCompletenessPercent {
+    int filled = 0;
+    const int slots = 7;
+    if (name.trim().isNotEmpty) filled++;
+    if (phone.trim().isNotEmpty) filled++;
+    if (email != null && email!.trim().isNotEmpty) filled++;
+    if (profilePhotoUrl != null && profilePhotoUrl!.isNotEmpty) filled++;
+    if (dateOfBirth != null) filled++;
+    if (householdMemberCount != null && householdMemberCount! > 0) filled++;
+    if ((bio != null && bio!.trim().isNotEmpty) ||
+        (emergencyContactName != null && emergencyContactName!.trim().isNotEmpty) ||
+        (emergencyContactPhone != null && emergencyContactPhone!.trim().isNotEmpty)) {
+      filled++;
+    }
+    return ((filled / slots) * 100).round();
   }
 
   bool get isSuperAdmin => role == 'SUPER_ADMIN';

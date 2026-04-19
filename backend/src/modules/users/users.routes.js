@@ -3,14 +3,17 @@ const usersController = require('./users.controller');
 const authMiddleware = require('../../middleware/auth');
 const roleGuard = require('../../middleware/roleGuard');
 const checkPlanLimit = require('../../middleware/checkPlanLimit');
+const createUploader = require('../../middleware/uploadGeneric');
 
 const router = Router();
+const profileUpload = createUploader('profiles');
 
 // All user routes require authentication
 router.use(authMiddleware);
 
 // GET /api/v1/users/me — own profile (any authenticated user)
 router.get('/me', usersController.getMe);
+router.patch('/me', profileUpload.single('profilePhoto'), usersController.patchMyProfile);
 
 // GET /api/v1/users — list users (CHAIRMAN/secretary only)
 router.get('/', roleGuard('PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'SUPER_ADMIN'), usersController.listUsers);

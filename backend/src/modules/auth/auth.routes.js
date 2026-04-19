@@ -4,6 +4,7 @@ const auth = require('../../middleware/auth');
 const c = require('./auth.controller');
 
 // Public routes
+router.post('/check-societies', c.checkSocieties);
 router.post('/login',           c.login);
 router.post('/refresh',         c.refresh);
 router.post('/logout',          c.logout);

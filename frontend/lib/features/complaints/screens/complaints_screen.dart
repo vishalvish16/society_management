@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimensions.dart';
@@ -13,6 +14,7 @@ import '../../../shared/widgets/app_status_chip.dart';
 import '../providers/complaints_provider.dart';
 import '../../../shared/widgets/unit_picker_field.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
+import '../../../shared/utils/pick_camera_photo.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
 import '../../members/providers/members_provider.dart';
 import 'pay_complaint_sheet.dart';
@@ -26,6 +28,8 @@ class ComplaintsScreen extends ConsumerStatefulWidget {
 
 class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
   String _filter = 'all';
+  final ScrollController _scrollController = ScrollController();
+  String? _handledFocusId;
 
   static const _adminRoles = {'PRAMUKH', 'CHAIRMAN', 'SECRETARY'};
 
@@ -53,6 +57,7 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final focusId = GoRouterState.of(context).uri.queryParameters['focusId'];
     final state = ref.watch(complaintsProvider);
 
     // Backend returns uppercase statuses; filter tabs use lowercase keys mapped to uppercase
@@ -72,6 +77,25 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
                 (c['status'] as String? ?? '').toUpperCase() ==
                 statusMap[_filter])
             .toList();
+
+    if (focusId != null &&
+        focusId.isNotEmpty &&
+        _handledFocusId != focusId &&
+        filtered.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final idx = filtered.indexWhere((c) => c['id']?.toString() == focusId);
+        if (idx >= 0) {
+          final target = (idx * 140.0).clamp(0.0, _scrollController.position.maxScrollExtent);
+          _scrollController.animateTo(
+            target,
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeOut,
+          );
+        }
+        setState(() => _handledFocusId = focusId);
+      });
+    }
 
     final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
@@ -157,6 +181,7 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
                                         ? null
                                         : statusMap[_filter]),
                             child: ListView.separated(
+                              controller: _scrollController,
                               padding: const EdgeInsets.all(AppDimensions.screenPadding),
                               itemCount: filtered.length,
                               separatorBuilder: (_, i) =>
@@ -305,15 +330,38 @@ class _RaiseComplaintSheetState extends State<_RaiseComplaintSheet> {
             const SizedBox(height: AppDimensions.md),
             _label('Attachments (Optional)'),
             const SizedBox(height: AppDimensions.xs),
-            OutlinedButton.icon(
-              onPressed: _pickFiles,
-              icon: const Icon(Icons.attach_file_rounded, size: 18),
-              label: const Text('Attach Photos, Videos, or Docs'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                side: const BorderSide(color: AppColors.border),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _pickFiles,
+                    icon: const Icon(Icons.attach_file_rounded, size: 18),
+                    label: const Text('Attach files'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.border),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppDimensions.sm),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _takePhoto,
+                    icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                    label: const Text('Camera'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.border),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
             if (_attachments.isNotEmpty) ...[
               const SizedBox(height: AppDimensions.sm),
@@ -439,9 +487,28 @@ class _RaiseComplaintSheetState extends State<_RaiseComplaintSheet> {
       type: FileType.custom,
       allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf', 'mp4', 'doc', 'docx'],
     );
-    if (result != null) {
+    if (result != null && mounted) {
       setState(() {
         _attachments.addAll(result.files);
+      });
+    }
+  }
+
+  Future<void> _takePhoto() async {
+    final x = await pickPhotoFromCamera();
+    if (x == null || !mounted) return;
+    final name =
+        x.name.isNotEmpty ? x.name : 'complaint_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final path = x.path;
+    if (path.isNotEmpty) {
+      final len = await x.length();
+      setState(() {
+        _attachments.add(PlatformFile(path: path, name: name, size: len));
+      });
+    } else {
+      final bytes = await x.readAsBytes();
+      setState(() {
+        _attachments.add(PlatformFile(name: name, size: bytes.length, bytes: bytes));
       });
     }
   }

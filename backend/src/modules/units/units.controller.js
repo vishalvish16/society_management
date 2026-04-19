@@ -7,6 +7,32 @@ const UNIT_LOCKED_ROLES = new Set(['MEMBER', 'RESIDENT', 'VICE_CHAIRMAN', 'ASSIS
 /**
  * GET /api/v1/units
  */
+/**
+ * GET /api/units/wings — distinct wing codes from units in this society.
+ */
+async function listDistinctWings(req, res) {
+  try {
+    const { id: requesterId, role: requesterRole, societyId } = req.user;
+
+    if (UNIT_LOCKED_ROLES.has(requesterRole)) {
+      const unitResident = await prisma.unitResident.findFirst({
+        where: { userId: requesterId },
+        include: { unit: { select: { wing: true } } },
+      });
+      const w = unitResident?.unit?.wing;
+      const wings =
+        w != null && String(w).trim() !== '' ? [String(w).trim()] : [];
+      return sendSuccess(res, { wings }, 'Wings retrieved');
+    }
+
+    const wings = await unitsService.listDistinctWings(societyId);
+    return sendSuccess(res, { wings }, 'Wings retrieved');
+  } catch (error) {
+    console.error('List wings error:', error.message);
+    return sendError(res, error.message, error.status || 500);
+  }
+}
+
 async function getUnits(req, res) {
   try {
     const filters = { ...req.query };
@@ -151,6 +177,7 @@ async function bulkCreateUnits(req, res) {
 
 module.exports = {
   getUnits,
+  listDistinctWings,
   createUnit,
   updateUnit,
   deleteUnit,

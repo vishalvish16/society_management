@@ -13,7 +13,8 @@ app.use((req, res, next) => {
     !origin ||
     origin.startsWith('http://localhost') ||
     origin.startsWith('http://127.0.0.1') ||
-    origin.startsWith('http://192.168.')
+    origin.startsWith('http://192.168.') ||
+    origin.includes('trycloudflare.com')
   ) {
     res.setHeader('Access-Control-Allow-Origin', origin || '*');
   }
@@ -54,6 +55,7 @@ app.use('/api/dashboard', require('./modules/dashboard/dashboard.routes'));
 app.use('/api/plans', require('./modules/plans/plans.routes'));
 app.use('/api/societies', require('./modules/societies/societies.routes'));
 app.use('/api/units', require('./modules/units/units.routes'));
+app.use('/api/gates', require('./modules/gates/gates.routes'));
 app.use('/api/subscriptions', require('./modules/subscriptions/subscriptions.routes'));
 app.use('/api/settings', require('./modules/settings/settings.routes'));
 app.use('/api/payments', require('./modules/payments/payments.routes'));
@@ -62,6 +64,7 @@ app.use('/api/users', require('./modules/users/users.routes'));
 app.use('/api/parking', require('./modules/parking/parking.routes'));
 app.use('/api/donations', require('./modules/donations/donations.routes'));
 app.use('/api/reports', require('./modules/reports/reports.routes'));
+app.use('/api/search', require('./modules/search/search.routes'));
 
 // ── Health check ──────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ status: 'ok' }));

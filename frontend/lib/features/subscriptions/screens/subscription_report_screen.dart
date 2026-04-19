@@ -239,6 +239,9 @@ class _SubscriptionReportScreenState extends State<SubscriptionReportScreen> {
   }
 
   Widget _buildMobileFilters() {
+    final hasFilters =
+        _range != null || _plan.isNotEmpty || _paymentMethod.isNotEmpty || _searchC.text.trim().isNotEmpty;
+
     return Card(
       elevation: 0,
       margin: EdgeInsets.zero,
@@ -255,9 +258,9 @@ class _SubscriptionReportScreenState extends State<SubscriptionReportScreen> {
                 Expanded(
                   child: TextField(
                     controller: _searchC,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       hintText: 'Search society',
-                      prefixIcon: const Icon(Icons.search),
+                      prefixIcon: Icon(Icons.search),
                       isDense: true,
                     ),
                     onSubmitted: (_) => _load(page: 1),
@@ -265,84 +268,113 @@ class _SubscriptionReportScreenState extends State<SubscriptionReportScreen> {
                 ),
                 const SizedBox(width: 8),
                 IconButton(
+                  tooltip: 'Download PDF',
                   onPressed: _rows.isEmpty ? null : _downloadPdf,
                   icon: const Icon(Icons.download_rounded),
                   color: AppColors.primary,
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: AppDateRangeField(
-                    label: 'Date Range',
-                    from: _range?.start,
-                    to: _range?.end,
-                    clearable: true,
-                    onClear: () { setState(() => _range = null); _load(page: 1); },
-                    onTap: () async {
-                      final picked = await pickDateRange(
-                        context,
-                        initialFrom: _range?.start,
-                        initialTo: _range?.end,
-                      );
-                      if (picked != null) {
-                        setState(() => _range = picked);
-                        _load(page: 1);
-                      }
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButton<String>(
-                    isExpanded: true,
-                    value: _plan,
-                    items: const [
-                      DropdownMenuItem(value: '', child: Text('All Plans')),
-                      DropdownMenuItem(value: 'basic', child: Text('Basic')),
-                      DropdownMenuItem(value: 'standard', child: Text('Standard')),
-                      DropdownMenuItem(value: 'premium', child: Text('Premium')),
-                    ],
-                    onChanged: (v) {
-                      setState(() => _plan = v ?? '');
-                      _load(page: 1);
-                    },
-                  ),
+                IconButton(
+                  tooltip: 'Refresh',
+                  onPressed: () => _load(page: _page),
+                  icon: const Icon(Icons.refresh_rounded),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: DropdownButton<String>(
-                    isExpanded: true,
-                    value: _paymentMethod,
-                    items: const [
-                      DropdownMenuItem(value: '', child: Text('All Payment Types')),
-                      DropdownMenuItem(value: 'UPI', child: Text('UPI')),
-                      DropdownMenuItem(value: 'BANK', child: Text('Bank')),
-                      DropdownMenuItem(value: 'ONLINE', child: Text('Online')),
-                      DropdownMenuItem(value: 'CASH', child: Text('Cash')),
-                      DropdownMenuItem(value: 'RAZORPAY', child: Text('Razorpay')),
-                    ],
-                    onChanged: (v) {
-                      setState(() => _paymentMethod = v ?? '');
-                      _load(page: 1);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 1,
-                  child: Text('$_total rows', style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, c) {
+                final w = c.maxWidth;
+                final isTwoCol = w >= 440;
+                final gap = 12.0;
+                final itemW = isTwoCol ? (w - gap) / 2 : w;
+
+                return Wrap(
+                  runSpacing: 12,
+                  spacing: gap,
+                  children: [
+                    SizedBox(
+                      width: itemW,
+                      child: AppDateRangeField(
+                        label: 'Date Range',
+                        from: _range?.start,
+                        to: _range?.end,
+                        clearable: true,
+                        onClear: () {
+                          setState(() => _range = null);
+                          _load(page: 1);
+                        },
+                        onTap: () async {
+                          final picked = await pickDateRange(
+                            context,
+                            initialFrom: _range?.start,
+                            initialTo: _range?.end,
+                          );
+                          if (picked != null) {
+                            setState(() => _range = picked);
+                            _load(page: 1);
+                          }
+                        },
+                      ),
+                    ),
+                    SizedBox(
+                      width: itemW,
+                      child: DropdownButtonFormField<String>(
+                        value: _plan,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Plan',
+                          isDense: true,
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: '', child: Text('All Plans')),
+                          DropdownMenuItem(value: 'basic', child: Text('Basic')),
+                          DropdownMenuItem(value: 'standard', child: Text('Standard')),
+                          DropdownMenuItem(value: 'premium', child: Text('Premium')),
+                        ],
+                        onChanged: (v) {
+                          setState(() => _plan = v ?? '');
+                          _load(page: 1);
+                        },
+                      ),
+                    ),
+                    SizedBox(
+                      width: itemW,
+                      child: DropdownButtonFormField<String>(
+                        value: _paymentMethod,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Payment type',
+                          isDense: true,
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: '', child: Text('All Payment Types')),
+                          DropdownMenuItem(value: 'UPI', child: Text('UPI')),
+                          DropdownMenuItem(value: 'BANK', child: Text('Bank')),
+                          DropdownMenuItem(value: 'ONLINE', child: Text('Online')),
+                          DropdownMenuItem(value: 'CASH', child: Text('Cash')),
+                          DropdownMenuItem(value: 'RAZORPAY', child: Text('Razorpay')),
+                        ],
+                        onChanged: (v) {
+                          setState(() => _paymentMethod = v ?? '');
+                          _load(page: 1);
+                        },
+                      ),
+                    ),
+                    SizedBox(
+                      width: itemW,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '$_total rows',
+                          style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
-            if (_range != null || _plan.isNotEmpty || _paymentMethod.isNotEmpty || _searchC.text.trim().isNotEmpty)
+            if (hasFilters)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Row(
@@ -359,7 +391,7 @@ class _SubscriptionReportScreenState extends State<SubscriptionReportScreen> {
                         _load(page: 1);
                       },
                       icon: const Icon(Icons.clear_rounded, size: 16),
-                      label: const Text('Clear Filters'),
+                      label: const Text('Clear filters'),
                     ),
                   ],
                 ),
@@ -479,27 +511,37 @@ class _SubscriptionReportScreenState extends State<SubscriptionReportScreen> {
             child: Row(
               children: [
                 Expanded(
-                  flex: 2,
-                  child: InkWell(
-                    onTap: () => _toggleSort('createdAt'),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        Text('Date ', style: AppTextStyles.labelMedium.copyWith(color: AppColors.textMuted)),
-                        if (_orderBy == 'createdAt')
-                          Icon(_asc ? Icons.arrow_upward : Icons.arrow_downward, size: 14, color: AppColors.textMuted),
-                      ],
-                    ),
-                  ),
-                ),
-                Expanded(
-                  flex: 3,
-                  child: InkWell(
-                    onTap: () => _toggleSort('societyName'),
-                    child: Row(
-                      children: [
-                        Text('Society', style: AppTextStyles.labelMedium.copyWith(color: AppColors.textMuted)),
-                        if (_orderBy == 'societyName')
-                          Icon(_asc ? Icons.arrow_upward : Icons.arrow_downward, size: 14, color: AppColors.textMuted),
+                        _SortChip(
+                          label: 'Date',
+                          active: _orderBy == 'createdAt',
+                          asc: _asc,
+                          onTap: () => _toggleSort('createdAt'),
+                        ),
+                        const SizedBox(width: 8),
+                        _SortChip(
+                          label: 'Society',
+                          active: _orderBy == 'societyName',
+                          asc: _asc,
+                          onTap: () => _toggleSort('societyName'),
+                        ),
+                        const SizedBox(width: 8),
+                        _SortChip(
+                          label: 'Plan',
+                          active: _orderBy == 'planName',
+                          asc: _asc,
+                          onTap: () => _toggleSort('planName'),
+                        ),
+                        const SizedBox(width: 8),
+                        _SortChip(
+                          label: 'Amount',
+                          active: _orderBy == 'amount',
+                          asc: _asc,
+                          onTap: () => _toggleSort('amount'),
+                        ),
                       ],
                     ),
                   ),
@@ -515,21 +557,98 @@ class _SubscriptionReportScreenState extends State<SubscriptionReportScreen> {
               itemBuilder: (context, index) {
                 final r = _rows[index];
                 final society = r['society'] as Map? ?? {};
+                final plan = r['plan'] as Map? ?? {};
                 final createdAt = r['createdAt'] is String
                     ? DateTime.tryParse(r['createdAt']) ?? DateTime.now()
                     : DateTime.now();
+                final ps = r['periodStart'] is String ? DateTime.tryParse(r['periodStart']) ?? createdAt : createdAt;
+                final pe = r['periodEnd'] is String ? DateTime.tryParse(r['periodEnd']) ?? createdAt : createdAt;
+                final amt = num.tryParse(r['amount']?.toString() ?? '0') ?? 0;
+                final payment = (r['paymentMethod'] ?? '-').toString();
+                final txn = (r['reference'] ?? '-').toString();
+                final notes = (r['notes'] ?? '').toString().trim();
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        flex: 2,
-                        child: Text(_date.format(createdAt), style: AppTextStyles.bodyMedium),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              (society['name'] ?? '-').toString(),
+                              style: AppTextStyles.h3,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _currency.format(amt),
+                            style: AppTextStyles.labelLarge.copyWith(color: AppColors.textPrimary),
+                          ),
+                        ],
                       ),
-                      Expanded(
-                        flex: 3,
-                        child: Text((society['name'] ?? '-').toString(), style: AppTextStyles.bodyMedium),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.infoSurface,
+                              borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                            ),
+                            child: Text(
+                              (plan['displayName'] ?? plan['name'] ?? '-').toString(),
+                              style: AppTextStyles.labelSmall.copyWith(color: AppColors.info),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            payment,
+                            style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          const Icon(Icons.calendar_today_rounded, size: 14, color: AppColors.textMuted),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              '${_date.format(createdAt)}  •  ${_date.format(ps)} → ${_date.format(pe)}',
+                              style: AppTextStyles.caption,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(Icons.receipt_long_rounded, size: 14, color: AppColors.textMuted),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              txn.isEmpty ? '-' : txn,
+                              style: AppTextStyles.caption,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (notes.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          notes,
+                          style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ],
                   ),
                 );
@@ -629,6 +748,46 @@ class _SubscriptionReportScreenState extends State<SubscriptionReportScreen> {
       default:
         return null;
     }
+  }
+}
+
+class _SortChip extends StatelessWidget {
+  final String label;
+  final bool active;
+  final bool asc;
+  final VoidCallback onTap;
+  const _SortChip({
+    required this.label,
+    required this.active,
+    required this.asc,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = active ? AppColors.primary : AppColors.textMuted;
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: active ? AppColors.primarySurface : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: active ? AppColors.primary.withValues(alpha: 0.35) : const Color(0xFFE2E8F0)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label, style: AppTextStyles.labelSmall.copyWith(color: fg)),
+            if (active) ...[
+              const SizedBox(width: 6),
+              Icon(asc ? Icons.arrow_upward : Icons.arrow_downward, size: 14, color: fg),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }
 

@@ -1,5 +1,14 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+
+import '../../../core/constants/app_constants.dart';
+import '../../../shared/widgets/profile_photo_crop_screen.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
@@ -11,11 +20,12 @@ import '../../../shared/widgets/app_loading_shimmer.dart';
 import '../../../shared/widgets/app_status_chip.dart';
 import '../providers/domestic_help_provider.dart';
 import '../../../shared/widgets/unit_picker_field.dart';
+import '../../../shared/utils/pick_camera_photo.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
 
 const _helperTypes = ['MAID', 'COOK', 'DRIVER', 'GARDENER', 'OTHER'];
 const _adminRoles = {'PRAMUKH', 'SECRETARY'};
-const _canAddRoles = {'PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'RESIDENT'};
+const _canAddRoles = {'PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'RESIDENT', 'MEMBER'};
 
 class DomesticHelpScreen extends ConsumerStatefulWidget {
   const DomesticHelpScreen({super.key});
@@ -151,11 +161,17 @@ class _DomesticHelpScreenState extends ConsumerState<DomesticHelpScreen> {
                           CircleAvatar(
                             radius: 22,
                             backgroundColor: AppColors.primary,
-                            child: Text(
-                              firstLetter,
-                              style: AppTextStyles.h3.copyWith(color: AppColors.textOnPrimary),
-                            ),
+                            backgroundImage: (h['photoUrl'] as String? ?? '').isNotEmpty
+                                ? NetworkImage('${AppConstants.apiBaseUrl.replaceAll('/api/', '')}${h['photoUrl']}')
+                                : null,
+                            child: (h['photoUrl'] as String? ?? '').isEmpty
+                                ? Text(
+                                    firstLetter,
+                                    style: AppTextStyles.h3.copyWith(color: AppColors.textOnPrimary),
+                                  )
+                                : null,
                           ),
+
                           const SizedBox(width: AppDimensions.md),
                           Expanded(
                             child: Column(
@@ -356,8 +372,10 @@ class _HelperFormState extends ConsumerState<_HelperForm> {
   late String _selectedType;
   bool _isLoading = false;
   String? _errorMsg;
+  PlatformFile? _pickedFile;
 
   bool get _isEdit => widget.existing != null;
+
 
   @override
   void initState() {
@@ -400,6 +418,7 @@ class _HelperFormState extends ConsumerState<_HelperForm> {
           'type': _selectedType,
           'phone': _phoneController.text.trim(),
         },
+        photo: _pickedFile,
       );
     } else {
       if (_selectedUnitId == null) {
@@ -418,8 +437,9 @@ class _HelperFormState extends ConsumerState<_HelperForm> {
       final entryCode = _entryCodeController.text.trim();
       if (phone.isNotEmpty) data['phone'] = phone;
       if (entryCode.isNotEmpty) data['entryCode'] = entryCode;
-      error = await ref.read(domesticHelpProvider.notifier).addHelper(data);
+      error = await ref.read(domesticHelpProvider.notifier).addHelper(data, photo: _pickedFile);
     }
+
  
     if (mounted) {
       if (error == null) {
@@ -473,6 +493,96 @@ class _HelperFormState extends ConsumerState<_HelperForm> {
               validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
             ),
             const SizedBox(height: AppDimensions.md),
+            // Profile Photo Picker
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 70,
+                  height: 70,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceVariant,
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+                    border: Border.all(color: AppColors.border),
+                    image: _pickedFile != null && _pickedFile!.bytes != null
+                        ? DecorationImage(
+                            image: MemoryImage(_pickedFile!.bytes!),
+                            fit: BoxFit.cover,
+                          )
+                        : (widget.existing?['photoUrl'] != null
+                            ? DecorationImage(
+                                image: NetworkImage(
+                                    '${AppConstants.apiBaseUrl.replaceAll('/api/', '')}${widget.existing!['photoUrl']}'),
+                                fit: BoxFit.cover,
+                              )
+                            : null),
+                  ),
+                  child: (_pickedFile == null && widget.existing?['photoUrl'] == null)
+                      ? const Icon(Icons.person_rounded, color: AppColors.textMuted)
+                      : null,
+                ),
+                const SizedBox(width: AppDimensions.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Profile Photo', style: AppTextStyles.labelLarge),
+                      Text(
+                        _pickedFile != null
+                            ? 'New photo selected'
+                            : 'Camera or attach from device',
+                        style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
+                      ),
+                      const SizedBox(height: AppDimensions.sm),
+                      Wrap(
+                        spacing: AppDimensions.sm,
+                        runSpacing: AppDimensions.sm,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: _takePhotoFromCamera,
+                            icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                            label: const Text('Camera'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.primary,
+                              side: const BorderSide(color: AppColors.border),
+                              shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppDimensions.radiusMd),
+                              ),
+                            ),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _pickImageFromFiles,
+                            icon: const Icon(Icons.attach_file_rounded, size: 18),
+                            label: const Text('Attach'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.primary,
+                              side: const BorderSide(color: AppColors.border),
+                              shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppDimensions.radiusMd),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_pickedFile != null || widget.existing?['photoUrl'] != null)
+                        TextButton(
+                          onPressed: () => setState(() => _pickedFile = null),
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: Text('Reset', style: AppTextStyles.labelSmall.copyWith(color: AppColors.danger)),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppDimensions.md),
+
             AppSearchableDropdown<String>(
               label: 'Type',
               value: _selectedType,
@@ -559,4 +669,45 @@ class _HelperFormState extends ConsumerState<_HelperForm> {
       ),
     );
   }
+
+  Future<void> _pickImageFromFiles() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+    );
+    if (result == null || !mounted) return;
+    final f = result.files.single;
+    final raw = await _rawImageBytesFromPlatformFile(f);
+    if (raw == null || !mounted) return;
+    final cropped = await showProfilePhotoCrop(context, raw);
+    if (!mounted || cropped == null) return;
+    final name = f.name.isNotEmpty ? f.name : 'photo.jpg';
+    setState(() {
+      _pickedFile = PlatformFile(name: name, size: cropped.length, bytes: cropped);
+    });
+  }
+
+  Future<void> _takePhotoFromCamera() async {
+    final x = await pickPhotoFromCamera(imageQuality: 78);
+    if (x == null || !mounted) return;
+    final raw = await x.readAsBytes();
+    if (!mounted) return;
+    final cropped = await showProfilePhotoCrop(context, raw);
+    if (!mounted || cropped == null) return;
+    final name =
+        x.name.isNotEmpty ? x.name : 'helper_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    setState(() {
+      _pickedFile = PlatformFile(name: name, size: cropped.length, bytes: cropped);
+    });
+  }
+
+  /// Web and most pickers expose bytes; desktop may only expose a filesystem path.
+  Future<Uint8List?> _rawImageBytesFromPlatformFile(PlatformFile f) async {
+    if (f.bytes != null) return f.bytes!;
+    if (f.path != null && f.path!.isNotEmpty && !kIsWeb) {
+      return File(f.path!).readAsBytes();
+    }
+    return null;
+  }
 }
+

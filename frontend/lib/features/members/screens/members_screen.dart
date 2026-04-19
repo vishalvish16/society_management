@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimensions.dart';
@@ -13,7 +14,6 @@ import '../providers/members_provider.dart';
 import '../../units/providers/unit_provider.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
-import '../../../shared/widgets/app_card_grid.dart';
 
 class MembersScreen extends ConsumerStatefulWidget {
   const MembersScreen({super.key});
@@ -25,6 +25,7 @@ class MembersScreen extends ConsumerStatefulWidget {
 class _MembersScreenState extends ConsumerState<MembersScreen> {
   final ScrollController _scrollController = ScrollController();
   String _selectedRole = 'All';
+  String? _handledFocusId;
 
   @override
   void initState() {
@@ -52,10 +53,9 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final focusId = GoRouterState.of(context).uri.queryParameters['focusId'];
     final membersAsync = ref.watch(membersProvider);
     final notifier = ref.read(membersProvider.notifier);
-    final currentUser = ref.watch(authProvider).user;
-    final canManage = !(currentUser?.isUnitLocked ?? false);
 
     final isWide = MediaQuery.of(context).size.width >= 768;
     final filtersWidget = SingleChildScrollView(
@@ -84,7 +84,7 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                 style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary),
               ),
               bottom: PreferredSize(
-                preferredSize: const Size.fromHeight(60),
+                preferredSize: const Size.fromHeight(72),
                 child: filtersWidget,
               ),
             )
@@ -92,7 +92,7 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
               backgroundColor: AppColors.primary,
               toolbarHeight: 0,
               bottom: PreferredSize(
-                preferredSize: const Size.fromHeight(60),
+                preferredSize: const Size.fromHeight(72),
                 child: filtersWidget,
               ),
             ),
@@ -108,6 +108,14 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
         loading: () => const AppLoadingShimmer(),
         error: (e, _) => Center(child: Text('Error: $e')),
         data: (members) {
+          // If navigated from global search, try to load pages until we find the target.
+          if (focusId != null && focusId.isNotEmpty && _handledFocusId != focusId) {
+            WidgetsBinding.instance.addPostFrameCallback((_) async {
+              if (!mounted) return;
+              await _focusMemberById(focusId);
+              if (mounted) setState(() => _handledFocusId = focusId);
+            });
+          }
           if (members.isEmpty) {
             return const AppEmptyState(
                 emoji: '👥',
@@ -200,7 +208,12 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                                                 const Icon(Icons.apartment_rounded, size: 14, color: AppColors.textMuted),
                                                 const SizedBox(width: 4),
                                                 Expanded(
-                                                  child: Text(m.unitCode ?? 'No Unit', style: AppTextStyles.bodySmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                                  child: Text(
+                                                    m.unitCode.isNotEmpty ? m.unitCode : 'No Unit',
+                                                    style: AppTextStyles.bodySmall,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
                                                 ),
                                               ],
                                             ),
@@ -675,6 +688,36 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
           },
         );
       },
+    );
+  }
+
+  Future<void> _focusMemberById(String id) async {
+    // Keep loading more until we find the member or run out.
+    for (int guard = 0; guard < 15; guard++) {
+      final list = ref.read(membersProvider).value ?? const <Member>[];
+      final idx = list.indexWhere((m) => m.id == id);
+      if (idx >= 0) {
+        // Scroll near the item then open edit dialog.
+        final targetOffset = (idx * 104.0).clamp(0.0, _scrollController.position.maxScrollExtent);
+        await _scrollController.animateTo(
+          targetOffset,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOut,
+        );
+        if (!mounted) return;
+        _showAddEditDialog(context, ref, member: list[idx]);
+        return;
+      }
+
+      final n = ref.read(membersProvider.notifier);
+      if (!n.hasMore || n.isLoadingMore) break;
+      await n.loadNextPage();
+      await Future.delayed(const Duration(milliseconds: 50));
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Record not found in members list')),
     );
   }
 }

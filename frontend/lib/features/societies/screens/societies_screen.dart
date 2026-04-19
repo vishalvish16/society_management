@@ -58,24 +58,20 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      floatingActionButton: isMobile
+          ? FloatingActionButton(
+              onPressed: () => _showRegisterStepper(context),
+              child: const Icon(Icons.add_rounded),
+            )
+          : null,
       body: Padding(
         padding: EdgeInsets.all(isMobile ? 16 : 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header - Hide title on mobile as it's in the AppBar
-            if (isMobile) 
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: () => _showRegisterStepper(context),
-                    icon: const Icon(Icons.add_rounded),
-                    label: const Text('Register Society'),
-                  ),
-                ),
-              )
+            // Header - desktop only
+            if (isMobile)
+              const SizedBox.shrink()
             else
               Row(
                 children: [
@@ -113,126 +109,61 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
             const SizedBox(height: 20),
 
             // Search & Filter Bar
-            isMobile
-                ? Column(
-                    children: [
-                      TextField(
-                        controller: _searchController,
-                        decoration: InputDecoration(
-                          hintText: 'Search by name...',
-                          prefixIcon: const Icon(Icons.search),
-                          suffixIcon: _searchController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    _search();
-                                  },
-                                )
-                              : null,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                          ),
-                        ),
-                        onSubmitted: (_) => _search(),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search by name...',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                _searchController.clear();
+                                _search();
+                              },
+                            )
+                          : null,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        value: _statusFilter,
-                        decoration: InputDecoration(
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                          ),
-                        ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: '',
-                            child: Text('All Status'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'ACTIVE',
-                            child: Text('Active'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'SUSPENDED',
-                            child: Text('Suspended'),
-                          ),
-                        ],
-                        onChanged: (val) {
-                          setState(() => _statusFilter = val ?? '');
-                          _search();
-                        },
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                      ),
+                    ),
+                    onSubmitted: (_) => _search(),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 140,
+                  child: DropdownButtonFormField<String>(
+                    value: _statusFilter,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                      ),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: '', child: Text('All Status')),
+                      DropdownMenuItem(value: 'ACTIVE', child: Text('Active')),
+                      DropdownMenuItem(
+                        value: 'SUSPENDED',
+                        child: Text('Suspended'),
                       ),
                     ],
-                  )
-                : Row(
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: TextField(
-                          controller: _searchController,
-                          decoration: InputDecoration(
-                            hintText: 'Search by name...',
-                            prefixIcon: const Icon(Icons.search),
-                            suffixIcon: _searchController.text.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(Icons.clear),
-                                    onPressed: () {
-                                      _searchController.clear();
-                                      _search();
-                                    },
-                                  )
-                                : null,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                            ),
-                          ),
-                          onSubmitted: (_) => _search(),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      SizedBox(
-                        width: 160,
-                        child: DropdownButtonFormField<String>(
-                          value: _statusFilter,
-                          decoration: InputDecoration(
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                            ),
-                          ),
-                          items: const [
-                            DropdownMenuItem(
-                              value: '',
-                              child: Text('All Status'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'ACTIVE',
-                              child: Text('Active'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'SUSPENDED',
-                              child: Text('Suspended'),
-                            ),
-                          ],
-                          onChanged: (val) {
-                            setState(() => _statusFilter = val ?? '');
-                            _search();
-                          },
-                        ),
-                      ),
-                    ],
+                    onChanged: (val) {
+                      setState(() => _statusFilter = val ?? '');
+                      _search();
+                    },
+                  ),
+                ),
+              ],
                   ),
             const SizedBox(height: 16),
 

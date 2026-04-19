@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimensions.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -10,6 +11,7 @@ import '../../../shared/widgets/app_loading_shimmer.dart';
 import '../../bills/screens/upi_pay_sheet.dart';
 import '../../donations/screens/donate_sheet.dart';
 import '../providers/dashboard_provider.dart';
+import '../widgets/dashboard_portal_widgets.dart';
 
 /// Dashboard for RESIDENT role — personal unit-centric view
 class ResidentDashboard extends ConsumerWidget {
@@ -18,6 +20,7 @@ class ResidentDashboard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final statsAsync = ref.watch(residentDashboardProvider);
+    final user = ref.watch(authProvider).user;
     final isWeb = MediaQuery.of(context).size.width >= 720;
 
     return statsAsync.when(
@@ -26,15 +29,11 @@ class ResidentDashboard extends ConsumerWidget {
         message: 'Failed to load: $e',
         onRetry: () => ref.invalidate(residentDashboardProvider),
       ),
-      data: (stats) => RefreshIndicator(
+      data: (stats) => DashboardRefreshWithSearchStack(
         onRefresh: () async => ref.refresh(residentDashboardProvider.future),
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(AppDimensions.screenPadding),
-          child: isWeb
-              ? _WebResidentLayout(stats: stats)
-              : _MobileResidentLayout(stats: stats),
-        ),
+        scrollChild: isWeb
+            ? _WebResidentLayout(stats: stats, user: user)
+            : _MobileResidentLayout(stats: stats, user: user),
       ),
     );
   }
@@ -44,18 +43,70 @@ class ResidentDashboard extends ConsumerWidget {
 
 class _WebResidentLayout extends StatelessWidget {
   final Map<String, dynamic> stats;
-  const _WebResidentLayout({required this.stats});
+  final dynamic user;
+  const _WebResidentLayout({required this.stats, required this.user});
 
   @override
   Widget build(BuildContext context) {
+    final name = (user?.name?.toString().trim().isNotEmpty ?? false)
+        ? user.name.toString().trim()
+        : 'Resident';
+    final unit = stats['unit'] as Map<String, dynamic>?;
+    final unitCode = unit?['fullCode'] as String? ?? user?.unitCode?.toString().trim() ?? '';
+    final subtitle = unitCode.isNotEmpty
+        ? 'Unit $unitCode · ${dashboardRoleSubtitle('RESIDENT')}'
+        : dashboardRoleSubtitle('RESIDENT');
+    final hasTrends = dashboardStatsHasTrends(stats);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        DashboardGreetingHeader(
+          title: 'Home',
+          greeting: dashboardGreetingForNow(),
+          name: name,
+          subtitle: subtitle,
+          compact: false,
+          onNotifications: () => context.go('/notifications'),
+        ),
+        const SizedBox(height: AppDimensions.lg),
         // Unit + balance hero
         _UnitBalanceHero(stats: stats),
         const SizedBox(height: AppDimensions.md),
         _CampaignBanner(stats: stats),
         const SizedBox(height: AppDimensions.xxl),
+
+        if (hasTrends) ...[
+          DashboardSectionHeaderRow(
+            title: 'Insights',
+            actionLabel: 'Bills',
+            onAction: () => context.go('/bills'),
+          ),
+          const SizedBox(height: AppDimensions.md),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: DashboardTrendPanel(
+                  title: 'Collection trend',
+                  subtitle: 'Society collections',
+                  color: AppColors.primary,
+                  data: trendValuesFromDashboardStats(stats, key: 'collections'),
+                ),
+              ),
+              const SizedBox(width: AppDimensions.lg),
+              Expanded(
+                child: DashboardTrendPanel(
+                  title: 'Visitors',
+                  subtitle: 'Gate activity',
+                  color: AppColors.info,
+                  data: trendValuesFromDashboardStats(stats, key: 'visitors'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppDimensions.xxl),
+        ],
 
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -94,31 +145,78 @@ class _WebResidentLayout extends StatelessWidget {
 
 class _MobileResidentLayout extends StatelessWidget {
   final Map<String, dynamic> stats;
-  const _MobileResidentLayout({required this.stats});
+  final dynamic user;
+  const _MobileResidentLayout({required this.stats, required this.user});
 
   @override
   Widget build(BuildContext context) {
+    final name = (user?.name?.toString().trim().isNotEmpty ?? false)
+        ? user.name.toString().trim()
+        : 'Resident';
+    final unit = stats['unit'] as Map<String, dynamic>?;
+    final unitCode = unit?['fullCode'] as String? ?? user?.unitCode?.toString().trim() ?? '';
+    final subtitle = unitCode.isNotEmpty
+        ? 'Unit $unitCode · ${dashboardRoleSubtitle('RESIDENT')}'
+        : dashboardRoleSubtitle('RESIDENT');
+    final hasTrends = dashboardStatsHasTrends(stats);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        DashboardGreetingHeader(
+          title: 'Home',
+          greeting: dashboardGreetingForNow(),
+          name: name,
+          subtitle: subtitle,
+          compact: true,
+          onNotifications: () => context.go('/notifications'),
+        ),
+        const SizedBox(height: AppDimensions.md),
         _UnitBalanceHero(stats: stats),
         const SizedBox(height: AppDimensions.md),
         _CampaignBanner(stats: stats),
         const SizedBox(height: AppDimensions.lg),
 
-        Text('Pending Bills', style: AppTextStyles.h2),
+        if (hasTrends) ...[
+          DashboardSectionHeaderRow(
+            title: 'Insights',
+            actionLabel: 'Bills',
+            onAction: () => context.go('/bills'),
+          ),
+          const SizedBox(height: AppDimensions.md),
+          DashboardTrendPanel(
+            title: 'Collection trend',
+            subtitle: 'Society collections',
+            color: AppColors.primary,
+            data: trendValuesFromDashboardStats(stats, key: 'collections'),
+          ),
+          const SizedBox(height: AppDimensions.md),
+          DashboardTrendPanel(
+            title: 'Visitors',
+            subtitle: 'Gate activity',
+            color: AppColors.info,
+            data: trendValuesFromDashboardStats(stats, key: 'visitors'),
+          ),
+          const SizedBox(height: AppDimensions.lg),
+        ],
+
+        DashboardSectionHeaderRow(title: 'Pending Bills'),
         const SizedBox(height: AppDimensions.md),
         _PendingBillsSection(stats: stats),
         const SizedBox(height: AppDimensions.lg),
 
         _DonationCampaignsSection(stats: stats),
 
-        Text('Quick Actions', style: AppTextStyles.h2),
+        DashboardSectionHeaderRow(title: 'Quick Actions'),
         const SizedBox(height: AppDimensions.md),
         _ResidentQuickActions(isWeb: false),
         const SizedBox(height: AppDimensions.lg),
 
-        Text('My Activity', style: AppTextStyles.h2),
+        DashboardSectionHeaderRow(
+          title: 'My Activity',
+          actionLabel: 'Visitors',
+          onAction: () => context.go('/visitors'),
+        ),
         const SizedBox(height: AppDimensions.md),
         _ResidentActivityCards(stats: stats),
       ],
@@ -807,7 +905,7 @@ class _DonationCampaignsSection extends StatelessWidget {
               ),
             ),
           );
-        }).toList(),
+        }),
         const SizedBox(height: AppDimensions.lg),
       ],
     );

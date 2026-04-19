@@ -135,6 +135,13 @@ enum AttendanceStatus {
   LEAVE
 }
 
+/// Duty shift for society staff (watchman, maintenance, etc.).
+enum StaffShift {
+  DAY
+  NIGHT
+  FULL
+}
+
 enum DomesticHelpType {
   MAID
   COOK
@@ -278,8 +285,25 @@ model Society {
   amenityBookings      AmenityBooking[]
   gatePasses           GatePass[]
   donations            Donation[]
+  societyGates         SocietyGate[]
 
   @@map("societies")
+}
+
+/// Named entry points for a society (main gate, service gate, tower lobby, etc.).
+model SocietyGate {
+  id        String   @id @default(uuid())
+  societyId String
+  society   Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  name      String
+  code      String? // optional short label, e.g. G1
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  staff     Staff[]
+
+  @@unique([societyId, name])
+  @@index([societyId])
+  @@map("society_gates")
 }
 
 model DonationCampaign {
@@ -561,6 +585,14 @@ model User {
   phone        String
   passwordHash String
   fcmToken     String?
+  /// Public URL path served from /uploads/profiles/…
+  profilePhotoUrl       String?
+  dateOfBirth           DateTime? @db.Date
+  /// Self-reported number of people living in the household (including the member).
+  householdMemberCount  Int?
+  bio                   String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
   isActive     Boolean   @default(true)
   createdById  String?
   deletedAt    DateTime?
@@ -901,8 +933,15 @@ model Staff {
   /// Linked User account (only for watchman — gives them app login access)
   userId      String?           @unique
   user        User?             @relation(fields: [userId], references: [id])
+  /// Primary posting: one gate at a time (optional).
+  gateId      String?
+  gate        SocietyGate?      @relation(fields: [gateId], references: [id], onDelete: SetNull)
+  shift       StaffShift        @default(FULL)
+  /// Wings this staff covers (e.g. maintenance for A+B). Empty/null = society-wide / not wing-specific.
+  assignedWingCodes Json?
 
   @@index([societyId])
+  @@index([gateId])
   @@map("staff")
 }
 

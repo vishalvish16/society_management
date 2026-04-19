@@ -36,6 +36,9 @@ exports.getStats = async (req, res) => {
     const societyAdminRoles = ['PRAMUKH', 'CHAIRMAN', 'VICE_CHAIRMAN', 'SECRETARY', 'ASSISTANT_SECRETARY', 'TREASURER', 'ASSISTANT_TREASURER', 'MEMBER'];
     if (societyAdminRoles.includes(role)) {
       const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+      const sixDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 5);
 
       const [
         totalUnits, occupiedUnits,
@@ -46,6 +49,8 @@ exports.getStats = async (req, res) => {
         todayVisitors,
         pendingDeliveries,
         activeCampaigns,
+        incomeTrends,
+        visitorDailyTrends,
       ] = await Promise.all([
         prisma.unit.count({ where: { societyId, deletedAt: null } }),
         prisma.unit.count({ where: { societyId, status: 'OCCUPIED', deletedAt: null } }),
@@ -87,10 +92,54 @@ exports.getStats = async (req, res) => {
             },
           },
         }),
+        // Monthly income trend (paidAmount sum by billingMonth over last 6 months)
+        prisma.maintenanceBill.groupBy({
+          by: ['billingMonth'],
+          where: { societyId, status: 'PAID', deletedAt: null, billingMonth: { gte: sixMonthsAgo, lte: monthStart } },
+          _sum: { paidAmount: true },
+        }),
+        // Daily visitors trend (count per day over last 6 days incl. today)
+        prisma.visitor.findMany({
+          where: { societyId, createdAt: { gte: sixDaysAgo } },
+          select: { createdAt: true },
+        }),
       ]);
 
       const societyIncome = Number(totalBillIncome._sum.paidAmount || 0) + Number(totalDonations._sum.amount || 0);
       const societyExpense = Number(totalExpenses._sum.totalAmount || 0);
+
+      // ── Normalize monthly trend into last 6 months labels/values ─────
+      const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const months = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        months.push(d);
+      }
+      const incomeMap = new Map();
+      for (const row of incomeTrends || []) {
+        const d = row.billingMonth ? new Date(row.billingMonth) : null;
+        if (!d) continue;
+        incomeMap.set(monthKey(d), Number(row._sum?.paidAmount || 0));
+      }
+      const collectionsLabels = months.map((d) => monthKey(d));
+      const collectionsValues = months.map((d) => incomeMap.get(monthKey(d)) || 0);
+
+      // ── Daily visitors trend (last 6 days) ──────────────────────────
+      const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const days = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+        d.setHours(0, 0, 0, 0);
+        days.push(d);
+      }
+      const dayCounts = new Map(days.map((d) => [dayKey(d), 0]));
+      for (const v of visitorDailyTrends || []) {
+        const d = new Date(v.createdAt);
+        const k = dayKey(d);
+        if (dayCounts.has(k)) dayCounts.set(k, (dayCounts.get(k) || 0) + 1);
+      }
+      const visitorsLabels = days.map((d) => dayKey(d));
+      const visitorsValues = days.map((d) => dayCounts.get(dayKey(d)) || 0);
 
       return sendSuccess(res, {
         units: { total: totalUnits, occupied: occupiedUnits, vacant: totalUnits - occupiedUnits },
@@ -104,6 +153,10 @@ exports.getStats = async (req, res) => {
         complaints: { open: openComplaints },
         visitors: { today: todayVisitors },
         deliveries: { pending: pendingDeliveries },
+        trends: {
+          collections: { labels: collectionsLabels, values: collectionsValues },
+          visitors: { labels: visitorsLabels, values: visitorsValues },
+        },
         activeCampaigns: activeCampaigns
           .filter(c => c.donations.length === 0)
           .map(c => ({

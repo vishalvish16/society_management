@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/dio_client.dart';
+import '../../../core/providers/auth_provider.dart';
 import 'package:dio/dio.dart';
 
 class DeliveryState {
@@ -24,16 +25,23 @@ class DeliveryState {
 }
 
 class DeliveryNotifier extends StateNotifier<DeliveryState> {
-  DeliveryNotifier() : super(const DeliveryState()) {
+  DeliveryNotifier(this.ref) : super(const DeliveryState()) {
     loadDeliveries();
   }
 
+  final Ref ref;
   final _client = DioClient();
+
+  bool _useMineEndpoint() {
+    final role = (ref.read(authProvider).user?.role ?? '').toUpperCase();
+    return role == 'RESIDENT' || role == 'MEMBER';
+  }
 
   Future<void> loadDeliveries() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final res = await _client.dio.get('/deliveries');
+      final path = _useMineEndpoint() ? '/deliveries/mine' : '/deliveries';
+      final res = await _client.dio.get(path);
       final data = res.data['data'];
       state = state.copyWith(
         isLoading: false,
@@ -107,4 +115,4 @@ class DeliveryNotifier extends StateNotifier<DeliveryState> {
 
 final deliveryProvider =
     StateNotifierProvider<DeliveryNotifier, DeliveryState>(
-        (ref) => DeliveryNotifier());
+        (ref) => DeliveryNotifier(ref));

@@ -18,11 +18,12 @@ function sendSuccess(res, data, message = 'Success', status = 200) {
  * @param {import('express').Response} res
  * @param {string} message - Human-readable error message
  * @param {number} [status=500] - HTTP status code
+ * @param {object|null} [data=null] - Optional structured details (e.g. scan result codes)
  */
-function sendError(res, message = 'Internal Server Error', status = 500) {
+function sendError(res, message = 'Internal Server Error', status = 500, data = null) {
   return res.status(status).json({
     success: false,
-    data: null,
+    data,
     message,
   });
 }

@@ -7,4 +7,13 @@ class AppConstants {
   // static const String apiBaseUrl = 'http://192.168.1.5:3001/api/';
   static const String apiBaseUrl =
       'https://kentucky-selections-wines-expires.trycloudflare.com/api/';
+
+  /// Server root for static `/uploads/...` paths returned by the API.
+  static String get uploadsBaseUrl => apiBaseUrl.replaceAll('/api/', '');
+
+  static String? uploadUrlFromPath(String? relative) {
+    if (relative == null || relative.isEmpty) return null;
+    if (relative.startsWith('http')) return relative;
+    return '$uploadsBaseUrl$relative';
+  }
 }

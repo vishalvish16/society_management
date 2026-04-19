@@ -13,6 +13,12 @@ class StaffMember {
   final bool isActive;
   final String? lastAttendanceStatus;
   final String? userId; // linked User account (watchman only)
+  /// DAY | NIGHT | FULL
+  final String shift;
+  final String? gateId;
+  final String? gateName;
+  final String? gateCode;
+  final List<String> assignedWingCodes;
 
   const StaffMember({
     required this.id,
@@ -24,14 +30,49 @@ class StaffMember {
     required this.isActive,
     this.lastAttendanceStatus,
     this.userId,
+    this.shift = 'FULL',
+    this.gateId,
+    this.gateName,
+    this.gateCode,
+    this.assignedWingCodes = const [],
   });
 
   bool get hasLoginAccount => userId != null;
+
+  String get shiftLabel {
+    switch (shift.toUpperCase()) {
+      case 'DAY':
+        return 'Day shift';
+      case 'NIGHT':
+        return 'Night shift';
+      default:
+        return 'Full day';
+    }
+  }
+
+  String? get gateDisplay {
+    if (gateName == null || gateName!.isEmpty) return null;
+    final c = gateCode?.trim();
+    if (c != null && c.isNotEmpty) return '$c · $gateName';
+    return gateName;
+  }
+
+  static List<String> _wingList(dynamic v) {
+    if (v is! List) return [];
+    return v.map((e) => e.toString().trim()).where((s) => s.isNotEmpty).toList();
+  }
+
+  static String _shift(dynamic s) {
+    final t = (s ?? 'FULL').toString().toUpperCase();
+    if (t == 'DAY' || t == 'NIGHT' || t == 'FULL') return t;
+    return 'FULL';
+  }
 
   factory StaffMember.fromJson(Map<String, dynamic> j) {
     final attendance = (j['attendance'] as List?)?.isNotEmpty == true
         ? j['attendance'][0]
         : null;
+    final gate = j['gate'] as Map<String, dynamic>?;
     return StaffMember(
       id: j['id'] ?? '',
       name: j['name'] ?? '',
@@ -42,6 +83,11 @@ class StaffMember {
       isActive: j['isActive'] ?? true,
       lastAttendanceStatus: attendance?['status'],
       userId: j['user']?['id'],
+      shift: _shift(j['shift']),
+      gateId: gate?['id']?.toString(),
+      gateName: gate?['name']?.toString(),
+      gateCode: gate?['code']?.toString(),
+      assignedWingCodes: _wingList(j['assignedWingCodes']),
     );
   }
 }

@@ -1,9 +1,9 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:image_picker/image_picker.dart' show XFile;
+import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
@@ -12,6 +12,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_empty_state.dart';
 import '../../../shared/widgets/app_loading_shimmer.dart';
+import '../../../shared/utils/pick_camera_photo.dart';
 import '../../../shared/widgets/app_status_chip.dart';
 import '../providers/expense_provider.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
@@ -828,17 +829,25 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
     super.dispose();
   }
 
-  Future<void> _pickFile() async {
+  Future<void> _pickAttachmentFile() async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
       withData: true,
     );
-    if (result != null && result.files.single.bytes != null) {
-      final file = result.files.single;
-      setState(
-        () => _attachment = XFile.fromData(file.bytes!, name: file.name),
-      );
+    if (result == null || !mounted) return;
+    final file = result.files.single;
+    if (file.bytes != null) {
+      setState(() => _attachment = XFile.fromData(file.bytes!, name: file.name));
+    } else if (file.path != null) {
+      setState(() => _attachment = XFile(file.path!));
+    }
+  }
+
+  Future<void> _takeAttachmentPhoto() async {
+    final shot = await pickPhotoFromCamera();
+    if (shot != null && mounted) {
+      setState(() => _attachment = shot);
     }
   }
 
@@ -958,59 +967,86 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
             const SizedBox(height: AppDimensions.md),
             Text('Attachment (optional)', style: AppTextStyles.labelMedium),
             const SizedBox(height: AppDimensions.xs),
-            InkWell(
-              onTap: _pickFile,
-              child: Container(
-                width: double.infinity,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: AppColors.background,
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                  border: Border.all(color: AppColors.border),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _pickAttachmentFile,
+                    icon: const Icon(Icons.attach_file_rounded, size: 18),
+                    label: const Text('Attach file'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.border),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(AppDimensions.radiusMd),
+                      ),
+                    ),
+                  ),
                 ),
-                child: _attachment != null
-                    ? Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppDimensions.sm,
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              _attachment!.name.toLowerCase().endsWith('.pdf')
-                                  ? Icons.picture_as_pdf
-                                  : Icons.image,
-                              color: AppColors.success,
-                            ),
-                            const SizedBox(width: AppDimensions.sm),
-                            Expanded(
-                              child: Text(
-                                _attachment!.name,
-                                style: AppTextStyles.bodySmall,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: () =>
-                                  setState(() => _attachment = null),
-                              icon: const Icon(Icons.close, size: 18),
-                            ),
-                          ],
-                        ),
-                      )
-                    : Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                const SizedBox(width: AppDimensions.sm),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _takeAttachmentPhoto,
+                    icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                    label: const Text('Camera'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.border),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(AppDimensions.radiusMd),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppDimensions.xs),
+            Container(
+              width: double.infinity,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: _attachment != null
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppDimensions.sm,
+                      ),
+                      child: Row(
                         children: [
-                          const Icon(
-                            Icons.upload_file,
-                            color: AppColors.textMuted,
+                          Icon(
+                            _attachment!.name.toLowerCase().endsWith('.pdf')
+                                ? Icons.picture_as_pdf
+                                : Icons.image,
+                            color: AppColors.success,
                           ),
-                          Text(
-                            'Tap to attach file',
-                            style: AppTextStyles.bodySmall,
+                          const SizedBox(width: AppDimensions.sm),
+                          Expanded(
+                            child: Text(
+                              _attachment!.name,
+                              style: AppTextStyles.bodySmall,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () =>
+                                setState(() => _attachment = null),
+                            icon: const Icon(Icons.close, size: 18),
                           ),
                         ],
                       ),
-              ),
+                    )
+                  : Center(
+                      child: Text(
+                        'No attachment selected',
+                        style: AppTextStyles.bodySmall
+                            .copyWith(color: AppColors.textMuted),
+                      ),
+                    ),
             ),
             const SizedBox(height: AppDimensions.md),
             TextField(
@@ -1122,17 +1158,25 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
     super.dispose();
   }
 
-  Future<void> _pickFile() async {
+  Future<void> _pickAttachmentFile() async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
       withData: true,
     );
-    if (result != null && result.files.single.bytes != null) {
-      final file = result.files.single;
-      setState(
-        () => _attachment = XFile.fromData(file.bytes!, name: file.name),
-      );
+    if (result == null || !mounted) return;
+    final file = result.files.single;
+    if (file.bytes != null) {
+      setState(() => _attachment = XFile.fromData(file.bytes!, name: file.name));
+    } else if (file.path != null) {
+      setState(() => _attachment = XFile(file.path!));
+    }
+  }
+
+  Future<void> _takeAttachmentPhoto() async {
+    final shot = await pickPhotoFromCamera();
+    if (shot != null && mounted) {
+      setState(() => _attachment = shot);
     }
   }
 
@@ -1253,63 +1297,91 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
             ),
             const SizedBox(height: AppDimensions.md),
             Text(
-              'Replace Attachment (optional)',
+              'Replace attachment (optional)',
               style: AppTextStyles.labelMedium,
             ),
             const SizedBox(height: AppDimensions.xs),
-            InkWell(
-              onTap: _pickFile,
-              child: Container(
-                width: double.infinity,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: AppColors.background,
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                  border: Border.all(color: AppColors.border),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _pickAttachmentFile,
+                    icon: const Icon(Icons.attach_file_rounded, size: 18),
+                    label: const Text('Attach file'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.border),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(AppDimensions.radiusMd),
+                      ),
+                    ),
+                  ),
                 ),
-                child: _attachment != null
-                    ? Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppDimensions.sm,
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              _attachment!.name.toLowerCase().endsWith('.pdf')
-                                  ? Icons.picture_as_pdf
-                                  : Icons.image,
-                              color: AppColors.success,
-                            ),
-                            const SizedBox(width: AppDimensions.sm),
-                            Expanded(
-                              child: Text(
-                                _attachment!.name,
-                                style: AppTextStyles.bodySmall,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: () =>
-                                  setState(() => _attachment = null),
-                              icon: const Icon(Icons.close, size: 18),
-                            ),
-                          ],
-                        ),
-                      )
-                    : Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                const SizedBox(width: AppDimensions.sm),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _takeAttachmentPhoto,
+                    icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                    label: const Text('Camera'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.border),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(AppDimensions.radiusMd),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppDimensions.xs),
+            Container(
+              width: double.infinity,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: _attachment != null
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppDimensions.sm,
+                      ),
+                      child: Row(
                         children: [
-                          const Icon(
-                            Icons.upload_file,
-                            color: AppColors.textMuted,
+                          Icon(
+                            _attachment!.name.toLowerCase().endsWith('.pdf')
+                                ? Icons.picture_as_pdf
+                                : Icons.image,
+                            color: AppColors.success,
                           ),
-                          Text(
-                            'Tap to replace attachment',
-                            style: AppTextStyles.bodySmall,
+                          const SizedBox(width: AppDimensions.sm),
+                          Expanded(
+                            child: Text(
+                              _attachment!.name,
+                              style: AppTextStyles.bodySmall,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () =>
+                                setState(() => _attachment = null),
+                            icon: const Icon(Icons.close, size: 18),
                           ),
                         ],
                       ),
-              ),
+                    )
+                  : Center(
+                      child: Text(
+                        'No new attachment — existing file kept',
+                        textAlign: TextAlign.center,
+                        style: AppTextStyles.bodySmall
+                            .copyWith(color: AppColors.textMuted),
+                      ),
+                    ),
             ),
             const SizedBox(height: AppDimensions.md),
             TextField(

@@ -329,6 +329,23 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
     }
   }
 
+  /// Shows **expired** when `validTo` has passed even if the row is still `ACTIVE` in the database.
+  String _effectiveGatePassStatus(Map<String, dynamic> p) {
+    final status = (p['status'] as String? ?? '').toLowerCase();
+    if (status == 'used' || status == 'cancelled' || status == 'expired') {
+      return status;
+    }
+    final raw = p['validTo'] as String?;
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        if (DateTime.parse(raw).isBefore(DateTime.now())) {
+          return 'expired';
+        }
+      } catch (_) {}
+    }
+    return status;
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(gatePassProvider);
@@ -364,8 +381,8 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
           itemCount: state.passes.length,
           separatorBuilder: (_, i) => const SizedBox(height: AppDimensions.sm),
           itemBuilder: (_, i) {
-            final p = state.passes[i];
-            final status = (p['status'] as String? ?? 'pending').toLowerCase();
+            final p = Map<String, dynamic>.from(state.passes[i] as Map);
+            final status = _effectiveGatePassStatus(p);
             final passCode = p['passCode'] as String? ?? '-';
             final desc = p['itemDescription'] as String? ?? '-';
             final unit =

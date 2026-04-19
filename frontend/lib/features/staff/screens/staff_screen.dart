@@ -10,12 +10,14 @@ import '../../../shared/widgets/app_loading_shimmer.dart';
 import '../../../shared/widgets/app_status_chip.dart';
 import '../../../shared/widgets/app_text_field.dart';
 import '../providers/staff_provider.dart';
+import '../../../core/providers/dio_provider.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
 
 const _roles = [
   'watchman',
   'housekeeping',
+  'maintenance',
   'driver',
   'gardener',
   'sweeper',
@@ -25,6 +27,19 @@ const _roles = [
 ];
 
 const _attendanceStatuses = ['present', 'absent', 'half_day', 'leave'];
+
+const _shiftFormValues = <String>['day', 'night', 'full'];
+
+String _shiftFormFromApi(String shift) {
+  switch (shift.toUpperCase()) {
+    case 'DAY':
+      return 'day';
+    case 'NIGHT':
+      return 'night';
+    default:
+      return 'full';
+  }
+}
 
 class StaffScreen extends ConsumerWidget {
   const StaffScreen({super.key});
@@ -146,6 +161,13 @@ class StaffScreen extends ConsumerWidget {
                               '${s.role}${s.phone != null ? ' • ${s.phone}' : ''}',
                               style: AppTextStyles.bodySmall
                                   .copyWith(color: AppColors.textMuted),
+                            ),
+                            Text(
+                              '${s.shiftLabel}'
+                              '${s.gateDisplay != null ? ' • ${s.gateDisplay}' : ''}'
+                              '${s.assignedWingCodes.isNotEmpty ? ' • Wings: ${s.assignedWingCodes.join(', ')}' : ''}',
+                              style: AppTextStyles.caption
+                                  .copyWith(color: AppColors.textSecondary),
                             ),
                             Text(
                               '₹${s.salary.toStringAsFixed(0)}/mo',
@@ -290,15 +312,25 @@ class StaffScreen extends ConsumerWidget {
     final nameCtrl = TextEditingController(text: staff?.name);
     final phoneCtrl = TextEditingController(text: staff?.phone);
     final passCtrl = TextEditingController();
+    final newGateCtrl = TextEditingController();
     final salaryCtrl =
         TextEditingController(text: staff?.salary.toStringAsFixed(0) ?? '');
     String role = staff?.role ?? _roles.first;
     bool isActive = staff?.isActive ?? true;
+    String shiftForm = _shiftFormFromApi(staff?.shift ?? 'FULL');
+    String? gateIdVal = staff?.gateId;
+    final selectedWings = <String>{...(staff?.assignedWingCodes ?? const [])};
+    var gatesLoaded = <Map<String, dynamic>>[];
+    var wingsLoaded = <String>[];
+    var metaReady = false;
+    var loadScheduled = false;
+    String? gateAddError;
 
     showAppSheet(
       context: context,
       builder: (ctx) {
         bool saving = false;
+        bool addingGate = false;
         String? sheetError;
         return StatefulBuilder(
           builder: (ctx, setDlgState) => Padding(
@@ -329,6 +361,203 @@ class StaffScreen extends ConsumerWidget {
                     items: _roles.map((r) => AppDropdownItem(value: r, label: r)).toList(),
                     onChanged: (v) => setDlgState(() => role = v ?? _roles.first),
                   ),
+                  const SizedBox(height: AppDimensions.md),
+                  Builder(builder: (_) {
+                    if (!loadScheduled) {
+                      loadScheduled = true;
+                      WidgetsBinding.instance.addPostFrameCallback((_) async {
+                        try {
+                          final dio = ref.read(dioProvider);
+                          final gr = await dio.get('gates');
+                          final wr = await dio.get('units/wings');
+                          if (!ctx.mounted) return;
+                          setDlgState(() {
+                            gatesLoaded = List<Map<String, dynamic>>.from(
+                                gr.data['data']?['gates'] ?? []);
+                            wingsLoaded = List<String>.from(
+                                wr.data['data']?['wings'] ?? []);
+                            for (final w in selectedWings) {
+                              if (!wingsLoaded.contains(w)) wingsLoaded.add(w);
+                            }
+                            wingsLoaded.sort();
+                            metaReady = true;
+                          });
+                        } catch (_) {
+                          if (ctx.mounted) setDlgState(() => metaReady = true);
+                        }
+                      });
+                    }
+                    return const SizedBox.shrink();
+                  }),
+                  if (!metaReady)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: AppDimensions.sm),
+                      child: LinearProgressIndicator(),
+                    ),
+                  DropdownButtonFormField<String>(
+                    value: _shiftFormValues.contains(shiftForm) ? shiftForm : 'full',
+                    decoration: const InputDecoration(labelText: 'Duty shift'),
+                    items: const [
+                      DropdownMenuItem(value: 'day', child: Text('Day shift')),
+                      DropdownMenuItem(value: 'night', child: Text('Night shift')),
+                      DropdownMenuItem(
+                          value: 'full',
+                          child: Text('Full day / not split by shift')),
+                    ],
+                    onChanged: metaReady
+                        ? (v) => setDlgState(() => shiftForm = v ?? 'full')
+                        : null,
+                  ),
+                  const SizedBox(height: AppDimensions.sm),
+                  Text(
+                    'Posted at one gate at a time. Wings list covers areas they service (e.g. one maintenance person for Wing A and B).',
+                    style: AppTextStyles.caption
+                        .copyWith(color: AppColors.textMuted),
+                  ),
+                  const SizedBox(height: AppDimensions.sm),
+                  DropdownButtonFormField<String?>(
+                    value: gateIdVal != null &&
+                            gatesLoaded.any((g) => g['id']?.toString() == gateIdVal)
+                        ? gateIdVal
+                        : null,
+                    decoration: const InputDecoration(
+                      labelText: 'Posted at gate (optional)',
+                    ),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('— No specific gate —'),
+                      ),
+                      ...gatesLoaded.map((g) {
+                        final id = g['id']?.toString() ?? '';
+                        final name = g['name']?.toString() ?? '';
+                        final code = g['code']?.toString();
+                        final label = (code != null && code.isNotEmpty)
+                            ? '$code · $name'
+                            : name;
+                        return DropdownMenuItem<String?>(
+                          value: id,
+                          child: Text(label),
+                        );
+                      }),
+                    ],
+                    onChanged: metaReady
+                        ? (v) => setDlgState(() => gateIdVal = v)
+                        : null,
+                  ),
+                  const SizedBox(height: AppDimensions.sm),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: AppTextField(
+                          label: 'Add new gate to society',
+                          controller: newGateCtrl,
+                          enabled: metaReady,
+                        ),
+                      ),
+                      const SizedBox(width: AppDimensions.sm),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: IconButton.filledTonal(
+                          tooltip: 'Add gate',
+                          onPressed: !metaReady || addingGate
+                              ? null
+                              : () async {
+                                  final name = newGateCtrl.text.trim();
+                                  if (name.isEmpty) return;
+                                  setDlgState(() {
+                                    gateAddError = null;
+                                    addingGate = true;
+                                  });
+                                  try {
+                                    final dio = ref.read(dioProvider);
+                                    final res = await dio.post('gates', data: {
+                                      'name': name,
+                                    });
+                                    if (!ctx.mounted) return;
+                                    if (res.data['success'] == true) {
+                                      final g = res.data['data'] as Map<String, dynamic>?;
+                                      newGateCtrl.clear();
+                                      setDlgState(() {
+                                        if (g != null) {
+                                          gatesLoaded = [
+                                            ...gatesLoaded,
+                                            g,
+                                          ];
+                                          gateIdVal = g['id']?.toString();
+                                        }
+                                        addingGate = false;
+                                      });
+                                    } else {
+                                      setDlgState(() {
+                                        addingGate = false;
+                                        gateAddError = res.data['message']?.toString() ??
+                                            'Could not add gate';
+                                      });
+                                    }
+                                  } catch (e) {
+                                    if (ctx.mounted) {
+                                      setDlgState(() {
+                                        addingGate = false;
+                                        gateAddError = 'Could not add gate';
+                                      });
+                                    }
+                                  }
+                                },
+                          icon: const Icon(Icons.add),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (gateAddError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        gateAddError!,
+                        style: AppTextStyles.caption
+                            .copyWith(color: AppColors.danger),
+                      ),
+                    ),
+                  const SizedBox(height: AppDimensions.md),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Wings covered (optional)',
+                      style: AppTextStyles.labelLarge,
+                    ),
+                  ),
+                  const SizedBox(height: AppDimensions.xs),
+                  if (wingsLoaded.isEmpty && selectedWings.isEmpty)
+                    Text(
+                      'No wings found on units yet. Add a wing on units, or type a code below.',
+                      style: AppTextStyles.caption
+                          .copyWith(color: AppColors.textMuted),
+                    )
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        ...({...wingsLoaded, ...selectedWings}.toList()..sort())
+                            .map((w) {
+                          final on = selectedWings.contains(w);
+                          return FilterChip(
+                            label: Text(w),
+                            selected: on,
+                            onSelected: metaReady
+                                ? (v) => setDlgState(() {
+                                      if (v) {
+                                        selectedWings.add(w);
+                                      } else {
+                                        selectedWings.remove(w);
+                                      }
+                                    })
+                                : null,
+                          );
+                        }),
+                      ],
+                    ),
                   if (!isEdit && role == 'watchman') ...[
                     const SizedBox(height: AppDimensions.sm),
                     Container(
@@ -412,9 +641,16 @@ class StaffScreen extends ConsumerWidget {
                           'role': role,
                           'phone': phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim(),
                           'salary': double.tryParse(salaryCtrl.text.trim()) ?? 0,
+                          'shift': shiftForm,
+                          'assignedWingCodes': selectedWings.toList(),
                           if (isEdit) 'isActive': isActive,
                           if (!isEdit && role == 'watchman') 'password': passCtrl.text.trim(),
                         };
+                        if (isEdit) {
+                          data['gateId'] = gateIdVal;
+                        } else if (gateIdVal != null) {
+                          data['gateId'] = gateIdVal;
+                        }
                         
                         final error = isEdit
                             ? await ref.read(staffProvider.notifier).updateStaff(staff.id, data)

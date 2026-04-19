@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_colors.dart';
+import '../../shared/widgets/confirm_logout.dart';
 
 class SMShell extends ConsumerStatefulWidget {
   final Widget child;
@@ -41,6 +42,24 @@ class _SMShellState extends ConsumerState<SMShell> {
   // Paths hidden for member/resident roles — they see their unit in sidebar instead
   static const _memberHiddenPaths = {'/units', '/reports/balance'};
 
+  // Watchman sees only gate-related screens
+  static const _watchmanNavItems = [
+    _NavItem(icon: Icons.grid_view_rounded,          label: 'Dashboard',     path: '/dashboard',    group: 'Main'),
+    _NavItem(icon: Icons.person_pin_circle_rounded,  label: 'Visitors',      path: '/visitors',     group: 'Gate'),
+    _NavItem(icon: Icons.badge_rounded,              label: 'Gate Passes',   path: '/gatepasses',   group: 'Gate'),
+    _NavItem(icon: Icons.local_shipping_rounded,     label: 'Deliveries',    path: '/deliveries',   group: 'Gate'),
+    _NavItem(icon: Icons.cleaning_services_rounded,  label: 'Domestic Help', path: '/domestichelp', group: 'Gate'),
+    _NavItem(icon: Icons.notifications_rounded,      label: 'Notifications', path: '/notifications',group: 'More'),
+  ];
+
+  static const _watchmanBottomItems = [
+    _NavItem(icon: Icons.grid_view_rounded,         label: 'Home',       path: '/dashboard'),
+    _NavItem(icon: Icons.person_pin_circle_rounded, label: 'Visitors',   path: '/visitors'),
+    _NavItem(icon: Icons.badge_rounded,             label: 'Gate Pass',  path: '/gatepasses'),
+    _NavItem(icon: Icons.local_shipping_rounded,    label: 'Deliveries', path: '/deliveries'),
+    _NavItem(icon: Icons.menu_rounded,              label: 'More',       path: '__menu__'),
+  ];
+
   // Bottom nav shows the most-used 5 items on mobile
   static const _mobileBottomItems = [
     _NavItem(icon: Icons.dashboard_rounded,      label: 'Home',    path: '/dashboard'),
@@ -50,9 +69,15 @@ class _SMShellState extends ConsumerState<SMShell> {
     _NavItem(icon: Icons.menu_rounded,           label: 'More',    path: '__menu__'),
   ];
 
-  List<_NavItem> _visibleNavItems(bool isUnitLocked) {
+  List<_NavItem> _visibleNavItems(String role, bool isUnitLocked) {
+    if (role.toUpperCase() == 'WATCHMAN') return _watchmanNavItems;
     if (!isUnitLocked) return _allNavItems;
     return _allNavItems.where((n) => !_memberHiddenPaths.contains(n.path)).toList();
+  }
+
+  List<_NavItem> _bottomItems(String role) {
+    if (role.toUpperCase() == 'WATCHMAN') return _watchmanBottomItems;
+    return _mobileBottomItems;
   }
 
   void _onNavTap(int index, List<_NavItem> navItems) {
@@ -61,8 +86,10 @@ class _SMShellState extends ConsumerState<SMShell> {
     context.go(path);
   }
 
-  void _onMobileBottomTap(int index, List<_NavItem> navItems) {
-    final item = _mobileBottomItems[index];
+  void _onMobileBottomTap(int index, List<_NavItem> navItems, [List<_NavItem>? bottomItems]) {
+    final items = bottomItems ?? _mobileBottomItems;
+    if (index >= items.length) return;
+    final item = items[index];
     if (item.path == '__menu__') {
       _scaffoldKey.currentState?.openDrawer();
       return;
@@ -72,19 +99,20 @@ class _SMShellState extends ConsumerState<SMShell> {
     context.go(item.path);
   }
 
-  int _mobileBottomIndex(List<_NavItem> navItems) {
-    if (_selectedIndex >= navItems.length) return 4;
+  int _mobileBottomIndex(List<_NavItem> navItems, List<_NavItem> bottomItems) {
+    if (_selectedIndex >= navItems.length) return bottomItems.length - 1;
     final currentPath = navItems[_selectedIndex].path;
-    final idx = _mobileBottomItems.indexWhere((i) => i.path == currentPath);
-    return idx >= 0 ? idx : 4; // fallback to "More"
+    final idx = bottomItems.indexWhere((i) => i.path == currentPath);
+    return idx >= 0 ? idx : bottomItems.length - 1;
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final authState = ref.read(authProvider);
+    final role = authState.user?.role ?? '';
     final isUnitLocked = authState.user?.isUnitLocked ?? false;
-    final navItems = _visibleNavItems(isUnitLocked);
+    final navItems = _visibleNavItems(role, isUnitLocked);
     final location = GoRouterState.of(context).uri.toString();
     for (int i = 0; i < navItems.length; i++) {
       if (location == navItems[i].path ||
@@ -98,8 +126,10 @@ class _SMShellState extends ConsumerState<SMShell> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    final role = authState.user?.role ?? '';
     final isUnitLocked = authState.user?.isUnitLocked ?? false;
-    final navItems = _visibleNavItems(isUnitLocked);
+    final navItems = _visibleNavItems(role, isUnitLocked);
+    final bottomItems = _bottomItems(role);
     final safeIndex = _selectedIndex.clamp(0, navItems.length - 1);
     final isWide = MediaQuery.of(context).size.width >= 900;
 
@@ -171,10 +201,10 @@ class _SMShellState extends ConsumerState<SMShell> {
       bottomNavigationBar: isWide
           ? null
           : NavigationBar(
-              selectedIndex: _mobileBottomIndex(navItems),
-              onDestinationSelected: (i) => _onMobileBottomTap(i, navItems),
+              selectedIndex: _mobileBottomIndex(navItems, bottomItems),
+              onDestinationSelected: (i) => _onMobileBottomTap(i, navItems, bottomItems),
               height: 64,
-              destinations: _mobileBottomItems
+              destinations: bottomItems
                   .map((item) => NavigationDestination(
                         icon: Icon(item.icon),
                         label: item.label,
@@ -332,6 +362,8 @@ class _SMShellState extends ConsumerState<SMShell> {
                   icon: const Icon(Icons.logout_rounded, color: Color(0xFF94A3B8), size: 18),
                   tooltip: 'Logout',
                   onPressed: () async {
+                    final confirm = await showLogoutConfirmSheet(context);
+                    if (!confirm) return;
                     await ref.read(authProvider.notifier).logout();
                     if (mounted) context.go('/');
                   },
@@ -524,6 +556,8 @@ class _SMShellState extends ConsumerState<SMShell> {
                   title: const Text('Logout', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14)),
                   onTap: () async {
                     Navigator.pop(context);
+                    final confirm = await showLogoutConfirmSheet(context);
+                    if (!confirm) return;
                     await ref.read(authProvider.notifier).logout();
                     if (mounted) context.go('/');
                   },

@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/dio_client.dart';
 import 'package:dio/dio.dart';
@@ -34,10 +35,18 @@ class ComplaintsNotifier extends StateNotifier<ComplaintsState> {
       if (attachments != null && attachments.isNotEmpty) {
         final formData = FormData.fromMap(data);
         for (final file in attachments) {
-           formData.files.add(MapEntry(
-             'attachments', 
-             await MultipartFile.fromFile(file.path!, filename: file.name)
-           ));
+          final pf = file as PlatformFile;
+          if (pf.path != null && pf.path!.isNotEmpty) {
+            formData.files.add(MapEntry(
+              'attachments',
+              await MultipartFile.fromFile(pf.path!, filename: pf.name),
+            ));
+          } else if (pf.bytes != null) {
+            formData.files.add(MapEntry(
+              'attachments',
+              MultipartFile.fromBytes(pf.bytes!, filename: pf.name),
+            ));
+          }
         }
         postData = formData;
       } else {

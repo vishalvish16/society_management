@@ -32,9 +32,26 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
         return AppColors.success;
       case 'returned':
         return AppColors.textMuted;
+      case 'expired':
+        return AppColors.danger;
       default:
         return AppColors.border;
     }
+  }
+
+  /// Deliveries do not carry a QR expiry; long‑stuck **pending** items are shown as **expired** so staff can clear them.
+  String _effectiveDeliveryStatus(Map<String, dynamic> d) {
+    final status = (d['status'] as String? ?? 'pending').toLowerCase();
+    if (status != 'pending') return status;
+    final raw = d['createdAt'] as String?;
+    if (raw == null || raw.isEmpty) return status;
+    try {
+      final created = DateTime.parse(raw);
+      if (DateTime.now().difference(created).inHours >= 72) {
+        return 'expired';
+      }
+    } catch (_) {}
+    return status;
   }
 
   String _formatDate(String? raw) {
@@ -62,13 +79,13 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
               ),
             )
           : null,
-      floatingActionButton: isStaff
+      floatingActionButton: (isStaff || isResident)
           ? FloatingActionButton.extended(
               onPressed: () => _showLogDeliverySheet(context),
               backgroundColor: AppColors.primary,
               icon: const Icon(Icons.add_box_rounded, color: AppColors.textOnPrimary),
               label: Text(
-                'Log Delivery',
+                isStaff ? 'Log Delivery' : 'Add delivery',
                 style: AppTextStyles.labelLarge.copyWith(color: AppColors.textOnPrimary),
               ),
             )
@@ -86,12 +103,16 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  for (final s in ['all', 'pending', 'collected', 'returned'])
+                  for (final s in ['all', 'pending', 'collected', 'returned', 'expired'])
                     Padding(
                       padding: const EdgeInsets.only(right: AppDimensions.sm),
                       child: ChoiceChip(
                         label: Text(
-                          s == 'all' ? 'All' : s[0].toUpperCase() + s.substring(1),
+                          s == 'all'
+                              ? 'All'
+                              : s == 'expired'
+                                  ? 'Stale / Expired'
+                                  : s[0].toUpperCase() + s.substring(1),
                         ),
                         selected: _filter == s,
                         selectedColor: AppColors.primarySurface,
@@ -128,9 +149,10 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
 
               final filtered = _filter == 'all'
                   ? deliveryState.deliveries
-                  : deliveryState.deliveries
-                      .where((d) => d['status'] == _filter)
-                      .toList();
+                  : deliveryState.deliveries.where((d) {
+                      final m = Map<String, dynamic>.from(d as Map);
+                      return _effectiveDeliveryStatus(m) == _filter;
+                    }).toList();
 
               if (filtered.isEmpty) {
                 return const AppEmptyState(
@@ -147,8 +169,8 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
                   itemCount: filtered.length,
                   separatorBuilder: (_, _) => const SizedBox(height: AppDimensions.sm),
                   itemBuilder: (_, i) {
-                    final d = filtered[i];
-                    final status = d['status'] as String? ?? 'pending';
+                    final d = Map<String, dynamic>.from(filtered[i] as Map);
+                    final status = _effectiveDeliveryStatus(d);
                     final unit = d['unit'] is Map
                         ? (d['unit'] as Map)['fullCode'] ?? '-'
                         : (d['unit'] ?? '-').toString();

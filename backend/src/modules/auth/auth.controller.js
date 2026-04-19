@@ -6,30 +6,115 @@ const { sendSuccess, sendError } = require('../../utils/response');
 // ─── Role enum values (match schema exactly) ───────────────────────────────
 const VALID_ROLES = ['SUPER_ADMIN', 'PRAMUKH', 'CHAIRMAN', 'VICE_CHAIRMAN', 'SECRETARY', 'ASSISTANT_SECRETARY', 'TREASURER', 'ASSISTANT_TREASURER', 'MEMBER', 'RESIDENT', 'WATCHMAN'];
 
-// ─── POST /api/auth/login ──────────────────────────────────────────────────
-exports.login = async (req, res) => {
+// ─── POST /api/auth/check-societies ───────────────────────────────────────
+// Step 1 of multi-society login: validate credentials, return society list if
+// the phone/email exists in more than one society. Returns:
+//   { requiresSocietySelection: true, societies: [{id, name, logoUrl}] }
+//   OR
+//   { requiresSocietySelection: false, ...full login payload }
+exports.checkSocieties = async (req, res) => {
   try {
-    const { phone, email, identifier, password } = req.body;
-    const loginId = identifier || email || phone;
-    if (!loginId || !password) return sendError(res, 'Phone/email and password are required', 400);
+    const { identifier, password } = req.body;
+    if (!identifier || !password) {
+      return sendError(res, 'Phone/email and password are required', 400);
+    }
 
-    const user = await prisma.user.findFirst({
+    // Find ALL active user records matching this identifier (across all societies)
+    const users = await prisma.user.findMany({
       where: {
-        OR: [{ phone: loginId }, { email: loginId }],
+        OR: [{ phone: identifier }, { email: identifier }],
         isActive: true,
         deletedAt: null,
       },
       include: {
-        society: { select: { id: true, name: true, status: true } },
+        society: { select: { id: true, name: true, logoUrl: true, status: true } },
         unitResidents: {
-          select: { unit: { select: { id: true, fullCode: true } }, isOwner: true },
+          select: { unit: { select: { id: true, fullCode: true } } },
           take: 1,
         },
       },
     });
+
+    if (users.length === 0) return sendError(res, 'Invalid credentials', 401);
+
+    // Validate password against first matched record (same passwordHash across records for same person)
+    const valid = await authService.comparePasswords(password, users[0].passwordHash);
+    if (!valid) return sendError(res, 'Invalid credentials', 401);
+
+    // Filter out suspended societies
+    const activeUsers = users.filter(u => u.society?.status !== 'suspended' || !u.societyId);
+
+    if (activeUsers.length === 0) {
+      return sendError(res, 'All associated societies are suspended. Contact your administrator.', 403);
+    }
+
+    // Multiple societies → ask user to pick
+    if (activeUsers.length > 1) {
+      const societies = activeUsers.map(u => ({
+        userId: u.id,
+        societyId: u.societyId,
+        societyName: u.society?.name ?? 'Unknown Society',
+        logoUrl: u.society?.logoUrl ?? null,
+        role: u.role,
+        unitCode: u.unitResidents?.[0]?.unit?.fullCode ?? null,
+      }));
+      return sendSuccess(res, { requiresSocietySelection: true, societies }, 'Multiple societies found');
+    }
+
+    // Single society → complete login immediately
+    const user = activeUsers[0];
+    return _issueTokens(res, user);
+  } catch (err) {
+    console.error('Check societies error:', err.message);
+    if (err.code) console.error('  code:', err.code, err.meta || '');
+    if (err.stack) console.error(err.stack.split('\n').slice(0, 4).join('\n'));
+    const msg = _authFailureMessage(err);
+    return sendError(res, msg, 500);
+  }
+};
+
+// ─── POST /api/auth/login ──────────────────────────────────────────────────
+// Accepts optional `userId` (from society selection step) or falls back to
+// identifier+password lookup for direct single-society login.
+exports.login = async (req, res) => {
+  try {
+    const { phone, email, identifier, password, userId } = req.body;
+    const loginId = identifier || email || phone;
+    if (!loginId || !password) return sendError(res, 'Phone/email and password are required', 400);
+
+    let user;
+
+    if (userId) {
+      // Society was already selected — fetch that specific user record
+      user = await prisma.user.findFirst({
+        where: { id: userId, isActive: true, deletedAt: null },
+        include: {
+          society: { select: { id: true, name: true, status: true } },
+          unitResidents: {
+            select: { unit: { select: { id: true, fullCode: true } }, isOwner: true },
+            take: 1,
+          },
+        },
+      });
+    } else {
+      user = await prisma.user.findFirst({
+        where: {
+          OR: [{ phone: loginId }, { email: loginId }],
+          isActive: true,
+          deletedAt: null,
+        },
+        include: {
+          society: { select: { id: true, name: true, status: true } },
+          unitResidents: {
+            select: { unit: { select: { id: true, fullCode: true } }, isOwner: true },
+            take: 1,
+          },
+        },
+      });
+    }
+
     if (!user) return sendError(res, 'Invalid credentials', 401);
 
-    // Block login if society is suspended (except SUPER_ADMIN)
     if (user.societyId && user.society?.status === 'suspended') {
       return sendError(res, 'Society is suspended. Contact your administrator.', 403);
     }
@@ -37,38 +122,68 @@ exports.login = async (req, res) => {
     const valid = await authService.comparePasswords(password, user.passwordHash);
     if (!valid) return sendError(res, 'Invalid credentials', 401);
 
-    const payload = { id: user.id, role: user.role, societyId: user.societyId, name: user.name };
-    const accessToken  = generateAccessToken(payload);
-    const refreshToken = generateRefreshToken(payload);
-
-    await prisma.refreshToken.create({
-      data: {
-        userId: user.id,
-        token: refreshToken,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      },
-    });
-
-    return sendSuccess(res, {
-      accessToken,
-      refreshToken,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        societyId: user.societyId,
-        society: user.society,
-        isActive: user.isActive,
-        unit: user.unitResidents?.[0]?.unit || null,
-      },
-    }, 'Login successful');
+    return _issueTokens(res, user);
   } catch (err) {
     console.error('Login error:', err.message);
-    return sendError(res, 'Authentication failed', 500);
+    if (err.code) console.error('  code:', err.code, err.meta || '');
+    if (err.stack) console.error(err.stack.split('\n').slice(0, 4).join('\n'));
+    const msg = _authFailureMessage(err);
+    return sendError(res, msg, 500);
   }
 };
+
+/** Map infra / Prisma errors to a safe client hint (avoid leaking secrets). */
+function _authFailureMessage(err) {
+  const code = err && err.code;
+  const m = (err && err.message) || '';
+  if (code === 'P1001' || code === 'P1017') {
+    return 'Cannot reach the database. Check DATABASE_URL and that the database is running.';
+  }
+  if (code === 'P2022' || /column .+ does not exist|Unknown column/i.test(m)) {
+    return 'Database schema is out of date. Run pending Prisma migrations on the server.';
+  }
+  if (/JWT_ACCESS_SECRET|JWT_REFRESH_SECRET|secret or public key must be provided/i.test(m)) {
+    return 'Server auth configuration is incomplete (JWT secrets).';
+  }
+  return 'Authentication failed';
+}
+
+// Shared helper — generates tokens and returns full login payload
+async function _issueTokens(res, user) {
+  const payload = { id: user.id, role: user.role, societyId: user.societyId, name: user.name };
+  const accessToken  = generateAccessToken(payload);
+  const refreshToken = generateRefreshToken(payload);
+
+  await prisma.refreshToken.create({
+    data: {
+      userId: user.id,
+      token: refreshToken,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    },
+  });
+
+  return sendSuccess(res, {
+    accessToken,
+    refreshToken,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      societyId: user.societyId,
+      society: user.society,
+      isActive: user.isActive,
+      unit: user.unitResidents?.[0]?.unit || null,
+      profilePhotoUrl: user.profilePhotoUrl ?? null,
+      dateOfBirth: user.dateOfBirth ?? null,
+      householdMemberCount: user.householdMemberCount ?? null,
+      bio: user.bio ?? null,
+      emergencyContactName: user.emergencyContactName ?? null,
+      emergencyContactPhone: user.emergencyContactPhone ?? null,
+    },
+  }, 'Login successful');
+}
 
 // ─── POST /api/auth/refresh ────────────────────────────────────────────────
 exports.refresh = async (req, res) => {
@@ -230,6 +345,12 @@ exports.me = async (req, res) => {
       select: {
         id: true, name: true, email: true, phone: true,
         role: true, societyId: true, isActive: true, fcmToken: true,
+        profilePhotoUrl: true,
+        dateOfBirth: true,
+        householdMemberCount: true,
+        bio: true,
+        emergencyContactName: true,
+        emergencyContactPhone: true,
         society: { select: { id: true, name: true, logoUrl: true } },
         unitResidents: {
           select: {

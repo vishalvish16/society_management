@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/biometric_provider.dart';
 import '../../../core/providers/theme_provider.dart';
@@ -8,7 +9,9 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimensions.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/app_card.dart';
+import '../../../shared/widgets/confirm_logout.dart';
 import 'payment_settings_screen.dart';
+import 'profile_screen.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -37,30 +40,51 @@ class SettingsScreen extends ConsumerWidget {
             if (user != null)
               AppCard(
                 padding: const EdgeInsets.all(AppDimensions.lg),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 24,
-                      backgroundColor: AppColors.primarySurface,
-                      child: Text(
-                        user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
-                        style: AppTextStyles.h2.copyWith(color: AppColors.primary),
+                child: InkWell(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                  ),
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 24,
+                        backgroundColor: AppColors.primarySurface,
+                        backgroundImage: AppConstants.uploadUrlFromPath(user.profilePhotoUrl) != null
+                            ? NetworkImage(
+                                AppConstants.uploadUrlFromPath(user.profilePhotoUrl)!,
+                              )
+                            : null,
+                        child: AppConstants.uploadUrlFromPath(user.profilePhotoUrl) == null
+                            ? Text(
+                                user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
+                                style: AppTextStyles.h2.copyWith(color: AppColors.primary),
+                              )
+                            : null,
                       ),
-                    ),
-                    const SizedBox(width: AppDimensions.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(user.name, style: AppTextStyles.h3),
-                          const SizedBox(height: AppDimensions.xs),
-                          Text(user.role.toLowerCase(),
+                      const SizedBox(width: AppDimensions.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(user.name, style: AppTextStyles.h3),
+                            const SizedBox(height: AppDimensions.xs),
+                            Text(user.role.toLowerCase(),
+                                style: AppTextStyles.bodySmall
+                                    .copyWith(color: AppColors.textMuted)),
+                            const SizedBox(height: AppDimensions.xs),
+                            Text(
+                              'Tap to edit profile · ${user.profileCompletenessPercent}% complete',
                               style: AppTextStyles.bodySmall
-                                  .copyWith(color: AppColors.textMuted)),
-                        ],
+                                  .copyWith(color: AppColors.primary, fontSize: 12),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                      Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+                    ],
+                  ),
                 ),
               ),
             const SizedBox(height: AppDimensions.lg),
@@ -250,14 +274,7 @@ class SettingsScreen extends ConsumerWidget {
     
     // We need the user's password to store for biometric re-auth.
     // Use the logged-in user's primary identifier (phone or email).
-    final identifier = user.phone ?? user.email;
-    if (identifier == null) {
-       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('User phone or email missing'),
-        backgroundColor: AppColors.danger,
-      ));
-      return;
-    }
+    final identifier = user.phone;
 
     // Ask them to enter password once to confirm.
     final password = await _showPasswordDialog(context);
@@ -343,15 +360,14 @@ class SettingsScreen extends ConsumerWidget {
   // ── Logout ───────────────────────────────────────────────────────────────
 
   Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
-    final confirm = await showConfirmSheet(
-      context: context,
+    final confirm = await showLogoutConfirmSheet(
+      context,
       title: 'Sign Out',
       message: 'Are you sure you want to sign out?',
       confirmLabel: 'Sign Out',
     );
-    if (confirm) {
-      await ref.read(authProvider.notifier).logout();
-    }
+    if (!confirm) return;
+    await ref.read(authProvider.notifier).logout();
   }
 
   // ── Change password ──────────────────────────────────────────────────────

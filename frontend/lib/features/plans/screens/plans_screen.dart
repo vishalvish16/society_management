@@ -29,6 +29,12 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      floatingActionButton: isWide
+          ? null
+          : FloatingActionButton(
+              onPressed: () => _showPlanDialog(context),
+              child: const Icon(Icons.add_rounded),
+            ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -53,18 +59,6 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                     label: const Text('Add Plan'),
                   ),
                 ],
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: () => _showPlanDialog(context),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add Plan'),
-                  ),
-                ),
               ),
             const SizedBox(height: 24),
             Expanded(
@@ -80,7 +74,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                                 crossAxisCount: crossAxisCount,
                                 mainAxisSpacing: 16,
                                 crossAxisSpacing: 16,
-                                childAspectRatio: 0.85,
+                                childAspectRatio: crossAxisCount == 1 ? 1.6 : 1.1,
                               ),
                               itemCount: state.plans.length,
                               itemBuilder: (context, index) => _PlanCard(
@@ -276,18 +270,19 @@ class _PlanCard extends StatelessWidget {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         side: BorderSide(color: isActive ? accentColor.withValues(alpha: 0.3) : const Color(0xFFE2E8F0)),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header row: badge + inactive tag + actions
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: accentColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
@@ -302,56 +297,80 @@ class _PlanCard extends StatelessWidget {
                       color: AppColors.dangerSurface,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text('Inactive',
-                        style: AppTextStyles.labelSmall.copyWith(color: AppColors.dangerText)),
+                    child: Text('Inactive', style: AppTextStyles.labelSmall.copyWith(color: AppColors.dangerText)),
                   ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(displayName, style: AppTextStyles.h2),
-            const SizedBox(height: 4),
-            Text(
-              '${currencyFormat.format(num.tryParse(plan['priceMonthly']?.toString() ?? '0') ?? 0)}/mo',
-              style: AppTextStyles.amountLarge.copyWith(color: accentColor),
-            ),
-            const SizedBox(height: 4),
-            Text('$subCount active societies', style: AppTextStyles.caption.copyWith(color: AppColors.textMuted)),
-            const Divider(height: 24),
-            _limitRow('Units', '${plan['maxUnits'] ?? 0}'),
-            _limitRow('Residents', '${plan['maxResidents'] ?? 0}'),
-            _limitRow('Watchmen', '${plan['maxWatchmen'] ?? 0}'),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              children: features.entries.map((e) {
-                return Chip(
-                  label: Text(e.key, style: AppTextStyles.labelSmall),
-                  backgroundColor: e.value == true
-                      ? AppColors.successSurface
-                      : AppColors.dangerSurface,
-                  side: BorderSide.none,
-                  visualDensity: VisualDensity.compact,
-                  avatar: Icon(e.value == true ? Icons.check : Icons.close,
-                      size: 14, color: e.value == true ? AppColors.success : AppColors.danger),
-                );
-              }).toList(),
-            ),
-            const Spacer(),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(onPressed: onEdit, child: const Text('Edit')),
+                const SizedBox(width: 6),
+                InkWell(
+                  onTap: onEdit,
+                  borderRadius: BorderRadius.circular(6),
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.edit_outlined, size: 16, color: AppColors.primary),
+                  ),
                 ),
                 if (isActive) ...[
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.block, color: AppColors.danger, size: 20),
-                    tooltip: 'Deactivate',
-                    onPressed: onDeactivate,
+                  const SizedBox(width: 4),
+                  InkWell(
+                    onTap: onDeactivate,
+                    borderRadius: BorderRadius.circular(6),
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(Icons.block, size: 16, color: AppColors.danger),
+                    ),
                   ),
                 ],
               ],
+            ),
+            const SizedBox(height: 8),
+            // Name + price
+            Text(displayName, style: AppTextStyles.h2),
+            const SizedBox(height: 2),
+            Text(
+              '${currencyFormat.format(num.tryParse(plan['priceMonthly']?.toString() ?? '0') ?? 0)}/mo',
+              style: AppTextStyles.amountLarge.copyWith(color: accentColor, fontSize: 20),
+            ),
+            Text('$subCount active societies', style: AppTextStyles.caption.copyWith(color: AppColors.textMuted)),
+            const Divider(height: 16),
+            // Limits in one row
+            Row(
+              children: [
+                _limitChip(Icons.apartment_outlined, '${_fmt(plan['maxUnits'])} units'),
+                const SizedBox(width: 8),
+                _limitChip(Icons.people_outline, '${_fmt(plan['maxResidents'])} res.'),
+                const SizedBox(width: 8),
+                _limitChip(Icons.security_outlined, '${_fmt(plan['maxWatchmen'])} wtch.'),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Features wrap
+            Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              children: features.entries.map((e) {
+                final enabled = e.value == true;
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: enabled ? AppColors.successSurface : AppColors.dangerSurface,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(enabled ? Icons.check : Icons.close,
+                          size: 11, color: enabled ? AppColors.success : AppColors.danger),
+                      const SizedBox(width: 3),
+                      Text(
+                        e.key.replaceAll('_', ' '),
+                        style: AppTextStyles.labelSmall.copyWith(
+                          color: enabled ? AppColors.success : AppColors.danger,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
             ),
           ],
         ),
@@ -359,16 +378,19 @@ class _PlanCard extends StatelessWidget {
     );
   }
 
-  Widget _limitRow(String label, String value) {
-    final display = (value == '999999' || value == '-1') ? 'Unlimited' : value;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        children: [
-          Text('$label: ', style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
-          Text(display, style: AppTextStyles.labelLarge),
-        ],
-      ),
+  String _fmt(dynamic val) {
+    final s = val?.toString() ?? '0';
+    return (s == '999999' || s == '-1') ? '∞' : s;
+  }
+
+  Widget _limitChip(IconData icon, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: AppColors.textMuted),
+        const SizedBox(width: 3),
+        Text(label, style: AppTextStyles.caption.copyWith(color: AppColors.textMuted)),
+      ],
     );
   }
 }

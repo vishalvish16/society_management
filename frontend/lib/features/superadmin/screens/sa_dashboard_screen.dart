@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../dashboard/widgets/dashboard_portal_widgets.dart';
 import '../providers/dashboard_provider.dart';
 
 class SADashboardScreen extends ConsumerWidget {
@@ -13,50 +15,40 @@ class SADashboardScreen extends ConsumerWidget {
     final statsAsync = ref.watch(dashboardProvider);
     final recentAsync = ref.watch(recentSocietiesProvider);
     final isWide = MediaQuery.of(context).size.width >= 768;
+    final user = ref.watch(authProvider).user;
     final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '\u20B9', decimalDigits: 0);
+    final rawName = user?.name.trim() ?? '';
+    final name = rawName.isNotEmpty ? rawName : 'Admin';
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: RefreshIndicator(
+      body: DashboardRefreshWithSearchStack(
+        showSearchOverlay: false,
+        padding: const EdgeInsets.all(24),
         onRefresh: () async {
           ref.invalidate(dashboardProvider);
           ref.invalidate(recentSocietiesProvider);
         },
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Page Header - Only shown on wide screens
-              if (isWide) ...[
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Dashboard', style: AppTextStyles.displayMedium),
-                          const SizedBox(height: 4),
-                          Text('Platform overview and key metrics',
-                              style: AppTextStyles.bodyMedium),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.refresh_rounded),
-                      onPressed: () {
-                        ref.invalidate(dashboardProvider);
-                        ref.invalidate(recentSocietiesProvider);
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-              ],
+        scrollChild: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DashboardGreetingHeader(
+              title: 'Platform',
+              greeting: dashboardGreetingForNow(),
+              name: name,
+              subtitle: dashboardRoleSubtitle('SUPER_ADMIN'),
+              compact: !isWide,
+              enableSearch: false,
+              onNotifications: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Platform alerts will appear here.')),
+                );
+              },
+            ),
+            const SizedBox(height: 24),
 
-              // Stats Cards
-              statsAsync.when(
+            // Stats Cards
+            statsAsync.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (e, _) => _ErrorCard(message: 'Failed to load stats: $e'),
                 data: (stats) => Column(
@@ -224,7 +216,6 @@ class SADashboardScreen extends ConsumerWidget {
                 ),
               ),
             ],
-          ),
         ),
       ),
     );

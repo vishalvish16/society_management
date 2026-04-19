@@ -2,6 +2,69 @@ const usersService = require('./users.service');
 const { sendSuccess, sendError } = require('../../utils/response');
 const { validatePassword } = require('../../utils/password');
 
+/** Parse optional profile fields from JSON or multipart string values. */
+function parseProfileFields(body) {
+  const data = {};
+  const b = body || {};
+
+  if (b.dateOfBirth !== undefined) {
+    if (b.dateOfBirth === null) data.dateOfBirth = null;
+    else {
+      const raw = String(b.dateOfBirth).trim();
+      if (!raw || raw === 'null') data.dateOfBirth = null;
+      else {
+        const d = new Date(raw);
+        if (Number.isNaN(d.getTime())) return { error: 'Invalid date of birth' };
+        data.dateOfBirth = d;
+      }
+    }
+  }
+
+  if (b.householdMemberCount !== undefined) {
+    if (b.householdMemberCount === null) data.householdMemberCount = null;
+    else {
+      const raw = String(b.householdMemberCount).trim();
+      if (!raw || raw === 'null') data.householdMemberCount = null;
+      else {
+        const n = parseInt(raw, 10);
+        if (Number.isNaN(n) || n < 1 || n > 99) return { error: 'People in home must be between 1 and 99' };
+        data.householdMemberCount = n;
+      }
+    }
+  }
+
+  if (b.bio !== undefined) {
+    if (b.bio === null) data.bio = null;
+    else {
+      let t = String(b.bio).trim();
+      if (t.length > 500) t = t.slice(0, 500);
+      data.bio = t.length ? t : null;
+    }
+  }
+
+  if (b.emergencyContactName !== undefined) {
+    if (b.emergencyContactName === null) data.emergencyContactName = null;
+    else {
+      const t = String(b.emergencyContactName).trim();
+      data.emergencyContactName = t.length ? t : null;
+    }
+  }
+
+  if (b.emergencyContactPhone !== undefined) {
+    if (b.emergencyContactPhone === null) data.emergencyContactPhone = null;
+    else {
+      const t = String(b.emergencyContactPhone).trim();
+      data.emergencyContactPhone = t.length ? t : null;
+    }
+  }
+
+  if (b.profilePhotoUrl === null || b.profilePhotoUrl === '') {
+    data.profilePhotoUrl = null;
+  }
+
+  return { data };
+}
+
 /**
  * GET /api/v1/users/me
  * Returns the authenticated user's own profile.
@@ -84,8 +147,11 @@ async function createUser(req, res) {
  */
 async function updateUser(req, res) {
   try {
-    const { id } = req.params;
-    const isSelf = id === req.user.id;
+    // `PATCH /users/me` must hit patchMyProfile, but if it ever matches `/:id`
+    // (e.g. older route order), `id` is the literal "me" — treat as self.
+    let { id } = req.params;
+    if (id === 'me') id = req.user.id;
+    const isSelf = String(id) === String(req.user.id);
     const isSecretary = req.user.role === 'SECRETARY';
     const isChairman = req.user.role === 'PRAMUKH' || req.user.role === 'CHAIRMAN';
     const isSuperAdmin = req.user.role === 'SUPER_ADMIN';
@@ -102,6 +168,9 @@ async function updateUser(req, res) {
       if (email !== undefined) data.email = email;
       if (phone !== undefined) data.phone = phone;
       if (fcmToken !== undefined) data.fcmToken = fcmToken;
+      const parsed = parseProfileFields(req.body);
+      if (parsed.error) return sendError(res, parsed.error, 400);
+      Object.assign(data, parsed.data);
     } else {
       // Secretary/Chairman/SuperAdmin can update more fields
       const { name, email, phone, fcmToken, isActive } = req.body;
@@ -110,6 +179,12 @@ async function updateUser(req, res) {
       if (phone !== undefined) data.phone = phone;
       if (fcmToken !== undefined) data.fcmToken = fcmToken;
       if (isActive !== undefined) data.isActive = isActive;
+
+      if (isSelf) {
+        const parsed = parseProfileFields(req.body);
+        if (parsed.error) return sendError(res, parsed.error, 400);
+        Object.assign(data, parsed.data);
+      }
     }
 
     const callerSocietyId = isSuperAdmin ? null : req.user.societyId;
@@ -137,8 +212,60 @@ async function deleteUser(req, res) {
   }
 }
 
+/**
+ * PATCH /api/users/me
+ * Update own profile; optional multipart file field `profilePhoto` (JPEG/PNG).
+ * Form fields or JSON: name, email, phone, dateOfBirth, householdMemberCount, bio,
+ * emergencyContactName, emergencyContactPhone, clearProfilePhoto=true
+ */
+async function patchMyProfile(req, res) {
+  try {
+    const b = req.body || {};
+    const data = {};
+
+    if (b.name !== undefined) {
+      const n = String(b.name).trim();
+      if (!n) return sendError(res, 'Name cannot be empty', 400);
+      data.name = n;
+    }
+    if (b.email !== undefined) {
+      const e = String(b.email).trim();
+      data.email = e.length ? e : null;
+    }
+    if (b.phone !== undefined) {
+      const p = String(b.phone).trim();
+      if (!p) return sendError(res, 'Phone cannot be empty', 400);
+      data.phone = p;
+    }
+    if (b.fcmToken !== undefined) data.fcmToken = b.fcmToken;
+
+    const parsed = parseProfileFields(b);
+    if (parsed.error) return sendError(res, parsed.error, 400);
+    Object.assign(data, parsed.data);
+
+    if (req.file) {
+      data.profilePhotoUrl = `/uploads/profiles/${req.file.filename}`;
+    } else if (b.clearProfilePhoto === 'true' || b.clearProfilePhoto === true) {
+      data.profilePhotoUrl = null;
+    }
+
+    const callerSocietyId = req.user.role === 'SUPER_ADMIN' ? null : req.user.societyId;
+
+    if (Object.keys(data).length > 0) {
+      await usersService.updateUser(req.user.id, data, callerSocietyId);
+    }
+
+    const user = await usersService.getProfile(req.user.id);
+    return sendSuccess(res, user, 'Profile updated');
+  } catch (error) {
+    console.error('Patch profile error:', error.message);
+    return sendError(res, error.message, error.status || 500);
+  }
+}
+
 module.exports = {
   getMe,
+  patchMyProfile,
   listUsers,
   createUser,
   updateUser,

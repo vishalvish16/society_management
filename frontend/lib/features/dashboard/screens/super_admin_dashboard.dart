@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_dimensions.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../widgets/dashboard_portal_widgets.dart';
 
 class SuperAdminDashboard extends ConsumerWidget {
   const SuperAdminDashboard({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authProvider).user;
+    final rawName = user?.name.trim() ?? '';
+    final name = rawName.isNotEmpty ? rawName : 'Admin';
     final stats = [
       {'label': 'Total Societies', 'value': '24', 'icon': Icons.location_city_rounded, 'color': AppColors.primary},
       {'label': 'Active Plans', 'value': '3', 'icon': Icons.workspace_premium_rounded, 'color': AppColors.success},
@@ -35,13 +41,29 @@ class SuperAdminDashboard extends ConsumerWidget {
               ],
             )
           : null,
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
+      body: DashboardRefreshWithSearchStack(
+        showSearchOverlay: false,
+        padding: const EdgeInsets.all(AppDimensions.screenPadding),
+        onRefresh: () async {},
+        scrollChild: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Platform Overview', style: AppTextStyles.h3),
-            const SizedBox(height: 16),
+            DashboardGreetingHeader(
+              title: 'Platform',
+              greeting: dashboardGreetingForNow(),
+              name: name,
+              subtitle: dashboardRoleSubtitle('SUPER_ADMIN'),
+              compact: !isWide,
+              enableSearch: false,
+              onNotifications: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Platform alerts will appear here.')),
+                );
+              },
+            ),
+            const SizedBox(height: AppDimensions.lg),
+            Text('Overview', style: AppTextStyles.h2),
+            const SizedBox(height: AppDimensions.md),
             _StatsGrid(stats: stats),
             const SizedBox(height: 32),
             Row(

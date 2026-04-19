@@ -1,17 +1,32 @@
 const prisma = require('../../config/db');
 const notificationsService = require('../notifications/notifications.service');
 const { sendSuccess, sendError } = require('../../utils/response');
-const { pushToUnit } = require('../../utils/push');
+const { isResidentLikeRole, userHasUnit, unitIdsForUser } = require('../../utils/unitResident');
 
 // GET /api/deliveries
 exports.getAllDeliveries = async (req, res) => {
   try {
-    const { societyId } = req.user;
+    const { societyId, id: userId, role } = req.user;
     const { unitId, status, page = 1, limit = 20 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const where = { societyId };
-    if (unitId) where.unitId = unitId;
+    if (isResidentLikeRole(role)) {
+      const ids = await unitIdsForUser(userId, societyId);
+      if (!ids.length) {
+        return sendSuccess(
+          res,
+          { deliveries: [], total: 0, page: parseInt(page), limit: parseInt(limit) },
+          'Deliveries retrieved'
+        );
+      }
+      if (unitId && !ids.includes(unitId)) {
+        return sendError(res, 'You can only view deliveries for your own unit', 403);
+      }
+      where.unitId = unitId ? unitId : { in: ids };
+    } else if (unitId) {
+      where.unitId = unitId;
+    }
     if (status) where.status = status.toUpperCase();
 
     const [deliveries, total] = await Promise.all([
@@ -31,10 +46,10 @@ exports.getAllDeliveries = async (req, res) => {
   }
 };
 
-// POST /api/deliveries  (Watchman logs a delivery)
+// POST /api/deliveries  (Watchman logs a delivery; residents log for their own unit)
 exports.createDelivery = async (req, res) => {
   try {
-    const { societyId, id: loggedById } = req.user;
+    const { societyId, id: loggedById, role } = req.user;
     const { unitId, agentName, company, description } = req.body;
 
     if (!unitId || !agentName) {
@@ -44,6 +59,13 @@ exports.createDelivery = async (req, res) => {
     const unit = await prisma.unit.findUnique({ where: { id: unitId } });
     if (!unit || unit.societyId !== societyId) {
       return sendError(res, 'Unit not found in your society', 404);
+    }
+
+    if (isResidentLikeRole(role)) {
+      const allowed = await userHasUnit(loggedById, societyId, unitId);
+      if (!allowed) {
+        return sendError(res, 'You can only log deliveries for your own unit', 403);
+      }
     }
 
     const delivery = await prisma.delivery.create({
@@ -125,7 +147,7 @@ exports.getMyDeliveries = async (req, res) => {
 // PATCH /api/deliveries/:id/respond  (Resident responds: allow/deny)
 exports.respondToDelivery = async (req, res) => {
   try {
-    const { societyId, id: respondedBy } = req.user;
+    const { societyId, id: respondedBy, role } = req.user;
     const { id } = req.params;
     const { action } = req.body; // 'ALLOWED' | 'DENIED'
     const ActionUpper = (action || '').toUpperCase();
@@ -137,6 +159,13 @@ exports.respondToDelivery = async (req, res) => {
     const delivery = await prisma.delivery.findUnique({ where: { id } });
     if (!delivery || delivery.societyId !== societyId) {
       return sendError(res, 'Delivery not found', 404);
+    }
+
+    if (isResidentLikeRole(role)) {
+      const allowed = await userHasUnit(respondedBy, societyId, delivery.unitId);
+      if (!allowed) {
+        return sendError(res, 'You can only respond to deliveries for your own unit', 403);
+      }
     }
     if (delivery.status !== 'PENDING') {
       return sendError(res, `Delivery already ${delivery.status}`, 400);

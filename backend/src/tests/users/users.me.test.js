@@ -40,7 +40,7 @@ beforeAll(() => {
 afterAll(() => { jest.restoreAllMocks(); });
 afterEach(() => { jest.clearAllMocks(); });
 
-describe('GET /api/v1/users/me', () => {
+describe('GET /api/users/me', () => {
   const validUser = createMockUser();
   const accessToken = createMockToken(validUser.id, validUser.role);
 
@@ -53,21 +53,27 @@ describe('GET /api/v1/users/me', () => {
     email: validUser.email,
     phone: validUser.phone,
     fcmToken: validUser.fcmToken,
+    profilePhotoUrl: null,
+    dateOfBirth: null,
+    householdMemberCount: null,
+    bio: null,
+    emergencyContactName: null,
+    emergencyContactPhone: null,
     isActive: validUser.isActive,
     createdAt: validUser.createdAt,
     updatedAt: validUser.updatedAt,
-    society: { id: 'society-uuid-1', name: 'Test Society' },
+    society: { id: 'society-uuid-1', name: 'Test Society', logoUrl: null },
     unitResidents: [],
   };
 
   describe('successful profile retrieval', () => {
     beforeEach(() => {
-      prisma.user.findUnique.mockResolvedValue(profileResponse);
+      prisma.user.findFirst.mockResolvedValue(profileResponse);
     });
 
     it('should return 200 with own profile for authenticated user', async () => {
       const res = await request(app)
-        .get('/api/v1/users/me')
+        .get('/api/users/me')
         .set('Authorization', `Bearer ${accessToken}`);
 
       expect(res.status).toBe(200);
@@ -80,7 +86,7 @@ describe('GET /api/v1/users/me', () => {
 
     it('should NOT include passwordHash in the response', async () => {
       const res = await request(app)
-        .get('/api/v1/users/me')
+        .get('/api/users/me')
         .set('Authorization', `Bearer ${accessToken}`);
 
       expect(res.status).toBe(200);
@@ -91,7 +97,7 @@ describe('GET /api/v1/users/me', () => {
   describe('failed profile retrieval', () => {
     it('should return 401 when no token is provided', async () => {
       const res = await request(app)
-        .get('/api/v1/users/me');
+        .get('/api/users/me');
 
       expect(res.status).toBe(401);
       expect(res.body.success).toBe(false);
@@ -104,7 +110,7 @@ describe('GET /api/v1/users/me', () => {
       await new Promise(resolve => setTimeout(resolve, 50));
 
       const res = await request(app)
-        .get('/api/v1/users/me')
+        .get('/api/users/me')
         .set('Authorization', `Bearer ${expiredToken}`);
 
       expect(res.status).toBe(401);
@@ -114,7 +120,7 @@ describe('GET /api/v1/users/me', () => {
 
     it('should return 401 when token is invalid', async () => {
       const res = await request(app)
-        .get('/api/v1/users/me')
+        .get('/api/users/me')
         .set('Authorization', 'Bearer invalid.token.here');
 
       expect(res.status).toBe(401);
@@ -123,7 +129,7 @@ describe('GET /api/v1/users/me', () => {
 
     it('should return 401 when Authorization header format is wrong', async () => {
       const res = await request(app)
-        .get('/api/v1/users/me')
+        .get('/api/users/me')
         .set('Authorization', accessToken); // missing "Bearer " prefix
 
       expect(res.status).toBe(401);

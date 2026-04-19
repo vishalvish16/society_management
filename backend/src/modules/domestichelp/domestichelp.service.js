@@ -9,7 +9,12 @@ async function listDomesticHelp(societyId, filters = {}) {
   const skip = (parseInt(page) - 1) * parseInt(limit);
 
   const where = { societyId };
-  if (unitId) where.unitId = unitId;
+  const unitIdsIn = filters.unitIdsIn;
+  if (Array.isArray(unitIdsIn) && unitIdsIn.length) {
+    where.unitId = unitIdsIn.length === 1 ? unitIdsIn[0] : { in: unitIdsIn };
+  } else if (unitId) {
+    where.unitId = unitId;
+  }
   if (type) where.type = type;
   if (status) where.status = status;
 
@@ -28,7 +33,7 @@ async function listDomesticHelp(societyId, filters = {}) {
 }
 
 async function createDomesticHelp(societyId, registeredById, data) {
-  const { unitId, name, type, phone, allowedDays, allowedFrom, allowedTo, notes } = data;
+  const { unitId, name, type, phone, allowedDays, allowedFrom, allowedTo, notes, photoUrl } = data;
 
   if (!unitId || !name || !type) {
     throw Object.assign(new Error('unitId, name, and type are required'), { status: 400 });
@@ -57,6 +62,7 @@ async function createDomesticHelp(societyId, registeredById, data) {
       name,
       type,
       phone: phone || null,
+      photoUrl: photoUrl || null,
       entryCode,
       allowedDays: allowedDays || null,
       allowedFrom: allowedFrom || null,
@@ -73,7 +79,7 @@ async function updateDomesticHelp(id, societyId, data) {
     throw Object.assign(new Error('Domestic help not found'), { status: 404 });
   }
 
-  const { name, phone, status, allowedDays, allowedFrom, allowedTo, notes } = data;
+  const { name, phone, status, allowedDays, allowedFrom, allowedTo, notes, photoUrl } = data;
   const updateData = {};
   if (name !== undefined) updateData.name = name;
   if (phone !== undefined) updateData.phone = phone;
@@ -82,9 +88,11 @@ async function updateDomesticHelp(id, societyId, data) {
   if (allowedFrom !== undefined) updateData.allowedFrom = allowedFrom;
   if (allowedTo !== undefined) updateData.allowedTo = allowedTo;
   if (notes !== undefined) updateData.notes = notes;
+  if (photoUrl !== undefined) updateData.photoUrl = photoUrl;
 
   return prisma.domesticHelp.update({ where: { id }, data: updateData });
 }
+
 
 async function getDomesticHelpByCode(entryCode, societyId) {
   const item = await prisma.domesticHelp.findUnique({

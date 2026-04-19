@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/dio_client.dart';
 import 'package:dio/dio.dart';
@@ -45,9 +46,32 @@ class DomesticHelpNotifier extends StateNotifier<DomesticHelpState> {
     }
   }
 
-  Future<String?> addHelper(Map<String, dynamic> data) async {
+  Future<String?> addHelper(Map<String, dynamic> data, {dynamic photo}) async {
     try {
-      final res = await _client.dio.post('/domestichelp', data: data);
+      final formData = FormData.fromMap(data);
+      if (photo != null) {
+        if (photo is List<int>) {
+           formData.files.add(MapEntry(
+            'photo',
+            MultipartFile.fromBytes(photo, filename: 'photo.jpg'),
+          ));
+        } else if (photo is PlatformFile) {
+          final pf = photo;
+          if (pf.bytes != null) {
+            formData.files.add(MapEntry(
+              'photo',
+              MultipartFile.fromBytes(pf.bytes!, filename: pf.name),
+            ));
+          } else if (pf.path != null && pf.path!.isNotEmpty) {
+            formData.files.add(MapEntry(
+              'photo',
+              await MultipartFile.fromFile(pf.path!, filename: pf.name),
+            ));
+          }
+        }
+      }
+
+      final res = await _client.dio.post('/domestichelp', data: formData);
       if (res.data['success'] == true) {
         await loadHelpers();
         return null;
@@ -60,9 +84,32 @@ class DomesticHelpNotifier extends StateNotifier<DomesticHelpState> {
     }
   }
 
-  Future<String?> updateHelper(String id, Map<String, dynamic> data) async {
+  Future<String?> updateHelper(String id, Map<String, dynamic> data, {dynamic photo}) async {
     try {
-      final res = await _client.dio.patch('/domestichelp/$id', data: data);
+      final formData = FormData.fromMap(data);
+      if (photo != null) {
+        if (photo is List<int>) {
+          formData.files.add(MapEntry(
+            'photo',
+            MultipartFile.fromBytes(photo, filename: 'photo.jpg'),
+          ));
+        } else if (photo is PlatformFile) {
+          final pf = photo;
+          if (pf.bytes != null) {
+            formData.files.add(MapEntry(
+              'photo',
+              MultipartFile.fromBytes(pf.bytes!, filename: pf.name),
+            ));
+          } else if (pf.path != null && pf.path!.isNotEmpty) {
+            formData.files.add(MapEntry(
+              'photo',
+              await MultipartFile.fromFile(pf.path!, filename: pf.name),
+            ));
+          }
+        }
+      }
+
+      final res = await _client.dio.patch('/domestichelp/$id', data: formData);
       if (res.data['success'] == true) {
         await loadHelpers();
         return null;
@@ -74,6 +121,7 @@ class DomesticHelpNotifier extends StateNotifier<DomesticHelpState> {
       return e.toString();
     }
   }
+
 
   Future<String?> suspendHelper(String id) async {
     try {

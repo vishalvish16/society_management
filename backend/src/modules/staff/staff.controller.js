@@ -1,6 +1,24 @@
 const prisma = require('../../config/db');
 const { sendSuccess, sendError } = require('../../utils/response');
 
+function parseStaffShift(raw) {
+  const map = { day: 'DAY', night: 'NIGHT', full: 'FULL' };
+  const k = raw == null ? 'full' : String(raw).toLowerCase();
+  return map[k] || 'FULL';
+}
+
+/** @returns {string[]|null} */
+function normalizeWingCodes(raw) {
+  if (raw == null) return null;
+  const arr = Array.isArray(raw)
+    ? raw
+    : typeof raw === 'string'
+      ? raw.split(/[,;\s]+/)
+      : [];
+  const out = [...new Set(arr.map((s) => String(s).trim()).filter(Boolean))];
+  return out.length ? out : null;
+}
+
 // GET /api/staff
 async function listStaff(req, res) {
   try {
@@ -23,6 +41,7 @@ async function listStaff(req, res) {
             take: 1,
           },
           user: { select: { id: true, phone: true, role: true, isActive: true } },
+          gate: { select: { id: true, name: true, code: true } },
         },
       }),
       prisma.staff.count({ where }),
@@ -39,10 +58,22 @@ async function listStaff(req, res) {
 async function createStaff(req, res) {
   try {
     const { societyId, id: createdById } = req.user;
-    const { name, role, phone, salary, joiningDate, password } = req.body;
+    const { name, role, phone, salary, joiningDate, password, shift, gateId, assignedWingCodes } = req.body;
 
     if (!name || !role || salary === undefined) {
       return sendError(res, 'name, role, and salary are required', 400);
+    }
+
+    const shiftEnum = parseStaffShift(shift);
+    const wings = normalizeWingCodes(assignedWingCodes);
+    let resolvedGateId = gateId || null;
+    if (resolvedGateId) {
+      const g = await prisma.societyGate.findUnique({ where: { id: resolvedGateId } });
+      if (!g || g.societyId !== societyId) {
+        return sendError(res, 'Invalid gate for this society', 400);
+      }
+    } else {
+      resolvedGateId = null;
     }
 
     // Watchman: also create a User account so they can log into the app
@@ -79,9 +110,15 @@ async function createStaff(req, res) {
         phone: phone || null,
         salary: Number(salary),
         joiningDate: joiningDate ? new Date(joiningDate) : null,
+        shift: shiftEnum,
+        gateId: resolvedGateId,
+        assignedWingCodes: wings === null ? undefined : wings,
         ...(userId ? { userId } : {}),
       },
-      include: { user: { select: { id: true, phone: true, role: true, isActive: true } } },
+      include: {
+        user: { select: { id: true, phone: true, role: true, isActive: true } },
+        gate: { select: { id: true, name: true, code: true } },
+      },
     });
 
     return sendSuccess(res, staff, 'Staff member created', 201);
@@ -102,7 +139,7 @@ async function updateStaff(req, res) {
       return sendError(res, 'Staff member not found', 404);
     }
 
-    const { name, role, phone, salary, joiningDate, isActive } = req.body;
+    const { name, role, phone, salary, joiningDate, isActive, shift, gateId, assignedWingCodes } = req.body;
     const updateData = {};
     if (name !== undefined) updateData.name = name;
     if (role !== undefined) updateData.role = role;
@@ -110,8 +147,30 @@ async function updateStaff(req, res) {
     if (salary !== undefined) updateData.salary = Number(salary);
     if (joiningDate !== undefined) updateData.joiningDate = new Date(joiningDate);
     if (isActive !== undefined) updateData.isActive = Boolean(isActive);
+    if (shift !== undefined) updateData.shift = parseStaffShift(shift);
+    if (gateId !== undefined) {
+      if (gateId === null || gateId === '') {
+        updateData.gateId = null;
+      } else {
+        const g = await prisma.societyGate.findUnique({ where: { id: gateId } });
+        if (!g || g.societyId !== societyId) {
+          return sendError(res, 'Invalid gate for this society', 400);
+        }
+        updateData.gateId = gateId;
+      }
+    }
+    if (assignedWingCodes !== undefined) {
+      updateData.assignedWingCodes = normalizeWingCodes(assignedWingCodes);
+    }
 
-    const updated = await prisma.staff.update({ where: { id }, data: updateData });
+    const updated = await prisma.staff.update({
+      where: { id },
+      data: updateData,
+      include: {
+        user: { select: { id: true, phone: true, role: true, isActive: true } },
+        gate: { select: { id: true, name: true, code: true } },
+      },
+    });
     return sendSuccess(res, updated, 'Staff member updated');
   } catch (err) {
     console.error('Update staff error:', err.message);

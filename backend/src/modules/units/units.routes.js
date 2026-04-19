@@ -10,6 +10,8 @@ const router = Router();
 // Unit routes (all protected)
 router.use(authMiddleware);
 
+router.get('/wings', unitsController.listDistinctWings);
+
 // Unit CRUD
 router.get('/', unitsController.getUnits);
 router.post('/', roleGuard(ADMIN_ROLES), checkPlanLimit('units'), unitsController.createUnit);

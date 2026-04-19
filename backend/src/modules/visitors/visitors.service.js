@@ -176,6 +176,11 @@ async function inviteVisitor(userId, societyId, data) {
       qrExpiresAt,
       status: 'PENDING',
     },
+    include: {
+      unit:    { select: { fullCode: true } },
+      inviter: { select: { id: true, name: true } },
+      society: { select: { name: true } },
+    },
   });
 
   // Fetch host + society for notification content (non-blocking)
@@ -199,7 +204,24 @@ async function inviteVisitor(userId, societyId, data) {
 /**
  * Validate a QR token scanned by a watchman.
  */
+function normalizeQrToken(raw) {
+  if (!raw || typeof raw !== 'string') return raw;
+  const t = raw.trim();
+  if (t.includes('/')) {
+    const parts = t.split('/').filter(Boolean);
+    if (parts.length) {
+      try {
+        return decodeURIComponent(parts[parts.length - 1]);
+      } catch {
+        return parts[parts.length - 1];
+      }
+    }
+  }
+  return t;
+}
+
 async function validateToken(qrToken, scannerId, societyId, _deviceInfo = {}) {
+  qrToken = normalizeQrToken(qrToken);
   const visitor = await prisma.visitor.findUnique({
     where:   { qrToken },
     include: { unit: true },
@@ -212,7 +234,19 @@ async function validateToken(qrToken, scannerId, societyId, _deviceInfo = {}) {
   }
 
   if (visitor.status === 'USED') {
-    return { success: false, result: 'used', message: 'Token already used' };
+    // Fetch the scan log so we can tell watchman when it was used
+    const scanLog = await prisma.visitorLog.findFirst({
+      where:   { visitorId: visitor.id, scanResult: 'VALID' },
+      orderBy: { scannedAt: 'desc' },
+      include: { scanner: { select: { name: true } } },
+    });
+    return {
+      success: false,
+      result: 'used',
+      message: 'This pass has already been scanned and used',
+      scannedAt: scanLog?.scannedAt ?? null,
+      scannedBy: scanLog?.scanner?.name ?? null,
+    };
   }
 
   if (new Date() > visitor.qrExpiresAt) {

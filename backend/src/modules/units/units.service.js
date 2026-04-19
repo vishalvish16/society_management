@@ -262,8 +262,24 @@ async function bulkCreate(societyId, { wing, floor, startUnit, endUnit }) {
   });
 }
 
+/** Distinct non-empty wing labels from units (for staff assignment chips, etc.). */
+async function listDistinctWings(societyId) {
+  const rows = await prisma.unit.findMany({
+    where: {
+      societyId,
+      deletedAt: null,
+      wing: { not: null },
+    },
+    select: { wing: true },
+    distinct: ['wing'],
+    orderBy: { wing: 'asc' },
+  });
+  return rows.map((r) => r.wing).filter((w) => w != null && String(w).trim() !== '');
+}
+
 module.exports = {
   listUnits,
+  listDistinctWings,
   createUnit,
   updateUnit,
   deleteUnit,

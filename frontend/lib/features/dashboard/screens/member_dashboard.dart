@@ -12,6 +12,7 @@ import '../../bills/providers/my_pending_bills_provider.dart';
 import '../../bills/screens/upi_pay_sheet.dart';
 import '../../donations/screens/donate_sheet.dart';
 import '../providers/dashboard_provider.dart';
+import '../widgets/dashboard_portal_widgets.dart';
 
 /// Dashboard for MEMBER role — unit resident with committee privileges
 /// Gets society stats from backend but shows member-relevant view
@@ -44,22 +45,18 @@ class _MemberDashboardState extends ConsumerState<MemberDashboard> {
         message: 'Failed to load: $e',
         onRetry: () => ref.invalidate(memberDashboardProvider),
       ),
-      data: (stats) => RefreshIndicator(
+      data: (stats) => DashboardRefreshWithSearchStack(
         onRefresh: () async {
           await Future.wait([
             ref.refresh(memberDashboardProvider.future),
             ref.read(myPendingBillsProvider.notifier).fetch(),
           ]);
         },
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(AppDimensions.screenPadding),
-          child: isWeb
-              ? _WebMemberLayout(
-                  stats: stats, pendingBills: pendingBills, user: user)
-              : _MobileMemberLayout(
-                  stats: stats, pendingBills: pendingBills, user: user),
-        ),
+        scrollChild: isWeb
+            ? _WebMemberLayout(
+                stats: stats, pendingBills: pendingBills, user: user)
+            : _MobileMemberLayout(
+                stats: stats, pendingBills: pendingBills, user: user),
       ),
     );
   }
@@ -76,9 +73,27 @@ class _WebMemberLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final name = (user?.name?.toString().trim().isNotEmpty ?? false)
+        ? user.name.toString().trim()
+        : 'Member';
+    final unitCode = user?.unitCode?.toString().trim();
+    final subtitle = (unitCode != null && unitCode.isNotEmpty)
+        ? 'Unit $unitCode · ${dashboardRoleSubtitle('MEMBER')}'
+        : dashboardRoleSubtitle('MEMBER');
+    final hasTrends = dashboardStatsHasTrends(stats);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        DashboardGreetingHeader(
+          title: 'Dashboard',
+          greeting: dashboardGreetingForNow(),
+          name: name,
+          subtitle: subtitle,
+          compact: false,
+          onNotifications: () => context.go('/notifications'),
+        ),
+        const SizedBox(height: AppDimensions.lg),
         // My Unit and pending bills
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -93,6 +108,44 @@ class _WebMemberLayout extends StatelessWidget {
         _CampaignBanner(stats: stats),
         const SizedBox(height: AppDimensions.md),
 
+        if (hasTrends) ...[
+          DashboardSectionHeaderRow(
+            title: 'Insights',
+            actionLabel: 'Reports',
+            onAction: () => context.go('/reports/balance'),
+          ),
+          const SizedBox(height: AppDimensions.md),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: DashboardTrendPanel(
+                  title: 'Collection trend',
+                  subtitle: 'Paid bills · last 6 months',
+                  color: AppColors.primary,
+                  data: trendValuesFromDashboardStats(stats, key: 'collections'),
+                ),
+              ),
+              const SizedBox(width: AppDimensions.lg),
+              Expanded(
+                child: DashboardTrendPanel(
+                  title: 'Visitors',
+                  subtitle: 'Last 6 days',
+                  color: AppColors.info,
+                  data: trendValuesFromDashboardStats(stats, key: 'visitors'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppDimensions.xxl),
+        ],
+
+        DashboardSectionHeaderRow(
+          title: 'Overview',
+          actionLabel: 'Balance',
+          onAction: () => context.go('/reports/balance'),
+        ),
+        const SizedBox(height: AppDimensions.md),
         // KPI row (4 across on web)
         _MemberKpiRow(stats: stats, crossAxisCount: 4),
         const SizedBox(height: AppDimensions.xxl),
@@ -127,24 +180,75 @@ class _MobileMemberLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final name = (user?.name?.toString().trim().isNotEmpty ?? false)
+        ? user.name.toString().trim()
+        : 'Member';
+    final unitCode = user?.unitCode?.toString().trim();
+    final subtitle = (unitCode != null && unitCode.isNotEmpty)
+        ? 'Unit $unitCode · ${dashboardRoleSubtitle('MEMBER')}'
+        : dashboardRoleSubtitle('MEMBER');
+    final hasTrends = dashboardStatsHasTrends(stats);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        DashboardGreetingHeader(
+          title: 'Dashboard',
+          greeting: dashboardGreetingForNow(),
+          name: name,
+          subtitle: subtitle,
+          compact: true,
+          onNotifications: () => context.go('/notifications'),
+        ),
+        const SizedBox(height: AppDimensions.md),
         if (user?.unitCode != null) ...[
           _MyUnitCard(unitCode: user!.unitCode!),
           const SizedBox(height: AppDimensions.md),
         ],
         _PendingBillsBanner(pendingBills: pendingBills),
         _CampaignBanner(stats: stats),
+        const SizedBox(height: AppDimensions.md),
+        if (hasTrends) ...[
+          DashboardSectionHeaderRow(
+            title: 'Insights',
+            actionLabel: 'Reports',
+            onAction: () => context.go('/reports/balance'),
+          ),
+          const SizedBox(height: AppDimensions.md),
+          DashboardTrendPanel(
+            title: 'Collection trend',
+            subtitle: 'Paid bills · last 6 months',
+            color: AppColors.primary,
+            data: trendValuesFromDashboardStats(stats, key: 'collections'),
+          ),
+          const SizedBox(height: AppDimensions.md),
+          DashboardTrendPanel(
+            title: 'Visitors',
+            subtitle: 'Last 6 days',
+            color: AppColors.info,
+            data: trendValuesFromDashboardStats(stats, key: 'visitors'),
+          ),
+          const SizedBox(height: AppDimensions.lg),
+        ],
+        DashboardSectionHeaderRow(
+          title: 'Overview',
+          actionLabel: 'Balance',
+          onAction: () => context.go('/reports/balance'),
+        ),
+        const SizedBox(height: AppDimensions.md),
         _MemberKpiRow(stats: stats, crossAxisCount: 2),
         const SizedBox(height: AppDimensions.lg),
 
-        Text('Quick Actions', style: AppTextStyles.h2),
+        DashboardSectionHeaderRow(title: 'Quick Actions'),
         const SizedBox(height: AppDimensions.md),
         _MemberQuickActions(isWeb: false),
         const SizedBox(height: AppDimensions.lg),
 
-        Text("Society Activity", style: AppTextStyles.h2),
+        DashboardSectionHeaderRow(
+          title: 'Society Activity',
+          actionLabel: 'Visitors',
+          onAction: () => context.go('/visitors'),
+        ),
         const SizedBox(height: AppDimensions.md),
         _SocietyActivityCards(stats: stats),
       ],

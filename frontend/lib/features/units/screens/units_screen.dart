@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimensions.dart';
@@ -10,8 +11,6 @@ import '../../../shared/widgets/app_loading_shimmer.dart';
 import '../../../shared/widgets/app_text_field.dart';
 import '../providers/unit_provider.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
-import '../../../shared/widgets/show_app_dialog.dart';
-import '../../../shared/widgets/app_card_grid.dart';
 import '../../../shared/widgets/app_status_chip.dart';
 
 class UnitsScreen extends ConsumerStatefulWidget {
@@ -23,6 +22,7 @@ class UnitsScreen extends ConsumerStatefulWidget {
 
 class _UnitsScreenState extends ConsumerState<UnitsScreen> {
   final ScrollController _scrollController = ScrollController();
+  String? _handledFocusId;
 
   @override
   void initState() {
@@ -45,6 +45,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final focusId = GoRouterState.of(context).uri.queryParameters['focusId'];
     final unitsAsync = ref.watch(unitsProvider);
     final notifier = ref.read(unitsProvider.notifier);
     final currentUser = ref.watch(authProvider).user;
@@ -108,6 +109,13 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
           ),
         ),
         data: (units) {
+          if (focusId != null && focusId.isNotEmpty && _handledFocusId != focusId) {
+            WidgetsBinding.instance.addPostFrameCallback((_) async {
+              if (!mounted) return;
+              await _focusUnitById(focusId);
+              if (mounted) setState(() => _handledFocusId = focusId);
+            });
+          }
           if (units.isEmpty) {
             return const AppEmptyState(
               emoji: '🏠',
@@ -566,6 +574,37 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
       return (const Color(0xFFE3F2FD), const Color(0xFF1565C0)); // Blue pastel
     }
     return (AppColors.background, AppColors.border);
+  }
+
+  Future<void> _focusUnitById(String id) async {
+    for (int guard = 0; guard < 20; guard++) {
+      final list = ref.read(unitsProvider).value ?? const <dynamic>[];
+      final idx = list.indexWhere((u) => (u is Map) && u['id']?.toString() == id);
+      if (idx >= 0) {
+        // Grid rows: approximate scroll position
+        final row = idx ~/ 4;
+        final targetOffset = (row * 170.0).clamp(0.0, _scrollController.position.maxScrollExtent);
+        await _scrollController.animateTo(
+          targetOffset,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOut,
+        );
+        if (!mounted) return;
+        final u = list[idx] as Map<String, dynamic>;
+        _showEditSheet(context, ref, u);
+        return;
+      }
+
+      final n = ref.read(unitsProvider.notifier);
+      if (!n.hasMore || n.isLoadingMore) break;
+      await n.fetchNextPage();
+      await Future.delayed(const Duration(milliseconds: 50));
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Record not found in units list')),
+    );
   }
 }
 

@@ -13,7 +13,10 @@ class AppTextField extends StatelessWidget {
   final bool obscureText;
   final int? maxLines;
   final void Function(String)? onChanged;
+  final void Function(String)? onSubmitted;
   final bool enabled;
+  final FocusNode? focusNode;
+  final TextInputAction? textInputAction;
 
   const AppTextField({
     super.key,
@@ -26,7 +29,10 @@ class AppTextField extends StatelessWidget {
     this.obscureText = false,
     this.maxLines = 1,
     this.onChanged,
+    this.onSubmitted,
     this.enabled = true,
+    this.focusNode,
+    this.textInputAction,
   });
 
   @override
@@ -41,11 +47,14 @@ class AppTextField extends StatelessWidget {
         const SizedBox(height: AppDimensions.xs),
         TextFormField(
           controller: controller,
+          focusNode: focusNode,
           keyboardType: keyboardType,
+          textInputAction: textInputAction,
           validator: validator,
           obscureText: obscureText,
           maxLines: maxLines,
           onChanged: onChanged,
+          onFieldSubmitted: onSubmitted,
           enabled: enabled,
           style: AppTextStyles.bodyLarge,
           decoration: InputDecoration(

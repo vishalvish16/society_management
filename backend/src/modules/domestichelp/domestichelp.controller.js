@@ -1,9 +1,27 @@
+const prisma = require('../../config/db');
 const service = require('./domestichelp.service');
 const { sendSuccess, sendError } = require('../../utils/response');
+const { isResidentLikeRole, canViewAllDomesticHelp, unitIdsForUser, userHasUnit } = require('../../utils/unitResident');
 
 async function list(req, res) {
   try {
-    const result = await service.listDomesticHelp(req.user.societyId, req.query);
+    const { societyId, id: userId, role } = req.user;
+    const query = { ...req.query };
+    if (!canViewAllDomesticHelp(role)) {
+      const ids = await unitIdsForUser(userId, societyId);
+      if (!ids.length) {
+        return sendSuccess(
+          res,
+          { items: [], total: 0, page: parseInt(query.page) || 1, limit: parseInt(query.limit) || 20 },
+          'Domestic help retrieved'
+        );
+      }
+      if (query.unitId && !ids.includes(query.unitId)) {
+        return sendError(res, 'You can only view domestic help for your own unit', 403);
+      }
+      query.unitIdsIn = query.unitId ? [query.unitId] : ids;
+    }
+    const result = await service.listDomesticHelp(societyId, query);
     return sendSuccess(res, result, 'Domestic help retrieved');
   } catch (err) {
     return sendError(res, err.message, err.status || 500);
@@ -12,7 +30,20 @@ async function list(req, res) {
 
 async function create(req, res) {
   try {
-    const item = await service.createDomesticHelp(req.user.societyId, req.user.id, req.body);
+    const data = { ...req.body };
+    if (req.file) {
+      data.photoUrl = `/uploads/domestichelp/${req.file.filename}`;
+    }
+    if (isResidentLikeRole(req.user.role)) {
+      if (!data.unitId) {
+        return sendError(res, 'unitId is required', 400);
+      }
+      const ok = await userHasUnit(req.user.id, req.user.societyId, data.unitId);
+      if (!ok) {
+        return sendError(res, 'You can only register domestic help for your own unit', 403);
+      }
+    }
+    const item = await service.createDomesticHelp(req.user.societyId, req.user.id, data);
     return sendSuccess(res, item, 'Domestic help registered', 201);
   } catch (err) {
     return sendError(res, err.message, err.status || 500);
@@ -21,12 +52,27 @@ async function create(req, res) {
 
 async function update(req, res) {
   try {
-    const updated = await service.updateDomesticHelp(req.params.id, req.user.societyId, req.body);
+    const data = { ...req.body };
+    if (req.file) {
+      data.photoUrl = `/uploads/domestichelp/${req.file.filename}`;
+    }
+    if (isResidentLikeRole(req.user.role)) {
+      const existing = await prisma.domesticHelp.findUnique({ where: { id: req.params.id } });
+      if (!existing || existing.societyId !== req.user.societyId) {
+        return sendError(res, 'Domestic help not found', 404);
+      }
+      const ok = await userHasUnit(req.user.id, req.user.societyId, existing.unitId);
+      if (!ok) {
+        return sendError(res, 'You can only update domestic help for your own unit', 403);
+      }
+    }
+    const updated = await service.updateDomesticHelp(req.params.id, req.user.societyId, data);
     return sendSuccess(res, updated, 'Domestic help updated');
   } catch (err) {
     return sendError(res, err.message, err.status || 500);
   }
 }
+
 
 async function getByCode(req, res) {
   try {
@@ -52,6 +98,16 @@ async function logEntry(req, res) {
 
 async function suspend(req, res) {
   try {
+    if (isResidentLikeRole(req.user.role)) {
+      const existing = await prisma.domesticHelp.findUnique({ where: { id: req.params.id } });
+      if (!existing || existing.societyId !== req.user.societyId) {
+        return sendError(res, 'Domestic help not found', 404);
+      }
+      const ok = await userHasUnit(req.user.id, req.user.societyId, existing.unitId);
+      if (!ok) {
+        return sendError(res, 'You can only change domestic help for your own unit', 403);
+      }
+    }
     const updated = await service.updateDomesticHelp(req.params.id, req.user.societyId, { status: 'SUSPENDED' });
     return sendSuccess(res, updated, 'Domestic help suspended');
   } catch (err) {
@@ -61,6 +117,16 @@ async function suspend(req, res) {
 
 async function remove(req, res) {
   try {
+    if (isResidentLikeRole(req.user.role)) {
+      const existing = await prisma.domesticHelp.findUnique({ where: { id: req.params.id } });
+      if (!existing || existing.societyId !== req.user.societyId) {
+        return sendError(res, 'Domestic help not found', 404);
+      }
+      const ok = await userHasUnit(req.user.id, req.user.societyId, existing.unitId);
+      if (!ok) {
+        return sendError(res, 'You can only change domestic help for your own unit', 403);
+      }
+    }
     const updated = await service.updateDomesticHelp(req.params.id, req.user.societyId, { status: 'REMOVED' });
     return sendSuccess(res, updated, 'Domestic help removed');
   } catch (err) {
@@ -70,6 +136,16 @@ async function remove(req, res) {
 
 async function getLogs(req, res) {
   try {
+    if (isResidentLikeRole(req.user.role)) {
+      const existing = await prisma.domesticHelp.findUnique({ where: { id: req.params.id } });
+      if (!existing || existing.societyId !== req.user.societyId) {
+        return sendError(res, 'Domestic help not found', 404);
+      }
+      const ok = await userHasUnit(req.user.id, req.user.societyId, existing.unitId);
+      if (!ok) {
+        return sendError(res, 'You can only view logs for your own unit', 403);
+      }
+    }
     const result = await service.getLogs(req.params.id, req.user.societyId, req.query);
     return sendSuccess(res, result, 'Logs retrieved');
   } catch (err) {
@@ -88,15 +164,19 @@ async function getTodayLogs(req, res) {
 
 async function getByUnit(req, res) {
   try {
-    const { societyId } = req.user;
+    const { societyId, id: userId, role } = req.user;
     const { id: unitId } = req.params;
-    const prisma = require('../../config/db');
 
     const unit = await prisma.unit.findUnique({ where: { id: unitId } });
     if (!unit || unit.societyId !== societyId) return sendError(res, 'Unit not found', 404);
 
+    if (!canViewAllDomesticHelp(role)) {
+      const ok = await userHasUnit(userId, societyId, unitId);
+      if (!ok) return sendError(res, 'You can only view domestic help for your own unit', 403);
+    }
+
     const helpers = await prisma.domesticHelp.findMany({
-      where: { unitId, societyId, isActive: true },
+      where: { unitId, societyId, status: 'ACTIVE' },
       orderBy: { createdAt: 'desc' },
     });
     return sendSuccess(res, helpers, 'Domestic help for unit retrieved');

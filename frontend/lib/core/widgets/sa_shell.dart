@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_colors.dart';
+import '../../shared/widgets/confirm_logout.dart';
 
 class SAShell extends ConsumerStatefulWidget {
   final Widget child;
@@ -68,6 +69,8 @@ class _SAShellState extends ConsumerState<SAShell> {
                 IconButton(
                   icon: const Icon(Icons.logout_rounded),
                   onPressed: () async {
+                    final confirm = await showLogoutConfirmSheet(context);
+                    if (!confirm) return;
                     await ref.read(authProvider.notifier).logout();
                     if (context.mounted) context.go('/');
                   },
@@ -168,6 +171,8 @@ class _SAShellState extends ConsumerState<SAShell> {
               title: const Text('Logout', style: TextStyle(color: Color(0xFF94A3B8))),
               onTap: () async {
                 Navigator.pop(context);
+                final confirm = await showLogoutConfirmSheet(context);
+                if (!confirm) return;
                 await ref.read(authProvider.notifier).logout();
                 if (mounted) context.go('/');
               },
@@ -285,6 +290,8 @@ class _SAShellState extends ConsumerState<SAShell> {
                 IconButton(
                   icon: const Icon(Icons.logout_rounded, color: Color(0xFF94A3B8), size: 20),
                   onPressed: () async {
+                    final confirm = await showLogoutConfirmSheet(context);
+                    if (!confirm) return;
                     await ref.read(authProvider.notifier).logout();
                     if (mounted) context.go('/');
                   },

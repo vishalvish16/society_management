@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart' show DateFormat;
+import '../../../core/api/dio_client.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimensions.dart';
@@ -26,11 +28,35 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
 
   Color _borderColor(String status) {
     switch (status) {
-      case 'valid': return AppColors.success;
+      case 'valid':
+      case 'pending':
+        return AppColors.warning;
+      case 'used':
+        return AppColors.success;
       case 'expired':
-      case 'denied': return AppColors.danger;
-      default: return AppColors.warning;
+      case 'denied':
+        return AppColors.danger;
+      default:
+        return AppColors.warning;
     }
+  }
+
+  /// DB status plus QR time window (`qrExpiresAt`) so expired invites show as **expired** in the list.
+  String _effectiveVisitorStatus(Map<String, dynamic> v) {
+    final status = (v['status'] as String? ?? 'pending').toLowerCase();
+    if (status == 'used' || status == 'expired' || status == 'denied') {
+      return status;
+    }
+    final raw = v['qrExpiresAt'];
+    if (raw != null) {
+      try {
+        if (DateTime.parse(raw as String).isBefore(DateTime.now())) {
+          return 'expired';
+        }
+      } catch (_) {}
+    }
+    if (status == 'valid' || status == 'pending') return 'pending';
+    return status;
   }
 
   @override
@@ -47,7 +73,7 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
               actions: [
                 IconButton(
                   icon: const Icon(Icons.qr_code_scanner_rounded, color: AppColors.textOnPrimary),
-                  onPressed: () {},
+                  onPressed: () => _showScanSheet(context),
                 ),
                 const SizedBox(width: AppDimensions.sm),
               ],
@@ -102,7 +128,11 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
               data: (visitors) {
                 final filtered = _filter == 'all'
                     ? visitors
-                    : visitors.where((v) => v['status'] == _filter).toList();
+                    : visitors
+                        .where((v) =>
+                            _effectiveVisitorStatus(Map<String, dynamic>.from(v as Map)) ==
+                            _filter)
+                        .toList();
                 if (filtered.isEmpty) {
                   return const AppEmptyState(
                     emoji: '🚪',
@@ -117,8 +147,8 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
                     itemCount: filtered.length,
                     separatorBuilder: (_, index) => const SizedBox(height: AppDimensions.sm),
                     itemBuilder: (_, i) {
-                      final v = filtered[i];
-                      final status = (v['status'] as String? ?? 'pending').toLowerCase();
+                      final v = Map<String, dynamic>.from(filtered[i] as Map);
+                      final status = _effectiveVisitorStatus(v);
                       final unitCode = v['unit'] is Map ? v['unit']['fullCode'] : (v['unit'] ?? '-');
                       final isPending = status == 'pending';
                       final qrToken = v['qrToken'] as String?;
@@ -213,6 +243,18 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
     );
   }
 
+  void _showScanSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
+      ),
+      builder: (_) => const _ScanSheet(),
+    );
+  }
+
   void _showLogDialog(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -258,6 +300,285 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
           ),
           child: Icon(icon, color: color, size: 18),
         ),
+      ),
+    );
+  }
+}
+
+// ─── QR Scan Sheet ────────────────────────────────────────────────────────────
+
+class _ScanSheet extends ConsumerStatefulWidget {
+  const _ScanSheet();
+
+  @override
+  ConsumerState<_ScanSheet> createState() => _ScanSheetState();
+}
+
+class _ScanSheetState extends ConsumerState<_ScanSheet> {
+  final _ctrl = TextEditingController();
+  bool _loading = false;
+
+  // null = idle, 'valid' | 'used' | 'expired' | 'invalid' = result
+  String? _result;
+  String? _visitorName;
+  String? _unitCode;
+  String? _scannedAt;
+  String? _scannedBy;
+  String? _errorMsg;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _validate() async {
+    final token = _ctrl.text.trim();
+    if (token.isEmpty) return;
+    setState(() { _loading = true; _result = null; _errorMsg = null; });
+
+    try {
+      final resp = await DioClient().dio.post('/visitors/validate', data: {'qrToken': token});
+      final data = resp.data['data'] as Map<String, dynamic>? ?? {};
+      setState(() {
+        _loading = false;
+        _result = 'valid';
+        _visitorName = data['name'] as String? ?? '-';
+        _unitCode    = data['unit'] as String? ?? '-';
+      });
+      ref.read(visitorsProvider.notifier).fetchVisitors();
+    } on Exception catch (e) {
+      String result = 'invalid';
+      String? scannedAt, scannedBy, msg;
+
+      try {
+        final dioException = e as dynamic;
+        final respData = dioException.response?.data as Map<String, dynamic>?;
+        result    = (respData?['data']?['result'] as String? ?? 'invalid').toLowerCase();
+        scannedAt = respData?['data']?['scannedAt'] as String?;
+        scannedBy = respData?['data']?['scannedBy'] as String?;
+        msg       = respData?['message'] as String?;
+      } catch (_) {
+        msg = e.toString();
+      }
+
+      setState(() {
+        _loading   = false;
+        _result    = result.toLowerCase();
+        _scannedAt = scannedAt;
+        _scannedBy = scannedBy;
+        _errorMsg  = msg;
+      });
+    }
+  }
+
+  String _fmtTs(String? iso) {
+    if (iso == null) return '';
+    try {
+      final dt = DateTime.parse(iso).toLocal();
+      return DateFormat('d MMM yyyy, h:mm a').format(dt);
+    } catch (_) {
+      return iso;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppDimensions.screenPadding, AppDimensions.lg,
+        AppDimensions.screenPadding,
+        MediaQuery.of(context).viewInsets.bottom + AppDimensions.lg,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(child: Container(
+            width: 36, height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.border,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          )),
+          const SizedBox(height: AppDimensions.lg),
+          Text('Scan Visitor QR', style: AppTextStyles.h1),
+          const SizedBox(height: AppDimensions.sm),
+          Text('Enter or paste the visitor QR token to validate entry.',
+              style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
+          const SizedBox(height: AppDimensions.lg),
+
+          Row(children: [
+            Expanded(
+              child: TextFormField(
+                controller: _ctrl,
+                decoration: const InputDecoration(
+                  labelText: 'QR Token *',
+                  prefixIcon: Icon(Icons.qr_code_rounded),
+                  hintText: 'Paste or type token here',
+                ),
+                onFieldSubmitted: (_) => _validate(),
+              ),
+            ),
+            const SizedBox(width: AppDimensions.sm),
+            SizedBox(
+              height: 56,
+              child: ElevatedButton(
+                onPressed: _loading ? null : _validate,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.textOnPrimary,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
+                ),
+                child: _loading
+                    ? const SizedBox(width: 20, height: 20,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Text('Verify'),
+              ),
+            ),
+          ]),
+
+          if (_result != null) ...[
+            const SizedBox(height: AppDimensions.lg),
+            _ResultCard(
+              result: _result!,
+              visitorName: _visitorName,
+              unitCode: _unitCode,
+              scannedAt: _fmtTs(_scannedAt),
+              scannedBy: _scannedBy,
+              errorMsg: _errorMsg,
+            ),
+          ],
+
+          const SizedBox(height: AppDimensions.md),
+        ],
+      ),
+    );
+  }
+}
+
+class _ResultCard extends StatelessWidget {
+  final String result;
+  final String? visitorName;
+  final String? unitCode;
+  final String? scannedAt;
+  final String? scannedBy;
+  final String? errorMsg;
+
+  const _ResultCard({
+    required this.result,
+    this.visitorName,
+    this.unitCode,
+    this.scannedAt,
+    this.scannedBy,
+    this.errorMsg,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    switch (result) {
+      case 'valid':
+        return _card(
+          color: AppColors.successSurface,
+          borderColor: AppColors.success,
+          icon: Icons.check_circle_rounded,
+          iconColor: AppColors.success,
+          title: 'Access Granted',
+          titleColor: AppColors.successText,
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _row('Visitor', visitorName ?? '-'),
+              _row('Unit', unitCode ?? '-'),
+            ],
+          ),
+        );
+      case 'used':
+        return _card(
+          color: AppColors.dangerSurface,
+          borderColor: AppColors.danger,
+          icon: Icons.cancel_rounded,
+          iconColor: AppColors.danger,
+          title: 'Already Scanned',
+          titleColor: AppColors.dangerText,
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('This pass has already been used and is no longer valid.',
+                  style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText)),
+              if (scannedAt != null && scannedAt!.isNotEmpty) ...[
+                const SizedBox(height: AppDimensions.sm),
+                _row('Scanned at', scannedAt!),
+                if (scannedBy != null && scannedBy!.isNotEmpty)
+                  _row('Scanned by', scannedBy!),
+              ],
+            ],
+          ),
+        );
+      case 'expired':
+        return _card(
+          color: AppColors.warningSurface,
+          borderColor: AppColors.warning,
+          icon: Icons.timer_off_rounded,
+          iconColor: AppColors.warning,
+          title: 'Pass Expired',
+          titleColor: AppColors.warningText,
+          body: Text('This visitor pass has expired and is no longer valid.',
+              style: AppTextStyles.bodySmall.copyWith(color: AppColors.warningText)),
+        );
+      default:
+        return _card(
+          color: AppColors.dangerSurface,
+          borderColor: AppColors.danger,
+          icon: Icons.error_rounded,
+          iconColor: AppColors.danger,
+          title: 'Invalid Token',
+          titleColor: AppColors.dangerText,
+          body: Text(errorMsg ?? 'The token was not found or is invalid.',
+              style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText)),
+        );
+    }
+  }
+
+  Widget _row(String label, String value) => Padding(
+    padding: const EdgeInsets.only(top: 6),
+    child: Row(
+      children: [
+        Text('$label: ', style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
+        Expanded(child: Text(value, style: AppTextStyles.bodySmall.copyWith(fontWeight: FontWeight.w600))),
+      ],
+    ),
+  );
+
+  Widget _card({
+    required Color color,
+    required Color borderColor,
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required Color titleColor,
+    required Widget body,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppDimensions.md),
+      decoration: BoxDecoration(
+        color: color,
+        border: Border.all(color: borderColor),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(icon, color: iconColor, size: 20),
+            const SizedBox(width: AppDimensions.sm),
+            Text(title, style: AppTextStyles.h3.copyWith(color: titleColor)),
+          ]),
+          const SizedBox(height: AppDimensions.sm),
+          body,
+        ],
       ),
     );
   }
@@ -589,10 +910,12 @@ class _LogVisitorFormState extends ConsumerState<_LogVisitorForm> {
           MediaQuery.of(context).viewInsets.bottom + AppDimensions.lg),
       child: Form(
         key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             // ── Drag handle ────────────────────────────────────────────
             Center(
               child: Container(
@@ -875,6 +1198,7 @@ class _LogVisitorFormState extends ConsumerState<_LogVisitorForm> {
               ),
             ),
           ],
+          ),
         ),
       ),
     );

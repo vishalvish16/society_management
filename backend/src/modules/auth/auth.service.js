@@ -7,7 +7,14 @@ exports.hashPassword = async (password) => {
 };
 
 exports.comparePasswords = async (candidatePassword, hashedPassword) => {
-  return await bcrypt.compare(candidatePassword, hashedPassword);
+  if (candidatePassword == null || typeof hashedPassword !== 'string' || !hashedPassword) {
+    return false;
+  }
+  try {
+    return await bcrypt.compare(String(candidatePassword), hashedPassword);
+  } catch {
+    return false;
+  }
 };
 
 exports.generateToken = (user) => {
