@@ -14,7 +14,7 @@ class AuthState {
   const AuthState({
     this.user,
     this.token,
-    this.isLoading = true,
+    this.isLoading = false,
     this.error,
     this.isAuthenticated = false,
   });
@@ -38,7 +38,7 @@ class AuthState {
 
 class AuthNotifier extends StateNotifier<AuthState> {
   final Ref ref;
-  AuthNotifier(this.ref) : super(const AuthState());
+  AuthNotifier(this.ref) : super(const AuthState(isLoading: true));
 
   final _client = DioClient();
   DioClient get client => _client;
