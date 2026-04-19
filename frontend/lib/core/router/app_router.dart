@@ -29,6 +29,7 @@ import '../../features/subscriptions/screens/subscriptions_screen.dart';
 import '../../features/subscriptions/screens/subscription_report_screen.dart';
 import '../../features/settings/screens/settings_screen.dart';
 import '../../features/donations/screens/donations_screen.dart';
+import '../../features/reports/screens/balance_report_screen.dart';
 import '../widgets/sa_shell.dart';
 import '../widgets/sm_shell.dart';
 
@@ -107,8 +108,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/societies',     builder: (c, s) => SocietiesScreen()),
           GoRoute(path: '/units',         builder: (c, s) => UnitsScreen()),
           GoRoute(path: '/subscriptions', builder: (c, s) => SubscriptionsScreen()),
-          GoRoute(path: '/donations',     builder: (c, s) => DonationsScreen()),
-          GoRoute(path: '/settings',      builder: (c, s) => SettingsScreen()),
+          GoRoute(path: '/donations',        builder: (c, s) => DonationsScreen()),
+          GoRoute(path: '/reports/balance', builder: (c, s) => const BalanceReportScreen()),
+          GoRoute(path: '/settings',        builder: (c, s) => SettingsScreen()),
         ],
       ),
     ],

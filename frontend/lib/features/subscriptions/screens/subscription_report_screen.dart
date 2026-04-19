@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimensions.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/app_empty_state.dart';
+import '../../../shared/widgets/app_date_picker.dart';
 
 class SubscriptionReportScreen extends StatefulWidget {
   const SubscriptionReportScreen({super.key});
@@ -274,28 +275,23 @@ class _SubscriptionReportScreenState extends State<SubscriptionReportScreen> {
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                    ),
-                    onPressed: () async {
-                      final picked = await showDateRangePicker(
-                        context: context,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime(2100),
-                        initialDateRange: _range,
+                  child: AppDateRangeField(
+                    label: 'Date Range',
+                    from: _range?.start,
+                    to: _range?.end,
+                    clearable: true,
+                    onClear: () { setState(() => _range = null); _load(page: 1); },
+                    onTap: () async {
+                      final picked = await pickDateRange(
+                        context,
+                        initialFrom: _range?.start,
+                        initialTo: _range?.end,
                       );
                       if (picked != null) {
                         setState(() => _range = picked);
                         _load(page: 1);
                       }
                     },
-                    icon: const Icon(Icons.date_range_rounded, size: 16),
-                    label: Text(
-                      _range == null ? 'Date range' : '${_date.format(_range!.start)} → ${_date.format(_range!.end)}',
-                      style: const TextStyle(fontSize: 12),
-                      overflow: TextOverflow.ellipsis,
-                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -399,25 +395,23 @@ class _SubscriptionReportScreenState extends State<SubscriptionReportScreen> {
                 onSubmitted: (_) => _load(page: 1),
               ),
             ),
-            OutlinedButton.icon(
-              onPressed: () async {
-                final picked = await showDateRangePicker(
-                  context: context,
-                  firstDate: DateTime(2020),
-                  lastDate: DateTime(2100),
-                  initialDateRange: _range,
+            AppDateRangeField(
+              label: 'Date Range',
+              from: _range?.start,
+              to: _range?.end,
+              clearable: true,
+              onClear: () { setState(() => _range = null); _load(page: 1); },
+              onTap: () async {
+                final picked = await pickDateRange(
+                  context,
+                  initialFrom: _range?.start,
+                  initialTo: _range?.end,
                 );
                 if (picked != null) {
                   setState(() => _range = picked);
                   _load(page: 1);
                 }
               },
-              icon: const Icon(Icons.date_range_rounded, size: 18),
-              label: Text(
-                _range == null
-                    ? 'Date range'
-                    : '${_date.format(_range!.start)} → ${_date.format(_range!.end)}',
-              ),
             ),
             DropdownButton<String>(
               value: _plan,

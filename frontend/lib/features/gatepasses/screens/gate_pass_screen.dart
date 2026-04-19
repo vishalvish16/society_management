@@ -12,6 +12,7 @@ import '../../../shared/widgets/app_status_chip.dart';
 import '../providers/gate_pass_provider.dart';
 import '../../../shared/widgets/unit_picker_field.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
+import '../../../shared/widgets/app_date_picker.dart';
 import 'gate_pass_qr_screen.dart';
 
 class GatePassScreen extends ConsumerStatefulWidget {
@@ -137,21 +138,19 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
           String? sheetError;
-          Future<void> pickDate({required bool isFrom}) async {
+          Future<void> pickRange() async {
             final now = DateTime.now();
-            final picked = await showDatePicker(
-              context: ctx,
-              initialDate: now,
+            final picked = await pickDateRange(
+              ctx,
+              initialFrom: validFrom,
+              initialTo: validTo,
               firstDate: now,
               lastDate: now.add(const Duration(days: 365)),
             );
             if (picked != null) {
               setSheetState(() {
-                if (isFrom) {
-                  validFrom = picked;
-                } else {
-                  validTo = picked;
-                }
+                validFrom = picked.start;
+                validTo = picked.end;
               });
             }
           }
@@ -196,17 +195,11 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
                       hint: 'e.g. Moving furniture'),
                   const SizedBox(height: AppDimensions.md),
 
-                  _buildDateSelector(
-                    label: 'Valid From',
-                    value: validFrom,
-                    onTap: () => pickDate(isFrom: true),
-                  ),
-                  const SizedBox(height: AppDimensions.md),
-
-                  _buildDateSelector(
-                    label: 'Valid To',
-                    value: validTo,
-                    onTap: () => pickDate(isFrom: false),
+                  AppDateRangeField(
+                    label: 'Validity Period',
+                    from: validFrom,
+                    to: validTo,
+                    onTap: pickRange,
                   ),
                   if (sheetError != null) ...[
                     const SizedBox(height: AppDimensions.md),
@@ -324,42 +317,6 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
     );
   }
 
-  Widget _buildDateSelector({
-    required String label,
-    required DateTime? value,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: AppDimensions.md, vertical: AppDimensions.md),
-        decoration: BoxDecoration(
-          border: Border.all(color: AppColors.border),
-          borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.calendar_today_rounded,
-                color: AppColors.primary, size: 18),
-            const SizedBox(width: AppDimensions.sm),
-            Expanded(
-              child: Text(
-                value != null
-                    ? '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}'
-                    : label,
-                style: AppTextStyles.bodyMedium.copyWith(
-                    color:
-                        value != null ? AppColors.textPrimary : AppColors.textMuted),
-              ),
-            ),
-            const Icon(Icons.arrow_drop_down_rounded, color: AppColors.textMuted),
-          ],
-        ),
-      ),
-    );
-  }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
   String _formatDate(String? iso) {

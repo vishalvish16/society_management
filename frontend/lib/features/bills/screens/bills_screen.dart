@@ -16,6 +16,7 @@ import '../providers/bill_provider.dart';
 import '../../units/providers/unit_provider.dart';
 import '../../settings/providers/payment_settings_provider.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
+import '../../../shared/widgets/app_date_picker.dart';
 import 'upi_pay_sheet.dart';
 
 class BillsScreen extends ConsumerStatefulWidget {
@@ -607,30 +608,27 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
                 ),
               ),
               const SizedBox(height: AppDimensions.md),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Start Month'),
-                subtitle: Text(DateFormat('MMMM yyyy').format(selectedMonth)),
-                trailing: const Icon(Icons.calendar_month),
+              AppDateField(
+                label: 'Start Month',
+                value: selectedMonth,
                 onTap: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: selectedMonth,
+                  final picked = await pickSingleDate(
+                    ctx,
+                    initial: selectedMonth,
                     firstDate: DateTime(2020),
                     lastDate: DateTime(2100),
                   );
                   if (picked != null) setDlgState(() => selectedMonth = picked);
                 },
               ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Due Date'),
-                subtitle: Text(DateFormat('dd MMM yyyy').format(dueDate)),
-                trailing: const Icon(Icons.calendar_today),
+              const SizedBox(height: AppDimensions.md),
+              AppDateField(
+                label: 'Due Date',
+                value: dueDate,
                 onTap: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: dueDate,
+                  final picked = await pickSingleDate(
+                    ctx,
+                    initial: dueDate,
                     firstDate: DateTime.now(),
                     lastDate: DateTime.now().add(const Duration(days: 365)),
                   );
@@ -789,21 +787,17 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
                     ],
                   ),
                   const SizedBox(height: AppDimensions.md),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Advance Start Month'),
-                    subtitle: Text(DateFormat('MMMM yyyy').format(startDate)),
-                    trailing: const Icon(Icons.calendar_month),
+                  AppDateField(
+                    label: 'Advance Start Month',
+                    value: startDate,
                     onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: startDate,
+                      final picked = await pickSingleDate(
+                        ctx,
+                        initial: startDate,
                         firstDate: DateTime(2020),
                         lastDate: DateTime(2100),
                       );
-                      if (picked != null) {
-                        setDlgState(() => startDate = picked);
-                      }
+                      if (picked != null) setDlgState(() => startDate = picked);
                     },
                   ),
                   const SizedBox(height: AppDimensions.md),

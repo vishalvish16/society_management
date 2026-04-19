@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../shared/widgets/app_date_picker.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimensions.dart';
@@ -120,25 +121,27 @@ class _DonationsScreenState extends ConsumerState<DonationsScreen>
               const SizedBox(height: 12),
               TextField(controller: targetCtrl, decoration: const InputDecoration(labelText: 'Target Amount (optional)', border: OutlineInputBorder(), prefixText: '₹'), keyboardType: TextInputType.number),
               const SizedBox(height: 12),
-              Row(children: [
-                Expanded(child: OutlinedButton.icon(
-                  icon: const Icon(Icons.calendar_today, size: 16),
-                  label: Text('Start: ${DateFormat('dd MMM yyyy').format(startDate)}'),
-                  onPressed: () async {
-                    final d = await showDatePicker(context: ctx, initialDate: startDate, firstDate: DateTime(2020), lastDate: DateTime(2100));
-                    if (d != null) setState(() => startDate = d);
-                  },
-                )),
-                const SizedBox(width: 8),
-                Expanded(child: OutlinedButton.icon(
-                  icon: const Icon(Icons.event, size: 16),
-                  label: Text(endDate != null ? 'End: ${DateFormat('dd MMM').format(endDate!)}' : 'No End Date'),
-                  onPressed: () async {
-                    final d = await showDatePicker(context: ctx, initialDate: endDate ?? DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2100));
-                    if (d != null) setState(() => endDate = d);
-                  },
-                )),
-              ]),
+              AppDateRangeField(
+                label: 'Campaign Duration',
+                from: startDate,
+                to: endDate,
+                clearable: endDate != null,
+                onClear: () => setState(() => endDate = null),
+                onTap: () async {
+                  final picked = await pickDateRange(
+                    ctx,
+                    initialFrom: startDate,
+                    initialTo: endDate,
+                    firstDate: DateTime(2020),
+                  );
+                  if (picked != null) {
+                    setState(() {
+                      startDate = picked.start;
+                      endDate = picked.end;
+                    });
+                  }
+                },
+              ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,

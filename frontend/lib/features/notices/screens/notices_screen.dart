@@ -9,6 +9,7 @@ import '../../../shared/widgets/app_empty_state.dart';
 import '../../../shared/widgets/app_loading_shimmer.dart';
 import '../providers/notices_provider.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
+import '../../../shared/widgets/app_date_picker.dart';
 
 class NoticesScreen extends ConsumerWidget {
   const NoticesScreen({super.key});
@@ -308,42 +309,12 @@ class _NoticeFormSheetState extends State<_NoticeFormSheet> {
             const SizedBox(height: AppDimensions.sm),
             _label('Expiry Date (optional)'),
             const SizedBox(height: AppDimensions.xs),
-            GestureDetector(
+            AppDateField(
+              label: 'Expiry Date',
+              value: _expiresAt,
+              clearable: true,
+              onClear: () => setState(() => _expiresAt = null),
               onTap: _pickDate,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppDimensions.md, vertical: AppDimensions.md),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.calendar_today_rounded,
-                        size: 16, color: AppColors.textMuted),
-                    const SizedBox(width: AppDimensions.sm),
-                    Expanded(
-                      child: Text(
-                        _expiresAt != null
-                            ? '${_expiresAt!.year}-${_expiresAt!.month.toString().padLeft(2, '0')}-${_expiresAt!.day.toString().padLeft(2, '0')}'
-                            : 'No expiry',
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          color: _expiresAt != null
-                              ? AppColors.textPrimary
-                              : AppColors.textMuted,
-                        ),
-                      ),
-                    ),
-                    if (_expiresAt != null)
-                      GestureDetector(
-                        onTap: () => setState(() => _expiresAt = null),
-                        child: const Icon(Icons.clear_rounded,
-                            size: 16, color: AppColors.textMuted),
-                      ),
-                  ],
-                ),
-              ),
             ),
             if (_errorMsg != null) ...[
               const SizedBox(height: AppDimensions.md),
@@ -421,17 +392,11 @@ class _NoticeFormSheetState extends State<_NoticeFormSheet> {
       );
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _expiresAt ?? DateTime.now().add(const Duration(days: 7)),
+    final picked = await pickSingleDate(
+      context,
+      initial: _expiresAt ?? DateTime.now().add(const Duration(days: 7)),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(primary: AppColors.primary),
-        ),
-        child: child!,
-      ),
     );
     if (picked != null) setState(() => _expiresAt = picked);
   }

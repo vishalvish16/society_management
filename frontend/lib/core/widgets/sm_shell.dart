@@ -23,7 +23,8 @@ class _SMShellState extends ConsumerState<SMShell> {
     _NavItem(icon: Icons.people_rounded,                 label: 'Members',       path: '/members',       group: 'Main'),
     _NavItem(icon: Icons.receipt_long_rounded,           label: 'Bills',         path: '/bills',         group: 'Finance'),
     _NavItem(icon: Icons.account_balance_wallet_rounded, label: 'Expenses',      path: '/expenses',      group: 'Finance'),
-    _NavItem(icon: Icons.volunteer_activism_rounded,     label: 'Donations',     path: '/donations',     group: 'Finance'),
+    _NavItem(icon: Icons.volunteer_activism_rounded,     label: 'Donations',        path: '/donations',        group: 'Finance'),
+    _NavItem(icon: Icons.balance_rounded,                label: 'Balance Report',   path: '/reports/balance',  group: 'Finance'),
     _NavItem(icon: Icons.person_pin_circle_rounded,      label: 'Visitors',      path: '/visitors',      group: 'Security'),
     _NavItem(icon: Icons.badge_rounded,                  label: 'Gate Passes',   path: '/gatepasses',    group: 'Security'),
     _NavItem(icon: Icons.directions_car_rounded,         label: 'Vehicles',      path: '/vehicles',      group: 'Security'),
@@ -38,7 +39,7 @@ class _SMShellState extends ConsumerState<SMShell> {
   ];
 
   // Paths hidden for member/resident roles — they see their unit in sidebar instead
-  static const _memberHiddenPaths = {'/units'};
+  static const _memberHiddenPaths = {'/units', '/reports/balance'};
 
   // Bottom nav shows the most-used 5 items on mobile
   static const _mobileBottomItems = [

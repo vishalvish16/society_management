@@ -125,3 +125,121 @@ exports.getFinancialReport = async (req, res) => {
     return sendError(res, 'Failed to load financial report', 500);
   }
 };
+
+// GET /api/reports/balance
+// Query: fromDate, toDate
+// Returns opening balance (all transactions before fromDate), then date-wise
+// transactions within range, running balance, and closing balance.
+exports.getBalanceReport = async (req, res) => {
+  try {
+    const { societyId } = req.user;
+    const { fromDate, toDate } = req.query;
+
+    const from = fromDate ? new Date(fromDate) : new Date(new Date().getFullYear(), 0, 1);
+    const to = toDate ? new Date(toDate) : new Date();
+    to.setHours(23, 59, 59, 999);
+    from.setHours(0, 0, 0, 0);
+
+    // ── Opening balance: all income & expense BEFORE from date ───────
+    const [billsBefore, donationsBefore, expensesBefore] = await Promise.all([
+      prisma.maintenanceBill.findMany({
+        where: { societyId, status: 'PAID', deletedAt: null, paidAt: { lt: from } },
+        select: { paidAmount: true },
+      }),
+      prisma.donation.findMany({
+        where: { societyId, paidAt: { lt: from } },
+        select: { amount: true },
+      }),
+      prisma.expense.findMany({
+        where: { societyId, status: 'APPROVED', expenseDate: { lt: from } },
+        select: { totalAmount: true },
+      }),
+    ]);
+
+    const openingIncome = billsBefore.reduce((s, b) => s + Number(b.paidAmount), 0)
+      + donationsBefore.reduce((s, d) => s + Number(d.amount), 0);
+    const openingExpense = expensesBefore.reduce((s, e) => s + Number(e.totalAmount), 0);
+    const openingBalance = openingIncome - openingExpense;
+
+    // ── Transactions within range ─────────────────────────────────────
+    const [bills, donations, expenses] = await Promise.all([
+      prisma.maintenanceBill.findMany({
+        where: { societyId, status: 'PAID', deletedAt: null, paidAt: { gte: from, lte: to } },
+        select: {
+          id: true, paidAmount: true, paidAt: true, paymentMethod: true,
+          category: true, title: true,
+          unit: { select: { fullCode: true } },
+        },
+      }),
+      prisma.donation.findMany({
+        where: { societyId, paidAt: { gte: from, lte: to } },
+        select: {
+          id: true, amount: true, paidAt: true, paymentMethod: true,
+          donor: { select: { name: true } },
+          campaign: { select: { title: true } },
+        },
+      }),
+      prisma.expense.findMany({
+        where: { societyId, status: 'APPROVED', expenseDate: { gte: from, lte: to } },
+        select: {
+          id: true, totalAmount: true, expenseDate: true, category: true, title: true,
+        },
+      }),
+    ]);
+
+    const txns = [];
+    bills.forEach(b => txns.push({
+      id: b.id, date: b.paidAt, type: 'income',
+      subType: b.category || 'MAINTENANCE',
+      description: b.title || `Bill - ${b.unit?.fullCode}`,
+      unit: b.unit?.fullCode,
+      amount: Number(b.paidAmount),
+      paymentMethod: b.paymentMethod,
+    }));
+    donations.forEach(d => txns.push({
+      id: d.id, date: d.paidAt, type: 'income',
+      subType: 'DONATION',
+      description: d.campaign?.title ? `Donation: ${d.campaign.title}` : 'Donation',
+      unit: d.donor?.name,
+      amount: Number(d.amount),
+      paymentMethod: d.paymentMethod,
+    }));
+    expenses.forEach(e => txns.push({
+      id: e.id, date: e.expenseDate, type: 'expense',
+      subType: e.category,
+      description: e.title,
+      unit: null,
+      amount: Number(e.totalAmount),
+      paymentMethod: null,
+    }));
+
+    // Sort by date ascending so running balance flows forward
+    txns.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    // Attach running balance to each transaction
+    let running = openingBalance;
+    const transactions = txns.map(t => {
+      if (t.type === 'income') running += t.amount;
+      else running -= t.amount;
+      return { ...t, runningBalance: running };
+    });
+
+    const periodIncome = txns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const periodExpense = txns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const closingBalance = openingBalance + periodIncome - periodExpense;
+
+    return sendSuccess(res, {
+      openingBalance,
+      transactions,
+      summary: {
+        periodIncome,
+        periodExpense,
+        netChange: periodIncome - periodExpense,
+        closingBalance,
+      },
+    });
+  } catch (e) {
+    console.error('Balance report error:', e);
+    return sendError(res, 'Failed to load balance report', 500);
+  }
+};
