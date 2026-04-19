@@ -6,5 +6,5 @@ class AppConstants {
   // For Flutter web (browser), use localhost.
   // static const String apiBaseUrl = 'http://192.168.1.5:3001/api/';
   static const String apiBaseUrl =
-      'https://kentucky-selections-wines-expires.trycloudflare.com /api/';
+      'https://kentucky-selections-wines-expires.trycloudflare.com/api/';
 }
