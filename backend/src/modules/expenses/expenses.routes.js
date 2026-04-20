@@ -8,21 +8,20 @@ const router = Router();
 
 const upload = require('../../middleware/upload');
 
-// Expense routes (all protected)
 router.use(authMiddleware);
 
-// Visible to admins and watchmen (based on build doc "Expenses (Admin/Watchman upload)")
-router.get('/pending', roleGuard(['PRAMUKH', 'CHAIRMAN']), expensesController.getPendingExpenses);
-router.get('/summary', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), expensesController.getSummary);
-router.get('/', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'WATCHMAN', 'MEMBER', 'RESIDENT']), expensesController.getExpenses);
+// All expense routes require the `expenses` feature
+router.get('/pending', roleGuard(['PRAMUKH', 'CHAIRMAN']), checkPlanLimit('expenses'), expensesController.getPendingExpenses);
+router.get('/summary', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), checkPlanLimit('expenses'), expensesController.getSummary);
+router.get('/', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'WATCHMAN', 'MEMBER', 'RESIDENT']), checkPlanLimit('expenses'), expensesController.getExpenses);
 
 router.post('/', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'WATCHMAN']), upload.array('attachments', 5), checkPlanLimit('expenses'), expensesController.submitExpense);
-router.put('/:id', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'WATCHMAN']), upload.array('attachments', 5), expensesController.updateExpense);
+router.put('/:id', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'WATCHMAN']), upload.array('attachments', 5), checkPlanLimit('expenses'), expensesController.updateExpense);
+router.post('/:id/convert-to-bill', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), checkPlanLimit('expenses'), expensesController.convertToBill);
 
-// Review (Only CHAIRMAN)
-router.patch('/:id/approve', roleGuard(['PRAMUKH', 'CHAIRMAN']), expensesController.approveExpense);
-router.patch('/:id/reject', roleGuard(['PRAMUKH', 'CHAIRMAN']), expensesController.rejectExpense);
-router.patch('/:id/review', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), expensesController.reviewExpense);
-router.post('/:id/convert-to-bill', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), expensesController.convertToBill);
+// Approval workflow — requires expense_approval feature (Standard+)
+router.patch('/:id/approve', roleGuard(['PRAMUKH', 'CHAIRMAN']), checkPlanLimit('expense_approval'), expensesController.approveExpense);
+router.patch('/:id/reject', roleGuard(['PRAMUKH', 'CHAIRMAN']), checkPlanLimit('expense_approval'), expensesController.rejectExpense);
+router.patch('/:id/review', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), checkPlanLimit('expense_approval'), expensesController.reviewExpense);
 
 module.exports = router;

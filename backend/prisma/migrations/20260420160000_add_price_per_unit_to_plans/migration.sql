@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "plans" ADD COLUMN "pricePerUnit" DECIMAL(10,2) NOT NULL DEFAULT 0;

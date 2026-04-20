@@ -6,7 +6,6 @@ class UserModel {
   final String role;
   final String? societyId;
   final bool isActive;
-  // Unit the member belongs to (populated from login/me API)
   final String? unitId;
   final String? unitCode;
 
@@ -16,6 +15,11 @@ class UserModel {
   final String? bio;
   final String? emergencyContactName;
   final String? emergencyContactPhone;
+
+  /// Feature flags from the society's active plan.
+  /// Keys match the backend planConfig.js FEATURE_DEFAULTS.
+  /// null = plan data not yet loaded (treat as no access).
+  final Map<String, dynamic>? planFeatures;
 
   UserModel({
     required this.id,
@@ -33,11 +37,10 @@ class UserModel {
     this.bio,
     this.emergencyContactName,
     this.emergencyContactPhone,
+    this.planFeatures,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
-    // The login API returns `unit: {id, fullCode}` and /me returns
-    // `unitResidents: [{unit: {id, fullCode, ...}}]`
     final unitMap = json['unit'] as Map<String, dynamic>?;
     final unitResidents = json['unitResidents'] as List?;
     final firstUnit = unitResidents?.isNotEmpty == true
@@ -59,6 +62,20 @@ class UserModel {
       members = rawM.toInt();
     }
 
+    // planFeatures may come from:
+    //   login response: json['planFeatures']
+    //   me response:    json['society']['plan']['features']
+    Map<String, dynamic>? features;
+    final directFeatures = json['planFeatures'];
+    if (directFeatures is Map) {
+      features = Map<String, dynamic>.from(directFeatures);
+    } else {
+      final society = json['society'] as Map<String, dynamic>?;
+      final plan = society?['plan'] as Map<String, dynamic>?;
+      final f = plan?['features'];
+      if (f is Map) features = Map<String, dynamic>.from(f);
+    }
+
     return UserModel(
       id: json['id'] ?? '',
       name: json['name'] ?? '',
@@ -75,10 +92,19 @@ class UserModel {
       bio: json['bio'] as String?,
       emergencyContactName: json['emergencyContactName'] as String?,
       emergencyContactPhone: json['emergencyContactPhone'] as String?,
+      planFeatures: features,
     );
   }
 
-  /// Rough completeness score (0–100) for nudging users to fill their profile.
+  /// Returns true if the society plan includes this feature.
+  /// - SUPER_ADMIN always returns true.
+  /// - Once planFeatures is loaded, key must be explicitly true to grant access.
+  bool hasFeature(String key) {
+    if (role == 'SUPER_ADMIN') return true;
+    if (planFeatures == null) return false; // deny-by-default until loaded
+    return planFeatures![key] == true;
+  }
+
   int get profileCompletenessPercent {
     int filled = 0;
     const int slots = 7;
@@ -101,8 +127,6 @@ class UserModel {
   bool get isSecretary => role == 'SECRETARY';
   bool get isManager => role == 'MANAGER';
 
-  /// Returns true for roles that should have their unit locked to their own
-  /// unit and should NOT be able to pick a different unit in forms.
   static const _memberOnlyRoles = {
     'MEMBER',
     'RESIDENT',
@@ -112,7 +136,5 @@ class UserModel {
     'ASSISTANT_TREASURER',
   };
 
-  /// True when the logged-in user is a regular member/resident who cannot
-  /// change the unit field — it should be auto-selected and locked.
   bool get isUnitLocked => _memberOnlyRoles.contains(role.toUpperCase());
 }

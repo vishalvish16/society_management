@@ -74,8 +74,9 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                                 crossAxisCount: crossAxisCount,
                                 mainAxisSpacing: 16,
                                 crossAxisSpacing: 16,
-                                childAspectRatio: crossAxisCount == 1 ? 1.6 : 1.1,
+                                childAspectRatio: crossAxisCount == 3 ? 0.72 : crossAxisCount == 2 ? 0.78 : 0.68,
                               ),
+
                               itemCount: state.plans.length,
                               itemBuilder: (context, index) => _PlanCard(
                                 plan: state.plans[index],
@@ -136,110 +137,266 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       'attachments_count': false,
     });
 
-    showAppDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(isEdit ? 'Edit Plan' : 'Create Plan'),
-        content: SizedBox(
-          width: 450,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (!isEdit)
-                  TextField(
-                    decoration: const InputDecoration(
-                      labelText: 'Plan Code (e.g. BASIC, ENTERPRISE) *',
-                      helperText: 'Unique internal identifier',
-                    ),
-                    onChanged: (v) => code = v.toLowerCase().trim(),
-                  ),
-                const SizedBox(height: 10),
-                TextField(controller: nameC, decoration: const InputDecoration(labelText: 'Display Name *')),
-                const SizedBox(height: 10),
-                TextField(controller: descC, decoration: const InputDecoration(labelText: 'Description')),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: priceC,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Price (monthly) *', prefixText: '\u20B9 '),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _PlanBottomSheet(
+        isEdit: isEdit,
+        nameC: nameC,
+        descC: descC,
+        priceC: priceC,
+        unitsC: unitsC,
+        residentsC: residentsC,
+        watchmenC: watchmenC,
+        features: features,
+        onCodeChanged: (v) => code = v,
+        onSubmit: () async {
+          final data = <String, dynamic>{
+            'displayName': nameC.text.trim(),
+            'description': descC.text.trim(),
+            'priceMonthly': num.tryParse(priceC.text) ?? 0,
+            'maxUnits': int.tryParse(unitsC.text) ?? 0,
+            'maxResidents': int.tryParse(residentsC.text) ?? 0,
+            'maxWatchmen': int.tryParse(watchmenC.text) ?? 2,
+            'features': features,
+          };
+          if (!isEdit) data['name'] = code.toLowerCase();
+          Navigator.pop(ctx);
+          if (isEdit) {
+            await ref.read(plansProvider.notifier).updatePlan(plan['id'], data);
+          } else {
+            await ref.read(plansProvider.notifier).createPlan(data);
+          }
+        },
+      ),
+    );
+  }
+}
+
+class _PlanBottomSheet extends StatefulWidget {
+  final bool isEdit;
+  final TextEditingController nameC, descC, priceC, unitsC, residentsC, watchmenC;
+  final Map<String, dynamic> features;
+  final void Function(String) onCodeChanged;
+  final Future<void> Function() onSubmit;
+
+  const _PlanBottomSheet({
+    required this.isEdit,
+    required this.nameC,
+    required this.descC,
+    required this.priceC,
+    required this.unitsC,
+    required this.residentsC,
+    required this.watchmenC,
+    required this.features,
+    required this.onCodeChanged,
+    required this.onSubmit,
+  });
+
+  @override
+  State<_PlanBottomSheet> createState() => _PlanBottomSheetState();
+}
+
+class _PlanBottomSheetState extends State<_PlanBottomSheet> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  late Map<String, dynamic> _features;
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _features = widget.features;
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (ctx, scrollController) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            // Handle
+            const SizedBox(height: 10),
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.textMuted.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                const SizedBox(height: 10),
-                Row(children: [
-                  Expanded(
-                    child: TextField(
-                      controller: unitsC,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Max Units *'),
-                    ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Title
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Text(
+                    widget.isEdit ? 'Edit Plan' : 'Create Plan',
+                    style: AppTextStyles.h2,
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: residentsC,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Max Residents *'),
-                    ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(ctx),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: watchmenC,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Max Watchmen'),
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 20),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Plan Features', style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-                const SizedBox(height: 8),
-                StatefulBuilder(
-                  builder: (ctx, setInternalState) => Column(
-                    children: features.keys.map((key) {
-                      return CheckboxListTile(
-                        title: Text(key.replaceAll('_', ' ').toUpperCase(), style: const TextStyle(fontSize: 14)),
-                        value: features[key] == true,
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        onChanged: (v) {
-                          setInternalState(() => features[key] = v);
-                        },
-                      );
-                    }).toList(),
-                  ),
-                ),
+                ],
+              ),
+            ),
+            // TabBar
+            TabBar(
+              controller: _tabController,
+              labelColor: AppColors.primary,
+              unselectedLabelColor: AppColors.textMuted,
+              indicatorColor: AppColors.primary,
+              indicatorSize: TabBarIndicatorSize.tab,
+              tabs: const [
+                Tab(text: 'Basic Info'),
+                Tab(text: 'Features'),
               ],
             ),
-          ),
+            // TabBarView
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(bottom: bottom),
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    // ── Tab 1: Basic Info ──
+                    SingleChildScrollView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (!widget.isEdit) ...[
+                            TextField(
+                              decoration: const InputDecoration(
+                                labelText: 'Plan Code *',
+                                helperText: 'Unique internal identifier (e.g. BASIC)',
+                              ),
+                              onChanged: (v) => widget.onCodeChanged(v.toLowerCase().trim()),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                          TextField(
+                            controller: widget.nameC,
+                            decoration: const InputDecoration(labelText: 'Display Name *'),
+                          ),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: widget.descC,
+                            decoration: const InputDecoration(labelText: 'Description'),
+                            maxLines: 2,
+                          ),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: widget.priceC,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Price (monthly) *',
+                              prefixText: '\u20B9 ',
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(children: [
+                            Expanded(
+                              child: TextField(
+                                controller: widget.unitsC,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(labelText: 'Max Units *'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextField(
+                                controller: widget.residentsC,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(labelText: 'Max Residents *'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextField(
+                                controller: widget.watchmenC,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(labelText: 'Max Watchmen'),
+                              ),
+                            ),
+                          ]),
+                          const SizedBox(height: 8),
+                        ],
+                      ),
+                    ),
+                    // ── Tab 2: Features ──
+                    ListView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                      children: _features.keys.map((key) {
+                        return CheckboxListTile(
+                          title: Text(
+                            key.replaceAll('_', ' ').toUpperCase(),
+                            style: AppTextStyles.bodyMedium,
+                          ),
+                          value: _features[key] == true,
+                          activeColor: AppColors.primary,
+                          contentPadding: EdgeInsets.zero,
+                          onChanged: (v) => setState(() => _features[key] = v),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Action buttons
+            Padding(
+              padding: EdgeInsets.fromLTRB(20, 8, 20, 16 + MediaQuery.of(context).padding.bottom),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _loading
+                          ? null
+                          : () async {
+                              setState(() => _loading = true);
+                              await widget.onSubmit();
+                              if (mounted) setState(() => _loading = false);
+                            },
+                      child: _loading
+                          ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : Text(widget.isEdit ? 'Update' : 'Create'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () async {
-              final data = <String, dynamic>{
-                'displayName': nameC.text.trim(),
-                'description': descC.text.trim(),
-                'priceMonthly': num.tryParse(priceC.text) ?? 0,
-                'maxUnits': int.tryParse(unitsC.text) ?? 0,
-                'maxResidents': int.tryParse(residentsC.text) ?? 0,
-                'maxWatchmen': int.tryParse(watchmenC.text) ?? 2,
-                'features': features,
-              };
-              if (!isEdit) data['name'] = code.toLowerCase();
-
-              Navigator.pop(ctx);
-              if (isEdit) {
-                await ref.read(plansProvider.notifier).updatePlan(plan['id'], data);
-              } else {
-                await ref.read(plansProvider.notifier).createPlan(data);
-              }
-            },
-            child: Text(isEdit ? 'Update' : 'Create'),
-          ),
-        ],
       ),
     );
   }
@@ -332,12 +489,12 @@ class _PlanCard extends StatelessWidget {
             Text('$subCount active societies', style: AppTextStyles.caption.copyWith(color: AppColors.textMuted)),
             const Divider(height: 16),
             // Limits in one row
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
               children: [
                 _limitChip(Icons.apartment_outlined, '${_fmt(plan['maxUnits'])} units'),
-                const SizedBox(width: 8),
                 _limitChip(Icons.people_outline, '${_fmt(plan['maxResidents'])} res.'),
-                const SizedBox(width: 8),
                 _limitChip(Icons.security_outlined, '${_fmt(plan['maxWatchmen'])} wtch.'),
               ],
             ),
@@ -349,10 +506,10 @@ class _PlanCard extends StatelessWidget {
               children: features.entries.map((e) {
                 final enabled = e.value == true;
                 return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: enabled ? AppColors.successSurface : AppColors.dangerSurface,
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(4),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -364,7 +521,8 @@ class _PlanCard extends StatelessWidget {
                         e.key.replaceAll('_', ' '),
                         style: AppTextStyles.labelSmall.copyWith(
                           color: enabled ? AppColors.success : AppColors.danger,
-                          fontSize: 11,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],

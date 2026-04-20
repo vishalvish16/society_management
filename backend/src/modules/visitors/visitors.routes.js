@@ -6,32 +6,23 @@ const checkPlanLimit = require('../../middleware/checkPlanLimit');
 
 const router = Router();
 
-// Visitor routes (all protected)
 router.use(authMiddleware);
 
-// QR expiry config (platform max hrs) — any authenticated user can read this
+// QR config — metadata only, no plan gate needed
 router.get('/config', visitorsController.getVisitorConfig);
 
-// Resident's/Member's own visitors
-router.get('/mine', roleGuard(['RESIDENT', 'MEMBER']), visitorsController.getMyVisitors);
+// All visitor reads/writes require at least the `visitors` feature
+router.get('/mine', roleGuard(['RESIDENT', 'MEMBER']), checkPlanLimit('visitors'), visitorsController.getMyVisitors);
+router.get('/', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'WATCHMAN', 'RESIDENT', 'MEMBER']), checkPlanLimit('visitors'), visitorsController.getVisitors);
+router.patch('/:id', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'RESIDENT', 'MEMBER']), checkPlanLimit('visitors'), visitorsController.updateVisitor);
+router.post('/validate', roleGuard(['WATCHMAN']), checkPlanLimit('visitors'), visitorsController.validateToken);
+router.get('/log/today', roleGuard(['WATCHMAN', 'PRAMUKH', 'CHAIRMAN', 'SECRETARY']), checkPlanLimit('visitors'), visitorsController.getTodayVisitorLog);
+router.get('/log', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'WATCHMAN']), checkPlanLimit('visitors'), visitorsController.getVisitorLog);
 
-// Visible to admins, watchmen, residents and members
-router.get('/', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'WATCHMAN', 'RESIDENT', 'MEMBER']), visitorsController.getVisitors);
+// QR invite — requires visitor_qr (Standard+)
+router.post('/invite', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'RESIDENT', 'MEMBER']), checkPlanLimit('visitor_qr'), visitorsController.inviteVisitor);
 
-// Invite (admins, residents and members)
-router.post('/invite', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'RESIDENT', 'MEMBER']), checkPlanLimit('visitors'), visitorsController.inviteVisitor);
-
-// Manual Log (Walk-in, only watchmen and admins)
+// Walk-in log — requires base visitors feature
 router.post('/log-entry', roleGuard(['WATCHMAN', 'PRAMUKH', 'CHAIRMAN', 'SECRETARY']), checkPlanLimit('visitors'), visitorsController.logWalkin);
-
-// Update pending visitor (inviter or admin)
-router.patch('/:id', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'RESIDENT', 'MEMBER']), visitorsController.updateVisitor);
-
-// Validate (Only watchmen)
-router.post('/validate', roleGuard(['WATCHMAN']), visitorsController.validateToken);
-
-// Visitor log
-router.get('/log/today', roleGuard(['WATCHMAN', 'PRAMUKH', 'CHAIRMAN', 'SECRETARY']), visitorsController.getTodayVisitorLog);
-router.get('/log', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'WATCHMAN']), visitorsController.getVisitorLog);
 
 module.exports = router;

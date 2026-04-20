@@ -310,16 +310,17 @@ class _RaiseComplaintSheetState extends State<_RaiseComplaintSheet> {
               items: _categories.map((v) => AppDropdownItem(value: v, label: v)).toList(),
               onChanged: (v) { if (v != null) setState(() => _category = v); },
             ),
-            const SizedBox(height: AppDimensions.md),
-            UnitPickerField(
-              selectedUnitId: _selectedUnitId,
-              selectedUnitCode: _selectedUnitCode,
-              readOnly: widget.lockUnit,
-              onChanged: (id, code) => setState(() {
-                _selectedUnitId = id;
-                _selectedUnitCode = code;
-              }),
-            ),
+            if (!widget.lockUnit) ...[
+              const SizedBox(height: AppDimensions.md),
+              UnitPickerField(
+                selectedUnitId: _selectedUnitId,
+                selectedUnitCode: _selectedUnitCode,
+                onChanged: (id, code) => setState(() {
+                  _selectedUnitId = id;
+                  _selectedUnitCode = code;
+                }),
+              ),
+            ],
             const SizedBox(height: AppDimensions.md),
             AppSearchableDropdown<String>(
               label: 'Priority',

@@ -103,12 +103,11 @@ class _VehiclesScreenState extends ConsumerState<VehiclesScreen> {
                       style: AppTextStyles.h1),
                   const SizedBox(height: AppDimensions.lg),
 
-                  // Unit picker (only shown on create)
-                  if (!isEdit) ...[
+                  // Unit picker (only shown on create, hidden when locked)
+                  if (!isEdit && !lockUnit) ...[
                     UnitPickerField(
                       selectedUnitId: selectedUnitId,
                       selectedUnitCode: selectedUnitCode,
-                      readOnly: lockUnit,
                       onChanged: (id, code) => setSheetState(() {
                         selectedUnitId = id;
                         selectedUnitCode = code;

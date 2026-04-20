@@ -5,6 +5,7 @@ const PLAN_SELECT = {
   name: true,
   displayName: true,
   priceMonthly: true,
+  pricePerUnit: true,
   priceYearly: true,
   maxUnits: true,
   maxResidents: true,
@@ -59,11 +60,12 @@ async function getPlanById(id) {
  * @param {object} data
  */
 async function createPlan(data) {
-  const { name, displayName, priceMonthly, priceYearly, maxUnits, maxResidents, maxWatchmen, maxSecretaries, features } = data;
-  
+  const { name, displayName, priceMonthly, pricePerUnit, priceYearly, maxUnits, maxResidents, maxWatchmen, maxSecretaries, features } = data;
+
   const payload = {
     displayName,
     priceMonthly,
+    pricePerUnit: pricePerUnit ?? 0,
     priceYearly: priceYearly || priceMonthly * 10,
     maxUnits: maxUnits || -1,
     maxResidents: maxResidents || -1,
@@ -87,7 +89,7 @@ async function createPlan(data) {
  * @param {object} data
  */
 async function updatePlan(id, data) {
-  const allowed = ['displayName', 'priceMonthly', 'priceYearly', 'maxUnits', 'maxResidents', 'maxWatchmen', 'maxSecretaries', 'features', 'isActive'];
+  const allowed = ['displayName', 'priceMonthly', 'pricePerUnit', 'priceYearly', 'maxUnits', 'maxResidents', 'maxWatchmen', 'maxSecretaries', 'features', 'isActive'];
   const updateData = {};
   for (const key of allowed) {
     if (data[key] !== undefined) updateData[key] = data[key];

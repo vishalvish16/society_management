@@ -589,12 +589,11 @@ class _HelperFormState extends ConsumerState<_HelperForm> {
               items: _helperTypes.map((t) => AppDropdownItem(value: t, label: t)).toList(),
               onChanged: (v) { if (v != null) setState(() => _selectedType = v); },
             ),
-            if (!_isEdit) ...[
+            if (!_isEdit && !_lockUnit) ...[
               const SizedBox(height: AppDimensions.md),
               UnitPickerField(
                 selectedUnitId: _selectedUnitId,
                 selectedUnitCode: _selectedUnitCode,
-                readOnly: _lockUnit,
                 onChanged: (id, code) => setState(() {
                   _selectedUnitId = id;
                   _selectedUnitCode = code;

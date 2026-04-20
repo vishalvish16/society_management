@@ -172,16 +172,17 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
                   Text('Generate Gate Pass', style: AppTextStyles.h1),
                   const SizedBox(height: AppDimensions.lg),
 
-                  UnitPickerField(
-                    selectedUnitId: selectedUnitId,
-                    selectedUnitCode: selectedUnitCode,
-                    readOnly: lockUnit,
-                    onChanged: (id, code) => setSheetState(() {
-                      selectedUnitId = id;
-                      selectedUnitCode = code;
-                    }),
-                  ),
-                  const SizedBox(height: AppDimensions.md),
+                  if (!lockUnit) ...[
+                    UnitPickerField(
+                      selectedUnitId: selectedUnitId,
+                      selectedUnitCode: selectedUnitCode,
+                      onChanged: (id, code) => setSheetState(() {
+                        selectedUnitId = id;
+                        selectedUnitCode = code;
+                      }),
+                    ),
+                    const SizedBox(height: AppDimensions.md),
+                  ],
 
                   _buildTextField(
                       controller: descCtrl,

@@ -8,33 +8,93 @@ async function main() {
   console.log('Seeding database...');
 
   // ─── 1. Seed Plans ──────────────────────────────────────────────────
+  // Pricing: totalMonthly = priceMonthly + (unitCount * pricePerUnit)
+  // Yearly = 10 months (2 months free)
+  // Only features that are actually enforced via checkPlanLimit middleware are listed.
   const plans = [
     {
       name: 'basic',
       displayName: 'Basic',
       priceMonthly: 999,
-      priceYearly: 9990,
+      pricePerUnit: 10,  // ₹10 per unit per month
+      priceYearly: 9990, // 10 months
       maxUnits: 50,
+      maxResidents: -1,
+      maxWatchmen: 2,
       maxSecretaries: 1,
-      features: { visitor_qr: false, expense_approval: true, attachments_count: 3, whatsapp: true, pdf_receipts: false },
+      features: {
+        visitors: true,          // manual visitor log only (no QR)
+        visitor_qr: false,       // QR invite disabled
+        gate_passes: false,
+        expenses: true,          // submit expenses
+        expense_approval: false, // approval workflow disabled
+        financial_reports: false,
+        donations: false,
+        complaint_assignment: false,
+        society_gates: false,
+        amenities: false,
+        amenity_booking: false,
+        parking_management: false,
+        delivery_tracking: false,
+        move_requests: false,
+        attachments_count: 2,
+      },
     },
     {
       name: 'standard',
       displayName: 'Standard',
       priceMonthly: 2499,
+      pricePerUnit: 8,   // ₹8 per unit per month
       priceYearly: 24990,
       maxUnits: 200,
+      maxResidents: -1,
+      maxWatchmen: 5,
       maxSecretaries: 3,
-      features: { visitor_qr: true, expense_approval: true, attachments_count: 10, whatsapp: true, pdf_receipts: true },
+      features: {
+        visitors: true,
+        visitor_qr: true,
+        gate_passes: true,
+        expenses: true,
+        expense_approval: true,
+        financial_reports: false,
+        donations: true,
+        complaint_assignment: true,
+        society_gates: true,
+        amenities: true,
+        amenity_booking: false,
+        parking_management: true,
+        delivery_tracking: true,
+        move_requests: true,
+        attachments_count: 10,
+      },
     },
     {
       name: 'premium',
       displayName: 'Premium',
       priceMonthly: 4999,
+      pricePerUnit: 5,   // ₹5 per unit per month
       priceYearly: 49990,
-      maxUnits: -1, // unlimited
-      maxSecretaries: -1, // unlimited
-      features: { visitor_qr: true, expense_approval: true, attachments_count: -1, whatsapp: true, pdf_receipts: true },
+      maxUnits: -1,      // unlimited
+      maxResidents: -1,
+      maxWatchmen: -1,
+      maxSecretaries: -1,
+      features: {
+        visitors: true,
+        visitor_qr: true,
+        gate_passes: true,
+        expenses: true,
+        expense_approval: true,
+        financial_reports: true,
+        donations: true,
+        complaint_assignment: true,
+        society_gates: true,
+        amenities: true,
+        amenity_booking: true,
+        parking_management: true,
+        delivery_tracking: true,
+        move_requests: true,
+        attachments_count: -1, // unlimited
+      },
     },
   ];
 

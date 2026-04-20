@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../models/user_model.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_colors.dart';
 import '../../shared/widgets/confirm_logout.dart';
@@ -17,26 +18,27 @@ class _SMShellState extends ConsumerState<SMShell> {
   int _selectedIndex = 0;
   final _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  // Full nav for Chairman / Secretary / Manager
+  // Full nav for Chairman / Secretary / Manager.
+  // featureKey: must match a key in plan.features (null = always visible regardless of plan).
   static const _allNavItems = [
-    _NavItem(icon: Icons.dashboard_rounded,              label: 'Dashboard',     path: '/dashboard',     group: 'Main'),
-    _NavItem(icon: Icons.apartment_rounded,              label: 'Units',         path: '/units',         group: 'Main'),
-    _NavItem(icon: Icons.people_rounded,                 label: 'Members',       path: '/members',       group: 'Main'),
-    _NavItem(icon: Icons.receipt_long_rounded,           label: 'Bills',         path: '/bills',         group: 'Finance'),
-    _NavItem(icon: Icons.account_balance_wallet_rounded, label: 'Expenses',      path: '/expenses',      group: 'Finance'),
-    _NavItem(icon: Icons.volunteer_activism_rounded,     label: 'Donations',        path: '/donations',        group: 'Finance'),
-    _NavItem(icon: Icons.balance_rounded,                label: 'Balance Report',   path: '/reports/balance',  group: 'Finance'),
-    _NavItem(icon: Icons.person_pin_circle_rounded,      label: 'Visitors',      path: '/visitors',      group: 'Security'),
-    _NavItem(icon: Icons.badge_rounded,                  label: 'Gate Passes',   path: '/gatepasses',    group: 'Security'),
-    _NavItem(icon: Icons.directions_car_rounded,         label: 'Vehicles',      path: '/vehicles',      group: 'Security'),
-    _NavItem(icon: Icons.report_problem_rounded,         label: 'Complaints',    path: '/complaints',    group: 'Society'),
-    _NavItem(icon: Icons.campaign_rounded,               label: 'Notices',       path: '/notices',       group: 'Society'),
-    _NavItem(icon: Icons.sports_basketball_rounded,      label: 'Amenities',     path: '/amenities',     group: 'Society'),
-    _NavItem(icon: Icons.support_agent_rounded,          label: 'Staff',         path: '/staff',         group: 'Society'),
-    _NavItem(icon: Icons.local_shipping_rounded,         label: 'Deliveries',    path: '/deliveries',    group: 'Society'),
-    _NavItem(icon: Icons.cleaning_services_rounded,      label: 'Domestic Help', path: '/domestichelp',  group: 'Society'),
-    _NavItem(icon: Icons.notifications_rounded,          label: 'Notifications', path: '/notifications', group: 'More'),
-    _NavItem(icon: Icons.settings_rounded,               label: 'Settings',      path: '/settings',      group: 'More'),
+    _NavItem(icon: Icons.dashboard_rounded,              label: 'Dashboard',      path: '/dashboard',        group: 'Main'),
+    _NavItem(icon: Icons.apartment_rounded,              label: 'Units',          path: '/units',            group: 'Main'),
+    _NavItem(icon: Icons.people_rounded,                 label: 'Members',        path: '/members',          group: 'Main'),
+    _NavItem(icon: Icons.receipt_long_rounded,           label: 'Bills',          path: '/bills',            group: 'Finance'),
+    _NavItem(icon: Icons.account_balance_wallet_rounded, label: 'Expenses',       path: '/expenses',         group: 'Finance',  featureKey: 'expenses'),
+    _NavItem(icon: Icons.volunteer_activism_rounded,     label: 'Donations',      path: '/donations',        group: 'Finance',  featureKey: 'donations'),
+    _NavItem(icon: Icons.balance_rounded,                label: 'Balance Report', path: '/reports/balance',  group: 'Finance',  featureKey: 'financial_reports'),
+    _NavItem(icon: Icons.person_pin_circle_rounded,      label: 'Visitors',       path: '/visitors',         group: 'Security', featureKey: 'visitors'),
+    _NavItem(icon: Icons.badge_rounded,                  label: 'Gate Passes',    path: '/gatepasses',       group: 'Security', featureKey: 'gate_passes'),
+    _NavItem(icon: Icons.directions_car_rounded,         label: 'Vehicles',       path: '/vehicles',         group: 'Security'),
+    _NavItem(icon: Icons.report_problem_rounded,         label: 'Complaints',     path: '/complaints',       group: 'Society'),
+    _NavItem(icon: Icons.campaign_rounded,               label: 'Notices',        path: '/notices',          group: 'Society'),
+    _NavItem(icon: Icons.sports_basketball_rounded,      label: 'Amenities',      path: '/amenities',        group: 'Society',  featureKey: 'amenities'),
+    _NavItem(icon: Icons.support_agent_rounded,          label: 'Staff',          path: '/staff',            group: 'Society'),
+    _NavItem(icon: Icons.local_shipping_rounded,         label: 'Deliveries',     path: '/deliveries',       group: 'Society',  featureKey: 'delivery_tracking'),
+    _NavItem(icon: Icons.cleaning_services_rounded,      label: 'Domestic Help',  path: '/domestichelp',     group: 'Society',  featureKey: 'domestic_help'),
+    _NavItem(icon: Icons.notifications_rounded,          label: 'Notifications',  path: '/notifications',    group: 'More'),
+    _NavItem(icon: Icons.settings_rounded,               label: 'Settings',       path: '/settings',         group: 'More'),
   ];
 
   // Paths hidden for member/resident roles — they see their unit in sidebar instead
@@ -45,10 +47,10 @@ class _SMShellState extends ConsumerState<SMShell> {
   // Watchman sees only gate-related screens
   static const _watchmanNavItems = [
     _NavItem(icon: Icons.grid_view_rounded,          label: 'Dashboard',     path: '/dashboard',    group: 'Main'),
-    _NavItem(icon: Icons.person_pin_circle_rounded,  label: 'Visitors',      path: '/visitors',     group: 'Gate'),
-    _NavItem(icon: Icons.badge_rounded,              label: 'Gate Passes',   path: '/gatepasses',   group: 'Gate'),
-    _NavItem(icon: Icons.local_shipping_rounded,     label: 'Deliveries',    path: '/deliveries',   group: 'Gate'),
-    _NavItem(icon: Icons.cleaning_services_rounded,  label: 'Domestic Help', path: '/domestichelp', group: 'Gate'),
+    _NavItem(icon: Icons.person_pin_circle_rounded,  label: 'Visitors',      path: '/visitors',     group: 'Gate', featureKey: 'visitors'),
+    _NavItem(icon: Icons.badge_rounded,              label: 'Gate Passes',   path: '/gatepasses',   group: 'Gate', featureKey: 'gate_passes'),
+    _NavItem(icon: Icons.local_shipping_rounded,     label: 'Deliveries',    path: '/deliveries',   group: 'Gate', featureKey: 'delivery_tracking'),
+    _NavItem(icon: Icons.cleaning_services_rounded,  label: 'Domestic Help', path: '/domestichelp', group: 'Gate', featureKey: 'domestic_help'),
     _NavItem(icon: Icons.notifications_rounded,      label: 'Notifications', path: '/notifications',group: 'More'),
   ];
 
@@ -69,10 +71,13 @@ class _SMShellState extends ConsumerState<SMShell> {
     _NavItem(icon: Icons.menu_rounded,           label: 'More',    path: '__menu__'),
   ];
 
-  List<_NavItem> _visibleNavItems(String role, bool isUnitLocked) {
+  List<_NavItem> _visibleNavItems(String role, bool isUnitLocked, UserModel? user) {
     if (role.toUpperCase() == 'WATCHMAN') return _watchmanNavItems;
-    if (!isUnitLocked) return _allNavItems;
-    return _allNavItems.where((n) => !_memberHiddenPaths.contains(n.path)).toList();
+    return _allNavItems.where((n) {
+      if (isUnitLocked && _memberHiddenPaths.contains(n.path)) return false;
+      if (n.featureKey != null && !(user?.hasFeature(n.featureKey!) ?? false)) return false;
+      return true;
+    }).toList();
   }
 
   List<_NavItem> _bottomItems(String role) {
@@ -112,7 +117,7 @@ class _SMShellState extends ConsumerState<SMShell> {
     final authState = ref.read(authProvider);
     final role = authState.user?.role ?? '';
     final isUnitLocked = authState.user?.isUnitLocked ?? false;
-    final navItems = _visibleNavItems(role, isUnitLocked);
+    final navItems = _visibleNavItems(role, isUnitLocked, authState.user);
     final location = GoRouterState.of(context).uri.toString();
     for (int i = 0; i < navItems.length; i++) {
       if (location == navItems[i].path ||
@@ -128,7 +133,7 @@ class _SMShellState extends ConsumerState<SMShell> {
     final authState = ref.watch(authProvider);
     final role = authState.user?.role ?? '';
     final isUnitLocked = authState.user?.isUnitLocked ?? false;
-    final navItems = _visibleNavItems(role, isUnitLocked);
+    final navItems = _visibleNavItems(role, isUnitLocked, authState.user);
     final bottomItems = _bottomItems(role);
     final safeIndex = _selectedIndex.clamp(0, navItems.length - 1);
     final isWide = MediaQuery.of(context).size.width >= 900;
@@ -576,5 +581,8 @@ class _NavItem {
   final String label;
   final String path;
   final String? group;
-  const _NavItem({required this.icon, required this.label, required this.path, this.group});
+  /// If set, this nav item is only shown when the society plan includes this feature.
+  /// null means always visible.
+  final String? featureKey;
+  const _NavItem({required this.icon, required this.label, required this.path, this.group, this.featureKey});
 }

@@ -1068,46 +1068,8 @@ class _LogVisitorFormState extends ConsumerState<_LogVisitorForm> {
               const SizedBox(height: AppDimensions.md),
             ],
 
-            // ── Unit selector ──────────────────────────────────────────
-            if (_lockUnit)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppDimensions.md, vertical: 14),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                  border: Border.all(
-                    color: _selectedUnitId != null
-                        ? AppColors.primary.withValues(alpha: 0.5)
-                        : AppColors.border,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('Select Unit *',
-                              style: AppTextStyles.caption
-                                  .copyWith(color: AppColors.textMuted)),
-                          const SizedBox(height: 2),
-                          Text(
-                            ref.read(authProvider).user?.unitCode ??
-                                'No unit assigned',
-                            style: AppTextStyles.bodyMedium,
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(Icons.lock_outline_rounded,
-                        color: AppColors.primary.withValues(alpha: 0.6),
-                        size: 18),
-                  ],
-                ),
-              )
-            else
+            // ── Unit selector (hidden for members/residents — shown in header) ──
+            if (!_lockUnit)
               unitsAsync.when(
                 data: (units) => AppSearchableDropdown<String?>(
                   label: 'Select Unit *',

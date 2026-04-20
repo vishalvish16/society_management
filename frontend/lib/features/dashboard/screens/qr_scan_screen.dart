@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../core/providers/dio_provider.dart';
 import '../../../core/theme/app_colors.dart';
@@ -289,6 +290,39 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen>
     }
   }
 
+  Future<void> _pickFromGallery() async {
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: ImageSource.gallery);
+    if (file == null) return;
+
+    setState(() => _processing = true);
+    _controller.stop();
+
+    final captured = await _controller.analyzeImage(file.path);
+    final code = captured?.barcodes.firstOrNull?.rawValue;
+
+    if (code == null || code.isEmpty) {
+      if (mounted) {
+        setState(() => _processing = false);
+        _controller.start();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No QR code found in the selected image')),
+        );
+      }
+      return;
+    }
+
+    HapticFeedback.mediumImpact();
+    final result = await _verifyCode(code);
+    if (mounted) {
+      setState(() {
+        _processing = false;
+        _result = result;
+      });
+      HapticFeedback.heavyImpact();
+    }
+  }
+
   void _rescan() {
     setState(() => _result = null);
     _controller.start();
@@ -342,6 +376,21 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen>
                       style: AppTextStyles.h2.copyWith(color: Colors.white),
                     ),
                   const Spacer(),
+                  // Gallery pick
+                  if (_result == null)
+                    GestureDetector(
+                      onTap: _pickFromGallery,
+                      child: Container(
+                        width: 40, height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.photo_library_rounded,
+                            color: Colors.white, size: 20),
+                      ),
+                    ),
+                  const SizedBox(width: 8),
                   // Torch toggle
                   if (_result == null)
                     GestureDetector(
@@ -444,6 +493,13 @@ class _ScannerOverlay extends StatelessWidget {
                 'Gate passes · Visitors · Deliveries · Domestic Help',
                 style: AppTextStyles.bodySmall.copyWith(
                     color: Colors.white.withValues(alpha: 0.6)),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Or use  🖼  to scan from gallery',
+                style: AppTextStyles.bodySmall.copyWith(
+                    color: Colors.white.withValues(alpha: 0.45)),
                 textAlign: TextAlign.center,
               ),
             ],

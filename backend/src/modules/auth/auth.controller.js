@@ -84,12 +84,21 @@ exports.login = async (req, res) => {
 
     let user;
 
+    const societyInclude = {
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        plan: { select: { name: true, displayName: true, features: true } },
+      },
+    };
+
     if (userId) {
       // Society was already selected — fetch that specific user record
       user = await prisma.user.findFirst({
         where: { id: userId, isActive: true, deletedAt: null },
         include: {
-          society: { select: { id: true, name: true, status: true } },
+          society: societyInclude,
           unitResidents: {
             select: { unit: { select: { id: true, fullCode: true } }, isOwner: true },
             take: 1,
@@ -104,7 +113,7 @@ exports.login = async (req, res) => {
           deletedAt: null,
         },
         include: {
-          society: { select: { id: true, name: true, status: true } },
+          society: societyInclude,
           unitResidents: {
             select: { unit: { select: { id: true, fullCode: true } }, isOwner: true },
             take: 1,
@@ -181,6 +190,7 @@ async function _issueTokens(res, user) {
       bio: user.bio ?? null,
       emergencyContactName: user.emergencyContactName ?? null,
       emergencyContactPhone: user.emergencyContactPhone ?? null,
+      planFeatures: user.society?.plan?.features ?? null,
     },
   }, 'Login successful');
 }

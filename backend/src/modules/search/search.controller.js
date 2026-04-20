@@ -26,9 +26,11 @@ exports.search = async (req, res) => {
     // Limits per entity to keep search fast.
     const limit = Math.min(Number(req.query.limit || 5), 10);
 
+    const isWatchman = role === 'WATCHMAN';
     const results = [];
 
     // ── Members (users) ───────────────────────────────────────────────
+    // WATCHMAN: can search members only (for identity verification at gate)
     if (role !== 'SUPER_ADMIN') {
       const users = await prisma.user.findMany({
         where: {
@@ -66,13 +68,13 @@ exports.search = async (req, res) => {
           id: u.id,
           title: u.name || 'Member',
           subtitle: `${u.role || ''}${unitCode ? ` · ${unitCode}` : ''}${u.phone ? ` · ${u.phone}` : ''}`.trim(),
-          route: `/members?focusId=${encodeURIComponent(u.id)}`,
+          route: isWatchman ? '' : `/members?focusId=${encodeURIComponent(u.id)}`,
         });
       }
     }
 
     // ── Units ─────────────────────────────────────────────────────────
-    if (role !== 'SUPER_ADMIN') {
+    if (role !== 'SUPER_ADMIN' && !isWatchman) {
       const units = await prisma.unit.findMany({
         where: {
           societyId,
@@ -101,7 +103,7 @@ exports.search = async (req, res) => {
     }
 
     // ── Complaints ────────────────────────────────────────────────────
-    if (role !== 'SUPER_ADMIN') {
+    if (role !== 'SUPER_ADMIN' && !isWatchman) {
       const complaints = await prisma.complaint.findMany({
         where: {
           societyId,
@@ -127,7 +129,7 @@ exports.search = async (req, res) => {
     }
 
     // ── Bills ─────────────────────────────────────────────────────────
-    if (role !== 'SUPER_ADMIN') {
+    if (role !== 'SUPER_ADMIN' && !isWatchman) {
       const bills = await prisma.maintenanceBill.findMany({
         where: {
           societyId,

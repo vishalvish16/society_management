@@ -35,7 +35,12 @@ async function getProfile(userId) {
     select: {
       ...USER_SELECT,
       society: {
-        select: { id: true, name: true, logoUrl: true },
+        select: {
+          id: true,
+          name: true,
+          logoUrl: true,
+          plan: { select: { name: true, displayName: true, features: true } },
+        },
       },
       unitResidents: {
         select: {

@@ -3,8 +3,16 @@ const { sendError } = require('../utils/response');
 
 /**
  * Plan limit enforcement middleware factory.
- * Schema has no Subscription model — society carries planId directly.
- * Plan limits: maxUnits, maxSecretaries, features (Json).
+ *
+ * Usage:
+ *   checkPlanLimit('visitor_qr')     — boolean feature gate
+ *   checkPlanLimit('units')          — count-based cap (maxUnits)
+ *   checkPlanLimit('secretaries')    — count-based cap (maxSecretaries)
+ *   checkPlanLimit('watchmen')       — count-based cap (maxWatchmen)
+ *   checkPlanLimit('residents')      — count-based cap (maxResidents)
+ *
+ * Feature flag rule: the key MUST exist in plan.features AND equal true.
+ * A missing key is treated as false (deny-by-default).
  */
 function checkPlanLimit(feature) {
   return async (req, res, next) => {
@@ -16,14 +24,20 @@ function checkPlanLimit(feature) {
         return sendError(res, 'No society associated with this account', 403);
       }
 
-      // Load society with its plan
       const society = await prisma.society.findUnique({
         where: { id: societyId },
         select: {
           status: true,
           planRenewalDate: true,
           plan: {
-            select: { maxUnits: true, maxSecretaries: true, features: true, isActive: true },
+            select: {
+              maxUnits: true,
+              maxResidents: true,
+              maxWatchmen: true,
+              maxSecretaries: true,
+              features: true,
+              isActive: true,
+            },
           },
         },
       });
@@ -36,39 +50,66 @@ function checkPlanLimit(feature) {
         return sendError(res, 'No active plan assigned. Please contact your administrator.', 403);
       }
 
-      // Check plan renewal
       if (society.planRenewalDate && new Date(society.planRenewalDate) < new Date()) {
         return sendError(res, 'Your plan has expired. Please renew to continue.', 403);
       }
 
       const plan = society.plan;
 
-      // Count-based limits
+      // ── Count-based caps ──────────────────────────────────────────────
+
       if (feature === 'units') {
-        const currentCount = await prisma.unit.count({ where: { societyId } });
-        const maxAllowed = plan.maxUnits;
-        if (maxAllowed !== -1 && currentCount >= maxAllowed) {
-          return sendError(res, `Plan limit reached (${currentCount}/${maxAllowed} units). Upgrade to add more.`, 403);
+        const count = await prisma.unit.count({ where: { societyId } });
+        const max = plan.maxUnits;
+        if (max !== -1 && count >= max) {
+          return sendError(res, `Unit limit reached (${count}/${max}). Upgrade your plan to add more.`, 403);
         }
         return next();
       }
 
       if (feature === 'secretaries') {
-        const currentCount = await prisma.user.count({
+        const count = await prisma.user.count({
           where: { societyId, role: 'SECRETARY', deletedAt: null },
         });
-        const maxAllowed = plan.maxSecretaries;
-        if (maxAllowed !== -1 && currentCount >= maxAllowed) {
-          return sendError(res, `Plan limit reached (${currentCount}/${maxAllowed} secretaries). Upgrade to add more.`, 403);
+        const max = plan.maxSecretaries;
+        if (max !== -1 && count >= max) {
+          return sendError(res, `Secretary limit reached (${count}/${max}). Upgrade your plan to add more.`, 403);
         }
         return next();
       }
 
-      // Feature flag checks (plan.features is a JSON object)
+      if (feature === 'watchmen') {
+        const count = await prisma.user.count({
+          where: { societyId, role: 'WATCHMAN', deletedAt: null },
+        });
+        const max = plan.maxWatchmen ?? -1;
+        if (max !== -1 && count >= max) {
+          return sendError(res, `Watchman limit reached (${count}/${max}). Upgrade your plan to add more.`, 403);
+        }
+        return next();
+      }
+
+      if (feature === 'residents') {
+        const count = await prisma.user.count({
+          where: { societyId, role: 'RESIDENT', deletedAt: null },
+        });
+        const max = plan.maxResidents ?? -1;
+        if (max !== -1 && count >= max) {
+          return sendError(res, `Resident limit reached (${count}/${max}). Upgrade your plan to add more.`, 403);
+        }
+        return next();
+      }
+
+      // ── Boolean feature flags ─────────────────────────────────────────
+      // Deny-by-default: key must exist AND equal true.
       const features = plan.features || {};
-      if (features[feature] === false) {
-        const label = feature.charAt(0).toUpperCase() + feature.slice(1);
-        return sendError(res, `${label} is not available on your current plan. Please upgrade.`, 403);
+      if (features[feature] !== true) {
+        const label = feature.replace(/_/g, ' ');
+        return sendError(
+          res,
+          `"${label}" is not included in your current plan. Please upgrade to access this feature.`,
+          403
+        );
       }
 
       next();

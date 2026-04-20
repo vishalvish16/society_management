@@ -453,16 +453,17 @@ class _LogDeliveryFormState extends ConsumerState<_LogDeliveryForm> {
             const SizedBox(height: AppDimensions.lg),
             Text('Log Delivery', style: AppTextStyles.h1),
             const SizedBox(height: AppDimensions.lg),
-            UnitPickerField(
-              selectedUnitId: _selectedUnitId,
-              selectedUnitCode: _selectedUnitCode,
-              readOnly: _lockUnit,
-              onChanged: (id, code) => setState(() {
-                _selectedUnitId = id;
-                _selectedUnitCode = code;
-              }),
-            ),
-            const SizedBox(height: AppDimensions.md),
+            if (!_lockUnit) ...[
+              UnitPickerField(
+                selectedUnitId: _selectedUnitId,
+                selectedUnitCode: _selectedUnitCode,
+                onChanged: (id, code) => setState(() {
+                  _selectedUnitId = id;
+                  _selectedUnitCode = code;
+                }),
+              ),
+              const SizedBox(height: AppDimensions.md),
+            ],
             TextFormField(
               controller: _agentNameController,
               decoration: const InputDecoration(

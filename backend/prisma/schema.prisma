@@ -230,12 +230,13 @@ model Plan {
   name           String    @unique
   displayName    String
   priceMonthly   Decimal   @db.Decimal(10, 2)
+  pricePerUnit   Decimal   @default(0) @db.Decimal(10, 2) // extra charge per unit per month
   priceYearly    Decimal   @db.Decimal(10, 2)
   maxUnits       Int // -1 = unlimited
   maxResidents   Int? // -1 = unlimited
   maxWatchmen    Int? // -1 = unlimited
   maxSecretaries Int // -1 = unlimited
-  features       Json // { visitor_qr, expense_approval, attachments_count, whatsapp, pdf_receipts }
+  features       Json
   isActive       Boolean   @default(true)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt

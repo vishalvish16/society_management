@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
@@ -33,31 +34,68 @@ import '../../features/reports/screens/balance_report_screen.dart';
 import '../widgets/sa_shell.dart';
 import '../widgets/sm_shell.dart';
 
+class _RouterNotifier extends ChangeNotifier {
+  final Ref _ref;
+  _RouterNotifier(this._ref) {
+    _ref.listen<AuthState>(authProvider, (prev, next) => notifyListeners());
+  }
+
+  bool _matches(String location, String pathPrefix) {
+    if (location == pathPrefix) return true;
+    if (pathPrefix == '/') return location == '/';
+    return location.startsWith('$pathPrefix/');
+  }
+
+  String? redirect(BuildContext context, GoRouterState state) {
+    final authState = _ref.read(authProvider);
+    if (authState.isLoading) return null;
+
+    final isAuth = authState.isAuthenticated;
+    final isLoggingIn = state.matchedLocation == '/' ||
+        state.matchedLocation == '/register' ||
+        state.matchedLocation == '/forgot';
+
+    if (!isAuth) return isLoggingIn ? null : '/';
+
+    if (isLoggingIn) {
+      if (authState.user?.role == 'SUPER_ADMIN') return '/sa/dashboard';
+      return '/dashboard';
+    }
+
+    // Plan feature gating (UI guard) — backend is the source of truth.
+    // If a feature is not in the plan, also block navigation to that screen.
+    final user = authState.user;
+    if (user != null && user.role != 'SUPER_ADMIN') {
+      final loc = state.matchedLocation;
+      final rules = <String, String>{
+        '/expenses': 'expenses',
+        '/donations': 'donations',
+        '/reports/balance': 'financial_reports',
+        '/visitors': 'visitors',
+        '/gatepasses': 'gate_passes',
+        '/amenities': 'amenities',
+        '/deliveries': 'delivery_tracking',
+        '/domestichelp': 'domestic_help',
+      };
+
+      for (final e in rules.entries) {
+        if (_matches(loc, e.key) && !user.hasFeature(e.value)) {
+          return '/dashboard';
+        }
+      }
+    }
+
+    return null;
+  }
+}
+
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authProvider);
+  final notifier = _RouterNotifier(ref);
 
   return GoRouter(
     initialLocation: '/',
-    redirect: (context, state) {
-      if (authState.isLoading) return null; // Wait for auto-login to finish
-
-      final isAuth = authState.isAuthenticated;
-      final isLoggingIn = state.matchedLocation == '/' || 
-                          state.matchedLocation == '/register' || 
-                          state.matchedLocation == '/forgot';
-
-      if (!isAuth) {
-        return isLoggingIn ? null : '/';
-      }
-
-      if (isLoggingIn) {
-        // Redirect based on role if needed, or just to dashboard
-        if (authState.user?.role == 'SUPER_ADMIN') return '/sa/dashboard';
-        return '/dashboard';
-      }
-
-      return null;
-    },
+    refreshListenable: notifier,
+    redirect: notifier.redirect,
     routes: [
       // ── Public routes ─────────────────────────────────────────────
       GoRoute(path: '/',         builder: (c, s) => LoginScreen()),

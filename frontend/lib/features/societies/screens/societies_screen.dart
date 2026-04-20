@@ -138,9 +138,11 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                 ),
                 const SizedBox(width: 12),
                 SizedBox(
-                  width: 140,
+                  width: 170,
                   child: DropdownButtonFormField<String>(
                     value: _statusFilter,
+
+                    isExpanded: true,
                     decoration: InputDecoration(
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -163,6 +165,7 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                     },
                   ),
                 ),
+
               ],
                   ),
             const SizedBox(height: 16),
