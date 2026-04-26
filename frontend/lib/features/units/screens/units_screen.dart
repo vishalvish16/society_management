@@ -152,11 +152,23 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
                       (context, i) {
                         final u = units[i] as Map<String, dynamic>;
                         final status = (u['status'] as String? ?? 'VACANT').toUpperCase();
+                        final occupancy = (u['occupancyType'] as String? ?? 'OWNER_OCCUPIED').toUpperCase();
                         final residents = (u['residents'] as List? ?? u['unitResidents'] as List? ?? []);
+                        final rentals = u['rentalRecords'] as List? ?? [];
+                        final rentalCount = rentals.length;
+                        final ownerNotStaying = residents.any(
+                          (r) => r is Map && r['isOwner'] == true && r['isStaying'] == false,
+                        );
                         final residentNames = residents.map((r) => r['name'] ?? r['user']?['name'] ?? '').where((n) => n.isNotEmpty).join(', ');
+                        final tenantNames = rentals.map((r) {
+                          final name = r['tenantName'] ?? '';
+                          final portion = r['portion'] as String? ?? '';
+                          return portion.isNotEmpty ? '$name ($portion)' : name;
+                        }).where((n) => n.isNotEmpty).join(', ');
                         final floor = u['floor'];
                         final wing = u['wing'] as String? ?? '';
-                        final (bgColor, borderColor) = _getUnitColors(status);
+                        final isRented = occupancy == 'RENTED' || occupancy == 'LEASED' || occupancy == 'PARTIALLY_RENTED';
+                        final (bgColor, borderColor) = _getUnitColors(status, occupancy);
 
                         return AppCard(
                           onTap: () => _showEditSheet(context, ref, u),
@@ -181,6 +193,40 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
                                   AppStatusChip(status: status),
                                 ],
                               ),
+                              if (isRented)
+                                Container(
+                                  margin: const EdgeInsets.only(top: 3),
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFF3E0),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    occupancy == 'PARTIALLY_RENTED'
+                                        ? 'Owner + ${rentalCount} Tenant${rentalCount > 1 ? 's' : ''}'
+                                        : occupancy == 'LEASED'
+                                            ? 'Leased${rentalCount > 1 ? ' ($rentalCount)' : ''}'
+                                            : 'Rented${rentalCount > 1 ? ' ($rentalCount)' : ''}',
+                                    style: AppTextStyles.caption.copyWith(fontSize: 9, color: const Color(0xFFE65100), fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                              if (ownerNotStaying)
+                                Container(
+                                  margin: const EdgeInsets.only(top: 3),
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFE8F5E9),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'Owner not staying',
+                                    style: AppTextStyles.caption.copyWith(
+                                      fontSize: 9,
+                                      color: const Color(0xFF2E7D32),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
                               const SizedBox(height: AppDimensions.xs),
                               if (wing.isNotEmpty || floor != null)
                                 Text(
@@ -191,17 +237,25 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
                               const Spacer(),
                               Row(
                                 children: [
-                                  Icon(Icons.person_pin_rounded, size: 14, color: borderColor.withOpacity(0.7)),
+                                  Icon(
+                                    isRented ? Icons.key_rounded : Icons.person_pin_rounded,
+                                    size: 14,
+                                    color: borderColor.withOpacity(0.7),
+                                  ),
                                   const SizedBox(width: 4),
                                   Expanded(
                                     child: Text(
-                                      residentNames.isNotEmpty ? residentNames : 'Vacant',
+                                      isRented && tenantNames.isNotEmpty
+                                          ? tenantNames
+                                          : residentNames.isNotEmpty
+                                              ? residentNames
+                                              : 'Vacant',
                                       style: AppTextStyles.bodySmall.copyWith(
                                         fontSize: 11,
                                         color: AppColors.textPrimary,
-                                        fontStyle: residentNames.isNotEmpty ? FontStyle.normal : FontStyle.italic,
+                                        fontStyle: (residentNames.isNotEmpty || isRented) ? FontStyle.normal : FontStyle.italic,
                                       ),
-                                      maxLines: 1,
+                                      maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
@@ -284,20 +338,213 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
     final floorCtrl = TextEditingController(
       text: unit['floor']?.toString() ?? '',
     );
-    final residents =
-        (unit['residents'] as List? ?? unit['unitResidents'] as List? ?? []);
+    final canManage = !(ref.read(authProvider).user?.isUnitLocked ?? false);
+    bool saving = false;
 
     showAppSheet(
       context: context,
       builder: (ctx) => DefaultTabController(
         length: 2,
-        child: StatefulBuilder(
-          builder: (ctx, setState) {
-            String? errorMsg;
-            bool saving = false;
-            final searchCtrl = TextEditingController();
-            List<Map<String, dynamic>> searchResults = [];
-            bool searching = false;
+        child: Consumer(
+          builder: (ctx, ref, _) {
+            // Watch unitsProvider inside widget tree so updates reflect instantly
+            final units = ref.watch(unitsProvider).value ?? const [];
+            final latestUnit = units.cast<Map<String, dynamic>>().firstWhere(
+              (u) => u['id'].toString() == unit['id'].toString(),
+              orElse: () => unit,
+            );
+
+            return StatefulBuilder(
+              builder: (ctx, setState) {
+
+            final residents = (latestUnit['residents'] as List? ??
+                latestUnit['unitResidents'] as List? ??
+                []);
+            final rentals = latestUnit['rentalRecords'] as List? ?? [];
+            final occupancy =
+                (latestUnit['occupancyType'] as String? ?? 'OWNER_OCCUPIED')
+                    .toUpperCase();
+
+            final owners = residents
+                .where((r) => r is Map && r['isOwner'] == true)
+                .toList();
+            final stayingOwners = owners
+                .where((r) => (r as Map)['isStaying'] != false)
+                .toList();
+            final nonOwnerResidents = residents
+                .where(
+                  (r) =>
+                      r is Map &&
+                      r['isOwner'] != true &&
+                      r['isStaying'] != false,
+                )
+                .toList();
+            Future<void> showAssignPersonSheet() async {
+              final searchCtrl = TextEditingController();
+              bool searching = false;
+              String? pickedUserId;
+              String? pickedName;
+              bool isOwner = false;
+              bool isStaying = true;
+              List<Map<String, dynamic>> results = [];
+
+              await showAppSheet(
+                context: context,
+                builder: (sheetCtx) => StatefulBuilder(
+                  builder: (sheetCtx, setSheetState) {
+                    Future<void> doSearch() async {
+                      final q = searchCtrl.text.trim();
+                      if (q.length < 2) {
+                        setSheetState(() => results = []);
+                        return;
+                      }
+                      setSheetState(() => searching = true);
+                      final r = await ref.read(unitsProvider.notifier).searchMembers(q);
+                      if (sheetCtx.mounted) {
+                        setSheetState(() {
+                          results = r;
+                          searching = false;
+                        });
+                      }
+                    }
+
+                    return Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        AppDimensions.screenPadding,
+                        AppDimensions.lg,
+                        AppDimensions.screenPadding,
+                        MediaQuery.of(sheetCtx).viewInsets.bottom + AppDimensions.lg,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Center(
+                            child: Container(
+                              width: 36,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: AppColors.border,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: AppDimensions.md),
+                          Text('Assign Person', style: AppTextStyles.h2),
+                          const SizedBox(height: AppDimensions.sm),
+                          Text(
+                            'Add owner/resident and mark if they are staying in this unit.',
+                            style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
+                          ),
+                          const SizedBox(height: AppDimensions.md),
+                          AppTextField(
+                            label: 'Search Member (name / phone)',
+                            controller: searchCtrl,
+                            onChanged: (_) => doSearch(),
+                          ),
+                          const SizedBox(height: AppDimensions.sm),
+                          if (searching) const LinearProgressIndicator(),
+                          if (!searching && results.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              child: Text(
+                                'Type at least 2 letters to search.',
+                                style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                              ),
+                            ),
+                          if (results.isNotEmpty)
+                            SizedBox(
+                              height: 220,
+                              child: ListView.builder(
+                                itemCount: results.length,
+                                itemBuilder: (c, i) {
+                                  final m = results[i];
+                                  final id = (m['id'] ?? '').toString();
+                                  final name = (m['name'] ?? '-').toString();
+                                  final phone = (m['phone'] ?? '').toString();
+                                  final selected = pickedUserId == id;
+                                  return ListTile(
+                                    dense: true,
+                                    title: Text(name),
+                                    subtitle: phone.isNotEmpty ? Text(phone) : null,
+                                    trailing: selected
+                                        ? const Icon(Icons.check_circle, color: AppColors.success)
+                                        : null,
+                                    onTap: () => setSheetState(() {
+                                      pickedUserId = id;
+                                      pickedName = name;
+                                    }),
+                                  );
+                                },
+                              ),
+                            ),
+                          const SizedBox(height: AppDimensions.sm),
+                          SwitchListTile(
+                            value: isOwner,
+                            onChanged: (v) => setSheetState(() {
+                              isOwner = v;
+                              // If assigning property owner, default to not staying (can override).
+                              if (isOwner && isStaying) isStaying = false;
+                            }),
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('This person is the Owner'),
+                          ),
+                          SwitchListTile(
+                            value: isStaying,
+                            onChanged: (v) => setSheetState(() => isStaying = v),
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Staying in this unit'),
+                            subtitle: Text(
+                              isStaying ? 'They live in this unit' : 'They do not live here (property owner only)',
+                              style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                            ),
+                          ),
+                          const SizedBox(height: AppDimensions.md),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton(
+                              onPressed: pickedUserId == null
+                                  ? null
+                                  : () async {
+                                      final err = await ref.read(unitsProvider.notifier).assignResident(
+                                            latestUnit['id'].toString(),
+                                            pickedUserId!,
+                                            isOwner: isOwner,
+                                            isStaying: isStaying,
+                                          );
+                                      if (sheetCtx.mounted) {
+                                        if (err == null) {
+                                          Navigator.pop(sheetCtx);
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text('${pickedName ?? 'Person'} assigned'),
+                                                backgroundColor: AppColors.success,
+                                              ),
+                                            );
+                                          }
+                                        } else {
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text(err),
+                                                backgroundColor: AppColors.danger,
+                                              ),
+                                            );
+                                          }
+                                        }
+                                      }
+                                    },
+                              child: const Text('Assign'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              );
+            }
 
             return Padding(
               padding: EdgeInsets.fromLTRB(
@@ -321,23 +568,42 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
                     ),
                   ),
                   const SizedBox(height: AppDimensions.md),
-                  Text(
-                    'Unit ${unit['fullCode'] ?? ''}',
-                    style: AppTextStyles.h1,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Unit ${latestUnit['fullCode'] ?? ''}',
+                          style: AppTextStyles.h1,
+                        ),
+                      ),
+                      if (occupancy == 'RENTED' || occupancy == 'LEASED' || occupancy == 'PARTIALLY_RENTED')
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF3E0),
+                            borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                          ),
+                          child: Text(
+                            occupancy == 'PARTIALLY_RENTED' ? 'Owner + Rental' : occupancy == 'LEASED' ? 'Leased' : 'Rented',
+                            style: AppTextStyles.caption.copyWith(color: const Color(0xFFE65100), fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                    ],
                   ),
                   const TabBar(
                     tabs: [
                       Tab(text: 'Edit'),
-                      Tab(text: 'Residents'),
+                      Tab(text: 'Who Stays Here'),
                     ],
                     labelColor: AppColors.primary,
                     indicatorColor: AppColors.primary,
                   ),
                   const SizedBox(height: AppDimensions.md),
                   SizedBox(
-                    height: 320,
+                    height: 380,
                     child: TabBarView(
                       children: [
+                        // ── Edit Tab ──
                         SingleChildScrollView(
                           child: Column(
                             children: [
@@ -360,10 +626,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
                                   onPressed: saving
                                       ? null
                                       : () async {
-                                          setState(() {
-                                            saving = true;
-                                            errorMsg = null;
-                                          });
+                                          setState(() => saving = true);
                                           final error = await ref
                                               .read(unitsProvider.notifier)
                                               .updateUnit(unit['id'], {
@@ -377,10 +640,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
                                             if (error == null) {
                                               Navigator.pop(ctx);
                                             } else {
-                                              setState(() {
-                                                saving = false;
-                                                errorMsg = error;
-                                              });
+                                              setState(() => saving = false);
                                             }
                                           }
                                         },
@@ -392,18 +652,214 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
                             ],
                           ),
                         ),
+
+                        // ── Who Stays Here Tab ──
                         SingleChildScrollView(
                           child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              ...residents.map(
-                                (r) => ListTile(
-                                  title: Text(r['user']?['name'] ?? '-'),
-                                  trailing: IconButton(
-                                    icon: Icon(Icons.remove_circle_outline),
-                                    onPressed: () {},
+                              if (canManage)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: AppDimensions.sm),
+                                  child: SizedBox(
+                                    width: double.infinity,
+                                    child: OutlinedButton.icon(
+                                      icon: const Icon(Icons.person_add_alt_1_rounded),
+                                      label: const Text('Assign Owner / Resident'),
+                                      onPressed: showAssignPersonSheet,
+                                    ),
                                   ),
                                 ),
+                              // ── Owners Section ──
+                              _SectionHeader(
+                                icon: Icons.home_rounded,
+                                title: 'Owner${owners.length > 1 ? 's' : ''}',
+                                count: owners.length,
+                                color: const Color(0xFF2E7D32),
                               ),
+                              if (owners.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                                  child: Text(
+                                    'No owner assigned to this unit',
+                                    style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted, fontStyle: FontStyle.italic),
+                                  ),
+                                )
+                              else
+                                ...owners.map((r) {
+                                  final userId = (r['user']?['id'] ?? '').toString();
+                                  return Row(
+                                    children: [
+                                      Expanded(
+                                        child: _PersonTile(
+                                          name: r['user']?['name'] ?? '-',
+                                          phone: r['user']?['phone'] ?? '',
+                                          role: r['user']?['role'] ?? '',
+                                          subtitle: (r['isStaying'] == false) ? 'Property owner (not staying)' : null,
+                                          badge: (r['isStaying'] == false) ? 'Owner (Not Staying)' : 'Owner',
+                                          badgeColor: const Color(0xFF2E7D32),
+                                          icon: Icons.home_rounded,
+                                        ),
+                                      ),
+                                      if (canManage && userId.isNotEmpty)
+                                        IconButton(
+                                          tooltip: 'Remove from unit',
+                                          icon: const Icon(Icons.remove_circle, color: AppColors.danger),
+                                          onPressed: () async {
+                                            final ok = await showConfirmSheet(
+                                              context: context,
+                                              title: 'Remove Owner',
+                                              message: 'Remove this owner from unit ${unit['fullCode'] ?? ''}?',
+                                              confirmLabel: 'Remove',
+                                            );
+                                            if (!ok) return;
+                                            final err = await ref.read(unitsProvider.notifier).removeResident(
+                                                  unit['id'].toString(),
+                                                  userId,
+                                                );
+                                            if (ctx.mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(err == null ? 'Removed' : err),
+                                                  backgroundColor: err == null ? AppColors.success : AppColors.danger,
+                                                ),
+                                              );
+                                            }
+                                          },
+                                        ),
+                                    ],
+                                  );
+                                }),
+
+                              // ── Other Residents (family members etc) ──
+                              if (nonOwnerResidents.isNotEmpty) ...[
+                                const SizedBox(height: AppDimensions.md),
+                                _SectionHeader(
+                                  icon: Icons.people_rounded,
+                                  title: 'Family / Residents',
+                                  count: nonOwnerResidents.length,
+                                  color: AppColors.primary,
+                                ),
+                                ...nonOwnerResidents.map((r) {
+                                  final userId = (r['user']?['id'] ?? '').toString();
+                                  return Row(
+                                    children: [
+                                      Expanded(
+                                        child: _PersonTile(
+                                          name: r['user']?['name'] ?? '-',
+                                          phone: r['user']?['phone'] ?? '',
+                                          role: r['user']?['role'] ?? '',
+                                          badge: 'Resident',
+                                          badgeColor: AppColors.primary,
+                                          icon: Icons.person_rounded,
+                                        ),
+                                      ),
+                                      if (canManage && userId.isNotEmpty)
+                                        IconButton(
+                                          tooltip: 'Remove from unit',
+                                          icon: const Icon(Icons.remove_circle, color: AppColors.danger),
+                                          onPressed: () async {
+                                            final ok = await showConfirmSheet(
+                                              context: context,
+                                              title: 'Remove Resident',
+                                              message: 'Remove this resident from unit ${unit['fullCode'] ?? ''}?',
+                                              confirmLabel: 'Remove',
+                                            );
+                                            if (!ok) return;
+                                            final err = await ref.read(unitsProvider.notifier).removeResident(
+                                                  unit['id'].toString(),
+                                                  userId,
+                                                );
+                                            if (ctx.mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(err == null ? 'Removed' : err),
+                                                  backgroundColor: err == null ? AppColors.success : AppColors.danger,
+                                                ),
+                                              );
+                                            }
+                                          },
+                                        ),
+                                    ],
+                                  );
+                                }),
+                              ],
+
+                              // ── Tenants Section ──
+                              if (rentals.isNotEmpty) ...[
+                                const SizedBox(height: AppDimensions.md),
+                                _SectionHeader(
+                                  icon: Icons.key_rounded,
+                                  title: 'Tenant${rentals.length > 1 ? 's' : ''} (Rental)',
+                                  count: rentals.length,
+                                  color: const Color(0xFFE65100),
+                                ),
+                                ...rentals.expand((r) {
+                                  final portion = r['portion'] as String? ?? '';
+                                  final rent = r['rentAmount'];
+                                  final rentStr = rent != null ? '\u20B9${double.tryParse(rent.toString())?.toStringAsFixed(0) ?? rent}/mo' : '';
+                                  final members = r['members'] as List? ?? [];
+
+                                  return <Widget>[
+                                    _PersonTile(
+                                      name: r['tenantName'] ?? '-',
+                                      phone: r['tenantPhone'] ?? '',
+                                      subtitle: [
+                                        if (portion.isNotEmpty) portion,
+                                        if (rentStr.isNotEmpty) rentStr,
+                                      ].join(' \u2022 '),
+                                      badge: 'Tenant',
+                                      badgeColor: const Color(0xFFE65100),
+                                      icon: Icons.key_rounded,
+                                    ),
+                                    // Show individual family members
+                                    ...members.where((m) => (m['relation'] ?? '') != 'SELF').map((m) {
+                                      final relation = m['relation'] as String? ?? 'OTHER';
+                                      final age = m['age'];
+                                      final gender = m['gender'] as String?;
+                                      final relationLabel = {
+                                        'SPOUSE': 'Spouse',
+                                        'CHILD': 'Child',
+                                        'PARENT': 'Parent',
+                                        'SIBLING': 'Sibling',
+                                      }[relation] ?? 'Family';
+                                      final details = [
+                                        relationLabel,
+                                        if (age != null) '$age yrs',
+                                        if (gender != null) gender.toLowerCase(),
+                                        if (portion.isNotEmpty) portion,
+                                      ].join(' \u2022 ');
+
+                                      return Padding(
+                                        padding: const EdgeInsets.only(left: 20),
+                                        child: _PersonTile(
+                                          name: m['name'] ?? '-',
+                                          phone: m['phone'] ?? '',
+                                          subtitle: details,
+                                          badge: relationLabel,
+                                          badgeColor: const Color(0xFFFF8F00),
+                                          icon: relation == 'CHILD' ? Icons.child_care : Icons.person_outline,
+                                        ),
+                                      );
+                                    }),
+                                  ];
+                                }),
+                              ],
+
+                              // ── Empty State ──
+                              if (stayingOwners.isEmpty && nonOwnerResidents.isEmpty && rentals.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 24),
+                                  child: Center(
+                                    child: Column(
+                                      children: [
+                                        Icon(Icons.person_off_rounded, size: 40, color: AppColors.textMuted.withOpacity(0.5)),
+                                        const SizedBox(height: 8),
+                                        Text('No one assigned to this unit', style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
                         ),
@@ -412,6 +868,8 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
                   ),
                 ],
               ),
+            );
+              },
             );
           },
         ),
@@ -425,6 +883,8 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
     final floorCtrl = TextEditingController();
     final startCtrl = TextEditingController();
     final endCtrl = TextEditingController();
+    String? errorMsg;
+    bool saving = false;
 
     showAppSheet(
       context: context,
@@ -432,8 +892,6 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
         length: 2,
         child: StatefulBuilder(
           builder: (ctx, setDlgState) {
-            String? errorMsg;
-            bool saving = false;
             return Padding(
               padding: EdgeInsets.fromLTRB(
                 AppDimensions.screenPadding,
@@ -511,7 +969,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
                     ),
                   ),
                   if (errorMsg != null)
-                    Text(errorMsg!, style: TextStyle(color: AppColors.danger)),
+                    Text(errorMsg!, style: const TextStyle(color: AppColors.danger)),
                   const SizedBox(height: AppDimensions.lg),
                   SizedBox(
                     width: double.infinity,
@@ -567,9 +1025,15 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
     );
   }
 
-  (Color bg, Color border) _getUnitColors(String status) {
+  (Color bg, Color border) _getUnitColors(String status, [String? occupancy]) {
     if (status == 'OCCUPIED') {
-      return (const Color(0xFFE8F5E9), const Color(0xFF2E7D32)); // Green pastel
+      if (occupancy == 'RENTED' || occupancy == 'LEASED') {
+        return (const Color(0xFFFFF3E0), const Color(0xFFE65100)); // Orange for fully rented
+      }
+      if (occupancy == 'PARTIALLY_RENTED') {
+        return (const Color(0xFFFFF8E1), const Color(0xFFF57F17)); // Amber for owner + tenant mix
+      }
+      return (const Color(0xFFE8F5E9), const Color(0xFF2E7D32)); // Green for owner-occupied
     } else if (status == 'VACANT') {
       return (const Color(0xFFE3F2FD), const Color(0xFF1565C0)); // Blue pastel
     }
@@ -608,40 +1072,133 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
   }
 }
 
-class _UnitInfoRow extends StatelessWidget {
+class _SectionHeader extends StatelessWidget {
   final IconData icon;
-  final String label;
-  final String value;
-  final Color accentColor;
+  final String title;
+  final int count;
+  final Color color;
 
-  const _UnitInfoRow({
+  const _SectionHeader({
     required this.icon,
-    required this.label,
-    required this.value,
-    required this.accentColor,
+    required this.title,
+    required this.count,
+    required this.color,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
+      padding: const EdgeInsets.only(top: 4, bottom: 4),
       child: Row(
         children: [
-          Icon(icon, size: 12, color: accentColor.withOpacity(0.6)),
-          const SizedBox(width: 4),
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 8),
           Text(
-            '$label: ',
-            style: AppTextStyles.caption.copyWith(color: AppColors.textMuted, fontSize: 10),
-          ),
-          Text(
-            value,
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w600,
-              fontSize: 10,
+            title,
+            style: AppTextStyles.bodyMedium.copyWith(
+              fontWeight: FontWeight.w700,
+              color: color,
             ),
           ),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              count.toString(),
+              style: AppTextStyles.caption.copyWith(
+                fontWeight: FontWeight.w700,
+                color: color,
+                fontSize: 11,
+              ),
+            ),
+          ),
+          const Spacer(),
         ],
+      ),
+    );
+  }
+}
+
+class _PersonTile extends StatelessWidget {
+  final String name;
+  final String phone;
+  final String? role;
+  final String? subtitle;
+  final String badge;
+  final Color badgeColor;
+  final IconData icon;
+
+  const _PersonTile({
+    required this.name,
+    this.phone = '',
+    this.role,
+    this.subtitle,
+    required this.badge,
+    required this.badgeColor,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final sub = subtitle ?? (phone.isNotEmpty ? phone : null);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Container(
+        decoration: BoxDecoration(
+          color: badgeColor.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+          border: Border.all(color: badgeColor.withOpacity(0.12)),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: badgeColor.withOpacity(0.15),
+              child: Icon(icon, size: 16, color: badgeColor),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (sub != null && sub.isNotEmpty)
+                    Text(
+                      sub,
+                      style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: badgeColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                badge,
+                style: AppTextStyles.caption.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: badgeColor,
+                  fontSize: 10,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

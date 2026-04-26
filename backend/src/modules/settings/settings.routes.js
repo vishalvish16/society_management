@@ -12,4 +12,8 @@ router.get('/payment', settingsController.getPaymentSettings);
 // Only admins can update
 router.patch('/payment', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), settingsController.updatePaymentSettings);
 
+// Role permissions — any member can read (needed for sidebar filtering), only admins can update
+router.get('/permissions', settingsController.getRolePermissions);
+router.put('/permissions', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), settingsController.updateRolePermissions);
+
 module.exports = router;

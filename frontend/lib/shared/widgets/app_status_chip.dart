@@ -44,10 +44,10 @@ class AppStatusChip extends StatelessWidget {
       'paid', 'valid', 'approved', 'confirmed', 'active', 'completed',
     };
     const dangerSet = {
-      'overdue', 'invalid', 'rejected', 'expired', 'cancelled', 'denied', 'disabled',
+      'overdue', 'invalid', 'rejected', 'expired', 'cancelled', 'denied', 'disabled', 'ended',
     };
     const warningSet = {
-      'pending', 'partial', 'in_progress', 'assigned', 'open', 'dues_cleared',
+      'pending', 'partial', 'in_progress', 'assigned', 'open', 'dues_cleared', 'expiring',
     };
 
     if (successSet.contains(s)) {

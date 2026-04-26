@@ -50,7 +50,7 @@ async function listSocieties({ page = 1, limit = 20, search, status }) {
       select: {
         ...SOCIETY_SELECT,
         _count: { select: { users: true, units: true } },
-        plan: { select: { id: true, name: true, displayName: true, priceMonthly: true, priceYearly: true } },
+        plan: { select: { id: true, name: true, displayName: true, pricePerUnit: true, maxUnits: true, maxUsers: true } },
       },
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * limit,
@@ -79,7 +79,7 @@ async function getSocietyById(id) {
     select: {
       ...SOCIETY_SELECT,
       _count: { select: { users: true, units: true } },
-      plan: { select: { id: true, name: true, displayName: true, priceMonthly: true, priceYearly: true, features: true } },
+      plan: { select: { id: true, name: true, displayName: true, pricePerUnit: true, maxUnits: true, maxUsers: true, features: true } },
       users: {
         where: { role: { in: ['PRAMUKH', 'CHAIRMAN'] }, deletedAt: null },
         select: USER_SELECT_NO_PASSWORD,
@@ -115,7 +115,7 @@ async function createSociety(data) {
       if (!plan) throw Object.assign(new Error('Plan not found'), { status: 400 });
       if (!plan.isActive) throw Object.assign(new Error('Plan is not active'), { status: 400 });
     } else {
-      plan = await tx.plan.findFirst({ where: { isActive: true }, orderBy: { priceMonthly: 'asc' } });
+      plan = await tx.plan.findFirst({ where: { isActive: true }, orderBy: { pricePerUnit: 'asc' } });
       if (!plan) throw Object.assign(new Error('No active plan available'), { status: 400 });
     }
 
@@ -179,13 +179,29 @@ async function updateSociety(id, data) {
 
   // Handle plan change
   if (data.planName) {
-    const plan = await prisma.plan.findUnique({ where: { name: data.planName.toLowerCase() } });
-    if (!plan) throw Object.assign(new Error(`Plan '${data.planName}' not found. Run database seed first.`), { status: 400 });
+    const plan = await prisma.plan.findUnique({ where: { name: String(data.planName).toLowerCase().trim() } });
+    if (!plan) throw Object.assign(new Error(`Plan '${data.planName}' not found.`), { status: 400 });
+    if (!plan.isActive) throw Object.assign(new Error(`Plan '${plan.displayName}' is not active.`), { status: 400 });
+    
+    // Check if society's current unit count fits in new plan
+    const unitCount = await prisma.unit.count({ where: { societyId: id, deletedAt: null } });
+    if (plan.maxUnits !== -1 && unitCount > plan.maxUnits) {
+      throw Object.assign(new Error(`Cannot downgrade to ${plan.displayName}: Society has ${unitCount} units, but plan maximum is ${plan.maxUnits}.`), { status: 400 });
+    }
+
     updateData.planId = plan.id;
     updateData.planStartDate = new Date();
+    
+    // Duration check
+    const duration = data.planDuration || 'MONTHLY';
     const renewal = new Date();
-    renewal.setMonth(renewal.getMonth() + 1);
+    if (duration === 'YEARLY') renewal.setFullYear(renewal.getFullYear() + 1);
+    else if (duration === 'SIX_MONTHS') renewal.setMonth(renewal.getMonth() + 6);
+    else if (duration === 'THREE_MONTHS') renewal.setMonth(renewal.getMonth() + 3);
+    else renewal.setMonth(renewal.getMonth() + 1);
+
     updateData.planRenewalDate = renewal;
+    updateData.planDuration = duration;
   }
 
   return prisma.society.update({

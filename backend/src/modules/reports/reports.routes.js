@@ -16,5 +16,13 @@ const BALANCE_ROLES = ['PRAMUKH', 'CHAIRMAN', 'VICE_CHAIRMAN', 'SECRETARY', 'ASS
 
 router.get('/financial', roleGuard(ADMIN_ROLES), checkPlanLimit('financial_reports'), ctrl.getFinancialReport);
 router.get('/balance', roleGuard(BALANCE_ROLES), checkPlanLimit('financial_reports'), ctrl.getBalanceReport);
+router.get('/ledger', roleGuard(BALANCE_ROLES), checkPlanLimit('financial_reports'), ctrl.getLedgerReport);
+router.post('/ledger/entry', roleGuard(BALANCE_ROLES), checkPlanLimit('financial_reports'), ctrl.createLedgerEntry);
+router.post('/ledger/transfer', roleGuard(BALANCE_ROLES), checkPlanLimit('financial_reports'), ctrl.createLedgerTransfer);
+
+// Dues report — any authenticated user (admins see all, members see own unit)
+router.get('/dues', ctrl.getDuesReport);
+router.post('/dues/remind', roleGuard(ADMIN_ROLES), ctrl.sendDueReminder);
+router.post('/dues/remind-all', roleGuard(ADMIN_ROLES), ctrl.sendBulkDueReminder);
 
 module.exports = router;

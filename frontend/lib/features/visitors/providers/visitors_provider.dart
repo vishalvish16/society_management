@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import '../../../core/providers/dio_provider.dart';
@@ -153,12 +154,118 @@ class VisitorsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
       final dio = ref.read(dioProvider);
       final response = await dio.post('visitors/validate', data: {'qrToken': qrToken});
       if (response.data['success'] == true) {
-        fetchVisitors(); // Refresh list
+        fetchVisitors();
         return null;
       }
       return response.data['message'] ?? 'Invalid QR';
     } on DioException catch (e) {
       return e.response?.data['message'] ?? 'Network error';
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  /// Walk-in log with optional photo file (multipart).
+  Future<String?> logVisitorWithPhoto(Map<String, dynamic> fields, File? photo) async {
+    try {
+      final dio = ref.read(dioProvider);
+      final formData = FormData.fromMap({
+        ...fields,
+        if (photo != null)
+          'photo': await MultipartFile.fromFile(photo.path, filename: 'entry.jpg'),
+      });
+      final response = await dio.post('visitors/log-entry', data: formData);
+      if (response.data['success'] == true) {
+        fetchVisitors();
+        return null;
+      }
+      return response.data['message'] ?? 'Failed to log visitor';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to log visitor';
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  /// Approve or deny a walk-in that is awaiting unit member approval.
+  Future<String?> approveWalkin(String visitorId, String action) async {
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.patch('visitors/$visitorId/approve', data: {'action': action});
+      if (response.data['success'] == true) {
+        fetchVisitors();
+        return null;
+      }
+      return response.data['message'] ?? 'Failed to respond';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to respond';
+    } catch (e) {
+      return e.toString();
+    }
+  }
+}
+
+// ─── Pending approvals provider (for unit members) ───────────────────────────
+
+final pendingWalkinApprovalsProvider =
+    StateNotifierProvider<PendingApprovalsNotifier, AsyncValue<List<dynamic>>>((ref) {
+  final authState = ref.watch(authProvider);
+  return PendingApprovalsNotifier(ref, authState);
+});
+
+class PendingApprovalsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
+  final Ref ref;
+  final AuthState authState;
+  bool _fetchedOnce = false;
+
+  PendingApprovalsNotifier(this.ref, this.authState) : super(const AsyncValue.loading()) {
+    if (authState.isAuthenticated) {
+      // If token isn't ready yet (common when app opens via notification),
+      // wait for auth token then fetch. This prevents a false "Network error".
+      ref.listen<AuthState>(authProvider, (prev, next) {
+        if (!_fetchedOnce && next.isAuthenticated && next.token != null) {
+          fetch();
+        }
+      });
+      if (authState.token != null) {
+        fetch();
+      }
+    } else {
+      state = const AsyncValue.data([]);
+    }
+  }
+
+  Future<void> fetch() async {
+    if (!authState.isAuthenticated) return;
+    if (ref.read(authProvider).token == null) return;
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.get('visitors/pending-approvals');
+      if (response.data['success'] == true) {
+        _fetchedOnce = true;
+        state = AsyncValue.data(List<dynamic>.from(response.data['data'] ?? []));
+      } else {
+        _fetchedOnce = true;
+        state = AsyncValue.data([]);
+      }
+    } on DioException catch (e) {
+      state = AsyncValue.error(e.response?.data['message'] ?? 'Network error', StackTrace.current);
+    } catch (e) {
+      state = AsyncValue.error(e.toString(), StackTrace.current);
+    }
+  }
+
+  Future<String?> approve(String visitorId, String action) async {
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.patch('visitors/$visitorId/approve', data: {'action': action});
+      if (response.data['success'] == true) {
+        fetch();
+        return null;
+      }
+      return response.data['message'] ?? 'Failed to respond';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to respond';
     } catch (e) {
       return e.toString();
     }

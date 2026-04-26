@@ -290,9 +290,9 @@ class _NoticeFormSheetState extends State<_NoticeFormSheet> {
             const SizedBox(height: AppDimensions.xs),
             _textField(_titleCtrl, 'Notice title'),
             const SizedBox(height: AppDimensions.md),
-            _label('Body'),
+            _label('Description'),
             const SizedBox(height: AppDimensions.xs),
-            _textField(_bodyCtrl, 'Notice content...', maxLines: 4),
+            _textField(_bodyCtrl, 'Notice description...', maxLines: 4),
             const SizedBox(height: AppDimensions.md),
             Row(
               children: [
@@ -403,7 +403,7 @@ class _NoticeFormSheetState extends State<_NoticeFormSheet> {
 
   Future<void> _submit() async {
     if (_titleCtrl.text.trim().isEmpty || _bodyCtrl.text.trim().isEmpty) {
-      setState(() => _errorMsg = 'Title and body are required.');
+      setState(() => _errorMsg = 'Title and description are required.');
       return;
     }
     setState(() {
@@ -422,8 +422,9 @@ class _NoticeFormSheetState extends State<_NoticeFormSheet> {
     final error = await widget.onSubmit(data);
     if (mounted) {
       if (error == null) {
+        final messenger = ScaffoldMessenger.of(context);
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        messenger.showSnackBar(SnackBar(
           content: Text(widget.existing != null ? 'Notice updated.' : 'Notice posted.'),
           backgroundColor: AppColors.success,
         ));

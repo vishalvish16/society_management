@@ -5,6 +5,7 @@ import '../models/user_model.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_colors.dart';
 import '../../shared/widgets/confirm_logout.dart';
+import '../../features/settings/providers/permissions_provider.dart';
 
 class SMShell extends ConsumerStatefulWidget {
   final Widget child;
@@ -18,40 +19,67 @@ class _SMShellState extends ConsumerState<SMShell> {
   int _selectedIndex = 0;
   final _scaffoldKey = GlobalKey<ScaffoldState>();
 
+  // Backend configurable roles: only these should be affected by Settings -> Permissions toggles.
+  // Matches backend `CONFIGURABLE_ROLES` list in `settings.controller.js`.
+  static const _permissionControlledRoles = {
+    'PRAMUKH',
+    'CHAIRMAN',
+    'SECRETARY',
+    'MANAGER',
+    'VICE_CHAIRMAN',
+    'ASSISTANT_SECRETARY',
+    'TREASURER',
+    'ASSISTANT_TREASURER',
+    'MEMBER',
+    'RESIDENT',
+    'WATCHMAN',
+  };
+
   // Full nav for Chairman / Secretary / Manager.
   // featureKey: must match a key in plan.features (null = always visible regardless of plan).
   static const _allNavItems = [
-    _NavItem(icon: Icons.dashboard_rounded,              label: 'Dashboard',      path: '/dashboard',        group: 'Main'),
-    _NavItem(icon: Icons.apartment_rounded,              label: 'Units',          path: '/units',            group: 'Main'),
-    _NavItem(icon: Icons.people_rounded,                 label: 'Members',        path: '/members',          group: 'Main'),
-    _NavItem(icon: Icons.receipt_long_rounded,           label: 'Bills',          path: '/bills',            group: 'Finance'),
-    _NavItem(icon: Icons.account_balance_wallet_rounded, label: 'Expenses',       path: '/expenses',         group: 'Finance',  featureKey: 'expenses'),
-    _NavItem(icon: Icons.volunteer_activism_rounded,     label: 'Donations',      path: '/donations',        group: 'Finance',  featureKey: 'donations'),
-    _NavItem(icon: Icons.balance_rounded,                label: 'Balance Report', path: '/reports/balance',  group: 'Finance',  featureKey: 'financial_reports'),
-    _NavItem(icon: Icons.person_pin_circle_rounded,      label: 'Visitors',       path: '/visitors',         group: 'Security', featureKey: 'visitors'),
-    _NavItem(icon: Icons.badge_rounded,                  label: 'Gate Passes',    path: '/gatepasses',       group: 'Security', featureKey: 'gate_passes'),
-    _NavItem(icon: Icons.directions_car_rounded,         label: 'Vehicles',       path: '/vehicles',         group: 'Security'),
-    _NavItem(icon: Icons.report_problem_rounded,         label: 'Complaints',     path: '/complaints',       group: 'Society'),
-    _NavItem(icon: Icons.campaign_rounded,               label: 'Notices',        path: '/notices',          group: 'Society'),
-    _NavItem(icon: Icons.sports_basketball_rounded,      label: 'Amenities',      path: '/amenities',        group: 'Society',  featureKey: 'amenities'),
-    _NavItem(icon: Icons.support_agent_rounded,          label: 'Staff',          path: '/staff',            group: 'Society'),
-    _NavItem(icon: Icons.local_shipping_rounded,         label: 'Deliveries',     path: '/deliveries',       group: 'Society',  featureKey: 'delivery_tracking'),
-    _NavItem(icon: Icons.cleaning_services_rounded,      label: 'Domestic Help',  path: '/domestichelp',     group: 'Society',  featureKey: 'domestic_help'),
-    _NavItem(icon: Icons.notifications_rounded,          label: 'Notifications',  path: '/notifications',    group: 'More'),
+    _NavItem(icon: Icons.dashboard_rounded,              label: 'Dashboard',      path: '/dashboard',        group: 'Main',    permissionKey: 'dashboard'),
+    _NavItem(icon: Icons.apartment_rounded,              label: 'Units',          path: '/units',            group: 'Main',    permissionKey: 'units'),
+    _NavItem(icon: Icons.key_rounded,                    label: 'Rentals',        path: '/rentals',          group: 'Main'),
+    _NavItem(icon: Icons.people_rounded,                 label: 'Members',        path: '/members',          group: 'Main',    permissionKey: 'members'),
+    _NavItem(icon: Icons.receipt_long_rounded,           label: 'Bills',          path: '/bills',            group: 'Finance', permissionKey: 'bills'),
+    _NavItem(icon: Icons.account_balance_wallet_rounded, label: 'Expenses',       path: '/expenses',         group: 'Finance', permissionKey: 'expenses', featureKey: 'expenses'),
+    _NavItem(icon: Icons.volunteer_activism_rounded,     label: 'Donations',      path: '/donations',        group: 'Finance', permissionKey: 'donations', featureKey: 'donations'),
+    _NavItem(icon: Icons.balance_rounded,                label: 'Balance Report', path: '/reports/balance',  group: 'Finance', permissionKey: 'balance_report', featureKey: 'financial_reports'),
+    _NavItem(icon: Icons.assignment_late_rounded,         label: 'Pending Dues',   path: '/reports/dues',     group: 'Finance', permissionKey: 'pending_dues'),
+    _NavItem(icon: Icons.person_pin_circle_rounded,      label: 'Visitors',       path: '/visitors',         group: 'Security', permissionKey: 'visitors', featureKey: 'visitors'),
+    _NavItem(icon: Icons.badge_rounded,                  label: 'Gate Passes',    path: '/gatepasses',       group: 'Security', permissionKey: 'gate_passes', featureKey: 'gate_passes'),
+    _NavItem(icon: Icons.directions_car_rounded,         label: 'Vehicles',       path: '/vehicles',         group: 'Security', permissionKey: 'vehicles'),
+    _NavItem(icon: Icons.local_parking_rounded,          label: 'Parking',        path: '/parking',          group: 'Security', permissionKey: 'parking', featureKey: 'parking_management'),
+    _NavItem(icon: Icons.report_problem_rounded,         label: 'Complaints',     path: '/complaints',       group: 'Society', permissionKey: 'complaints'),
+    _NavItem(icon: Icons.lightbulb_rounded,              label: 'Suggestions',   path: '/suggestions',      group: 'Society', permissionKey: 'suggestions'),
+    _NavItem(icon: Icons.campaign_rounded,               label: 'Notices',        path: '/notices',          group: 'Society', permissionKey: 'notices'),
+    _NavItem(icon: Icons.how_to_vote_rounded,            label: 'Polls',          path: '/polls',            group: 'Society', permissionKey: 'polls'),
+    _NavItem(icon: Icons.event_rounded,                   label: 'Events',         path: '/events',           group: 'Society', permissionKey: 'events'),
+    _NavItem(icon: Icons.task_alt_rounded,                 label: 'Tasks',          path: '/tasks',            group: 'Society'),
+    _NavItem(icon: Icons.gavel_rounded,                   label: 'Rules',          path: '/rules',            group: 'Society'),
+    _NavItem(icon: Icons.inventory_2_rounded,              label: 'Assets',         path: '/assets',           group: 'Society', featureKey: 'asset_management'),
+    _NavItem(icon: Icons.sports_basketball_rounded,      label: 'Amenities',      path: '/amenities',        group: 'Society', permissionKey: 'amenities', featureKey: 'amenities'),
+    _NavItem(icon: Icons.support_agent_rounded,          label: 'Staff',          path: '/staff',            group: 'Society', permissionKey: 'staff'),
+    _NavItem(icon: Icons.local_shipping_rounded,         label: 'Deliveries',     path: '/deliveries',       group: 'Society', permissionKey: 'deliveries', featureKey: 'delivery_tracking'),
+    _NavItem(icon: Icons.cleaning_services_rounded,      label: 'Domestic Help',  path: '/domestichelp',     group: 'Society', permissionKey: 'domestic_help', featureKey: 'domestic_help'),
+    _NavItem(icon: Icons.chat_rounded,                   label: 'Messages',       path: '/chat',             group: 'More',    permissionKey: 'chat'),
+    _NavItem(icon: Icons.notifications_rounded,          label: 'Notifications',  path: '/notifications',    group: 'More',    permissionKey: 'notifications'),
     _NavItem(icon: Icons.settings_rounded,               label: 'Settings',       path: '/settings',         group: 'More'),
   ];
 
   // Paths hidden for member/resident roles — they see their unit in sidebar instead
-  static const _memberHiddenPaths = {'/units', '/reports/balance'};
+  static const _memberHiddenPaths = {'/units', '/rentals', '/reports/balance'};
 
   // Watchman sees only gate-related screens
   static const _watchmanNavItems = [
-    _NavItem(icon: Icons.grid_view_rounded,          label: 'Dashboard',     path: '/dashboard',    group: 'Main'),
-    _NavItem(icon: Icons.person_pin_circle_rounded,  label: 'Visitors',      path: '/visitors',     group: 'Gate', featureKey: 'visitors'),
-    _NavItem(icon: Icons.badge_rounded,              label: 'Gate Passes',   path: '/gatepasses',   group: 'Gate', featureKey: 'gate_passes'),
-    _NavItem(icon: Icons.local_shipping_rounded,     label: 'Deliveries',    path: '/deliveries',   group: 'Gate', featureKey: 'delivery_tracking'),
-    _NavItem(icon: Icons.cleaning_services_rounded,  label: 'Domestic Help', path: '/domestichelp', group: 'Gate', featureKey: 'domestic_help'),
-    _NavItem(icon: Icons.notifications_rounded,      label: 'Notifications', path: '/notifications',group: 'More'),
+    _NavItem(icon: Icons.grid_view_rounded,          label: 'Dashboard',     path: '/dashboard',    group: 'Main', permissionKey: 'dashboard'),
+    _NavItem(icon: Icons.person_pin_circle_rounded,  label: 'Visitors',      path: '/visitors',     group: 'Gate', permissionKey: 'visitors', featureKey: 'visitors'),
+    _NavItem(icon: Icons.badge_rounded,              label: 'Gate Passes',   path: '/gatepasses',   group: 'Gate', permissionKey: 'gate_passes', featureKey: 'gate_passes'),
+    _NavItem(icon: Icons.local_parking_rounded,      label: 'Parking',       path: '/parking',      group: 'Gate', permissionKey: 'parking', featureKey: 'parking_management'),
+    _NavItem(icon: Icons.local_shipping_rounded,     label: 'Deliveries',    path: '/deliveries',   group: 'Gate', permissionKey: 'deliveries', featureKey: 'delivery_tracking'),
+    _NavItem(icon: Icons.cleaning_services_rounded,  label: 'Domestic Help', path: '/domestichelp', group: 'Gate', permissionKey: 'domestic_help', featureKey: 'domestic_help'),
+    _NavItem(icon: Icons.notifications_rounded,      label: 'Notifications', path: '/notifications',group: 'More', permissionKey: 'notifications'),
   ];
 
   static const _watchmanBottomItems = [
@@ -64,25 +92,56 @@ class _SMShellState extends ConsumerState<SMShell> {
 
   // Bottom nav shows the most-used 5 items on mobile
   static const _mobileBottomItems = [
-    _NavItem(icon: Icons.dashboard_rounded,      label: 'Home',    path: '/dashboard'),
-    _NavItem(icon: Icons.people_rounded,         label: 'Members', path: '/members'),
-    _NavItem(icon: Icons.receipt_long_rounded,   label: 'Bills',   path: '/bills'),
-    _NavItem(icon: Icons.report_problem_rounded, label: 'Issues',  path: '/complaints'),
-    _NavItem(icon: Icons.menu_rounded,           label: 'More',    path: '__menu__'),
+    _NavItem(icon: Icons.dashboard_rounded,      label: 'Home',     path: '/dashboard'),
+    _NavItem(icon: Icons.receipt_long_rounded,   label: 'Bills',    path: '/bills'),
+    _NavItem(icon: Icons.chat_rounded,           label: 'Messages', path: '/chat'),
+    _NavItem(icon: Icons.report_problem_rounded, label: 'Issues',   path: '/complaints'),
+    _NavItem(icon: Icons.menu_rounded,           label: 'More',     path: '__menu__'),
   ];
 
-  List<_NavItem> _visibleNavItems(String role, bool isUnitLocked, UserModel? user) {
-    if (role.toUpperCase() == 'WATCHMAN') return _watchmanNavItems;
+  bool _allowed(
+    _NavItem n,
+    UserModel? user,
+    Map<String, bool>? rolePerms,
+  ) {
+    // Role permissions (Admin toggles).
+    if (n.permissionKey != null) {
+      if (user?.isSuperAdmin == true) return true;
+      final roleKey = (user?.role ?? '').toUpperCase();
+      // Only enforce for roles that are actually configurable in the backend.
+      if (!_permissionControlledRoles.contains(roleKey)) return true;
+      // For permission-controlled roles, keep Dashboard accessible even while permissions are loading.
+      if (n.permissionKey == 'dashboard') return true;
+      // Deny-by-default until loaded to avoid flashing restricted items.
+      if (rolePerms == null) return false;
+      if (rolePerms[n.permissionKey!] != true) return false;
+    }
+
+    // Plan features (subscription plan).
+    if (n.featureKey == null) return true;
+    return user?.hasFeature(n.featureKey!) ?? false;
+  }
+
+  List<_NavItem> _visibleNavItems(
+    String role,
+    bool isUnitLocked,
+    UserModel? user,
+    Map<String, bool>? rolePerms,
+  ) {
+    if (role.toUpperCase() == 'WATCHMAN') {
+      return _watchmanNavItems.where((n) => _allowed(n, user, rolePerms)).toList();
+    }
     return _allNavItems.where((n) {
       if (isUnitLocked && _memberHiddenPaths.contains(n.path)) return false;
-      if (n.featureKey != null && !(user?.hasFeature(n.featureKey!) ?? false)) return false;
-      return true;
+      return _allowed(n, user, rolePerms);
     }).toList();
   }
 
-  List<_NavItem> _bottomItems(String role) {
-    if (role.toUpperCase() == 'WATCHMAN') return _watchmanBottomItems;
-    return _mobileBottomItems;
+  List<_NavItem> _bottomItems(String role, UserModel? user, Map<String, bool>? rolePerms) {
+    if (role.toUpperCase() == 'WATCHMAN') {
+      return _watchmanBottomItems.where((n) => _allowed(n, user, rolePerms)).toList();
+    }
+    return _mobileBottomItems.where((n) => _allowed(n, user, rolePerms)).toList();
   }
 
   void _onNavTap(int index, List<_NavItem> navItems) {
@@ -117,7 +176,10 @@ class _SMShellState extends ConsumerState<SMShell> {
     final authState = ref.read(authProvider);
     final role = authState.user?.role ?? '';
     final isUnitLocked = authState.user?.isUnitLocked ?? false;
-    final navItems = _visibleNavItems(role, isUnitLocked, authState.user);
+    final permsAsync = ref.read(rolePermissionsProvider);
+    final roleKey = role.toUpperCase();
+    final rolePerms = permsAsync.valueOrNull?.rolePermissions[roleKey];
+    final navItems = _visibleNavItems(role, isUnitLocked, authState.user, rolePerms);
     final location = GoRouterState.of(context).uri.toString();
     for (int i = 0; i < navItems.length; i++) {
       if (location == navItems[i].path ||
@@ -133,10 +195,29 @@ class _SMShellState extends ConsumerState<SMShell> {
     final authState = ref.watch(authProvider);
     final role = authState.user?.role ?? '';
     final isUnitLocked = authState.user?.isUnitLocked ?? false;
-    final navItems = _visibleNavItems(role, isUnitLocked, authState.user);
-    final bottomItems = _bottomItems(role);
-    final safeIndex = _selectedIndex.clamp(0, navItems.length - 1);
+
+    final permsAsync = ref.watch(rolePermissionsProvider);
+    final roleKey = role.toUpperCase();
+    final rolePerms = permsAsync.valueOrNull?.rolePermissions[roleKey];
+
+    final navItems = _visibleNavItems(role, isUnitLocked, authState.user, rolePerms);
+    final bottomItems = _bottomItems(role, authState.user, rolePerms);
+    final safeIndex = navItems.isEmpty ? 0 : _selectedIndex.clamp(0, navItems.length - 1);
     final isWide = MediaQuery.of(context).size.width >= 900;
+
+    if (navItems.isEmpty) {
+      // This should only happen briefly while role permissions are loading.
+      // Still render the current route content.
+      return Scaffold(
+        key: _scaffoldKey,
+        body: Row(
+          children: [
+            if (isWide) const SizedBox.shrink(),
+            Expanded(child: widget.child),
+          ],
+        ),
+      );
+    }
 
     return Scaffold(
       key: _scaffoldKey,
@@ -584,5 +665,17 @@ class _NavItem {
   /// If set, this nav item is only shown when the society plan includes this feature.
   /// null means always visible.
   final String? featureKey;
-  const _NavItem({required this.icon, required this.label, required this.path, this.group, this.featureKey});
+
+  /// If set, this nav item is only shown when the Admin has enabled this feature for the user's role.
+  /// Keys match backend `settings/permissions` feature keys.
+  final String? permissionKey;
+
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    required this.path,
+    this.group,
+    this.featureKey,
+    this.permissionKey,
+  });
 }

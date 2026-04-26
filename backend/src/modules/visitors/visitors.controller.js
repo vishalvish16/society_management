@@ -8,6 +8,10 @@ const { getVisitorQrMaxHrs } = require('../../utils/platformSettings');
 async function getVisitors(req, res) {
   try {
     const filters = req.query;
+    // Residents/Members should only see their active unit's visitors (server-side enforced).
+    if (req.user?.unitId && (req.user.role === 'RESIDENT' || req.user.role === 'MEMBER')) {
+      filters.unitId = req.user.unitId;
+    }
     const result = await visitorsService.listVisitors(req.user.societyId, filters);
     return sendSuccess(res, result, 'Visitors retrieved successfully');
   } catch (error) {
@@ -197,13 +201,103 @@ async function logWalkin(req, res) {
       return sendError(res, 'Unit ID, visitor name, and phone are required', 400);
     }
 
+    const entryPhotoUrl = req.file
+      ? `/uploads/visitors/${req.file.filename}`
+      : null;
+
     const log = await visitorsService.logWalkinEntry(req.user.id, req.user.societyId, {
-      unitId, visitorName, visitorPhone, numberOfAdults, description, noteForWatchman
+      unitId, visitorName, visitorPhone, numberOfAdults, description, noteForWatchman, entryPhotoUrl,
     });
 
     return sendSuccess(res, log, 'Visitor entry logged successfully', 201);
   } catch (error) {
     console.error('Log walk-in error:', error.message);
+    return sendError(res, error.message, error.status || 500);
+  }
+}
+
+async function approveWalkin(req, res) {
+  try {
+    const { id } = req.params;
+    const { action } = req.body; // 'APPROVED' | 'DENIED'
+    const { societyId, id: userId } = req.user;
+    const prisma = require('../../config/db');
+    const notificationsService = require('../notifications/notifications.service');
+
+    const upper = (action || '').toUpperCase();
+    if (!['APPROVED', 'DENIED'].includes(upper)) {
+      return sendError(res, 'action must be APPROVED or DENIED', 400);
+    }
+
+    const visitor = await prisma.visitor.findUnique({
+      where: { id },
+      include: { unit: { select: { fullCode: true } } },
+    });
+    if (!visitor || visitor.societyId !== societyId) {
+      return sendError(res, 'Visitor not found', 404);
+    }
+    if (visitor.approvalStatus !== 'AWAITING') {
+      return sendError(res, 'Visitor approval already resolved', 400);
+    }
+
+    const updated = await prisma.visitor.update({
+      where: { id },
+      data: { approvalStatus: upper, approvedById: userId, approvedAt: new Date() },
+    });
+
+    // Notify watchman via socket + push
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`society_${societyId}_watchman`).emit('visitor_approval', {
+        visitorId: id,
+        visitorName: visitor.visitorName,
+        unitCode: visitor.unit?.fullCode,
+        action: upper,
+        respondedBy: userId,
+      });
+    }
+
+    // Push to watchman role
+    setImmediate(() => notificationsService.sendNotification(userId, societyId, {
+      targetType: 'role',
+      targetId: 'WATCHMAN',
+      title: upper === 'APPROVED' ? '✅ Visitor Approved' : '❌ Visitor Denied',
+      body: `${visitor.visitorName} at the gate has been ${upper.toLowerCase()} by Unit ${visitor.unit?.fullCode}.`,
+      type: 'VISITOR',
+      route: '/visitors',
+    }));
+
+    return sendSuccess(res, updated, `Visitor ${upper.toLowerCase()} successfully`);
+  } catch (error) {
+    console.error('Approve walk-in error:', error.message);
+    return sendError(res, error.message, error.status || 500);
+  }
+}
+
+async function getPendingApprovals(req, res) {
+  try {
+    const { societyId, id: userId, unitId: activeUnitId } = req.user;
+    const prisma = require('../../config/db');
+
+    const unitIds = activeUnitId
+      ? [activeUnitId]
+      : (await prisma.unitResident.findMany({
+          where: { userId, unit: { societyId } },
+          select: { unitId: true },
+        })).map(ur => ur.unitId);
+
+    const visitors = await prisma.visitor.findMany({
+      where: {
+        societyId,
+        unitId: { in: unitIds },
+        approvalStatus: 'AWAITING',
+      },
+      orderBy: { createdAt: 'desc' },
+      include: { unit: { select: { fullCode: true } } },
+    });
+
+    return sendSuccess(res, visitors, 'Pending approvals retrieved');
+  } catch (error) {
     return sendError(res, error.message, error.status || 500);
   }
 }
@@ -251,4 +345,6 @@ module.exports = {
   getTodayVisitorLog,
   logWalkin,
   getVisitorConfig,
+  approveWalkin,
+  getPendingApprovals,
 };

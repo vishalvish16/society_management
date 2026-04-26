@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimensions.dart';
@@ -189,9 +190,11 @@ class _NotificationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final route = n.tapRoute;
     return AppCard(
       padding: const EdgeInsets.all(AppDimensions.md),
       leftBorderColor: _typeColor,
+      onTap: route != null ? () => context.go(route) : null,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -211,6 +214,7 @@ class _NotificationCard extends StatelessWidget {
           const SizedBox(width: AppDimensions.md),
           Expanded(
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
@@ -551,8 +555,9 @@ class _SendNotificationSheetState
     );
 
     if (ok && mounted) {
+      final messenger = ScaffoldMessenger.of(context);
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
           content: const Text('Notification sent successfully'),
           backgroundColor: AppColors.success,

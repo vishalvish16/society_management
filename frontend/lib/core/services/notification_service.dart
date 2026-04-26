@@ -24,6 +24,13 @@ const _channel = AndroidNotificationChannel(
   importance: Importance.high,
 );
 
+const _sosChannel = AndroidNotificationChannel(
+  'society_sos_alerts',
+  'SOS Alerts',
+  description: 'Full-screen emergency SOS alerts.',
+  importance: Importance.max,
+);
+
 final _localNotifications = FlutterLocalNotificationsPlugin();
 
 final notificationServiceProvider = Provider((ref) => NotificationService(ref));
@@ -54,6 +61,10 @@ class NotificationService {
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>()
           ?.createNotificationChannel(_channel);
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(_sosChannel);
     }
 
     // 3. Init flutter_local_notifications (needed to show heads-up on foreground)
@@ -122,34 +133,83 @@ class NotificationService {
   }
 
   void _showLocalNotification(RemoteMessage message) {
-    final notification = message.notification;
-    if (notification == null) return;
+    final data = message.data;
+    final type = (data['type'] as String?) ?? '';
+    final route = data['route'] as String?;
 
-    final route = message.data['route'] as String?;
+    // Some pushes may be data-only; fall back to data title/body.
+    final notification = message.notification;
+    final title = notification?.title ?? (data['title'] as String?) ?? 'Alert';
+    final body = notification?.body ?? (data['body'] as String?) ?? '';
+
+    final isSos = type.toUpperCase() == 'SOS';
+
+    final sosRoute = (route != null && route.isNotEmpty)
+        ? route
+        : _buildSosRouteFromData(data);
+    final payload = isSos ? sosRoute : route;
 
     _localNotifications.show(
-      notification.hashCode,
-      notification.title,
-      notification.body,
+      (notification?.hashCode ?? DateTime.now().millisecondsSinceEpoch ~/ 1000),
+      title,
+      body,
       NotificationDetails(
         android: AndroidNotificationDetails(
-          _channel.id,
-          _channel.name,
-          channelDescription: _channel.description,
-          importance: Importance.high,
-          priority: Priority.high,
+          isSos ? _sosChannel.id : _channel.id,
+          isSos ? _sosChannel.name : _channel.name,
+          channelDescription: isSos ? _sosChannel.description : _channel.description,
+          importance: isSos ? Importance.max : Importance.high,
+          priority: isSos ? Priority.max : Priority.high,
           icon: '@mipmap/ic_launcher',
+          category: isSos ? AndroidNotificationCategory.call : null,
+          fullScreenIntent: isSos,
+          ongoing: isSos,
+          autoCancel: !isSos,
+          enableVibration: true,
         ),
-        iOS: const DarwinNotificationDetails(),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentSound: true,
+          interruptionLevel: isSos ? InterruptionLevel.critical : InterruptionLevel.active,
+        ),
       ),
-      payload: route,
+      payload: payload,
     );
+
+    // Foreground: immediately navigate to SOS screen too (call-like).
+    if (isSos && payload != null && payload.isNotEmpty) {
+      Future.microtask(() => ref.read(appRouterProvider).go(payload));
+    }
   }
 
   void _handleNavigation(Map<String, dynamic> data) {
+    final type = (data['type'] as String?) ?? '';
+    final isSos = type.toUpperCase() == 'SOS';
     final route = data['route'] as String?;
-    if (route != null && route.isNotEmpty) {
-      ref.read(appRouterProvider).go(route);
+    final target = isSos
+        ? ((route != null && route.isNotEmpty) ? route : _buildSosRouteFromData(data))
+        : route;
+    if (target != null && target.isNotEmpty) {
+      ref.read(appRouterProvider).go(target);
     }
+  }
+
+  String _buildSosRouteFromData(Map<String, dynamic> data) {
+    final unitId = (data['unitId'] as String?) ?? '';
+    final unitCode = (data['unitCode'] as String?) ?? '';
+    final actorName = (data['actorName'] as String?) ?? '';
+    final actorRole = (data['actorRole'] as String?) ?? '';
+    final message = (data['message'] as String?) ?? '';
+    final notificationId = (data['notificationId'] as String?) ?? '';
+    final qp = <String, String>{
+      if (unitId.isNotEmpty) 'unitId': unitId,
+      if (unitCode.isNotEmpty) 'unitCode': unitCode,
+      if (actorName.isNotEmpty) 'actorName': actorName,
+      if (actorRole.isNotEmpty) 'actorRole': actorRole,
+      if (message.isNotEmpty) 'message': message,
+      if (notificationId.isNotEmpty) 'notificationId': notificationId,
+    };
+    final qs = qp.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}').join('&');
+    return qs.isEmpty ? '/sos' : '/sos?$qs';
   }
 }

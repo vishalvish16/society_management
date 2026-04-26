@@ -51,6 +51,10 @@ exports.getStats = async (req, res) => {
         activeCampaigns,
         incomeTrends,
         visitorDailyTrends,
+        parkingSlotTotal,
+        parkingSlotOccupied,
+        activeParkingSessions,
+        pendingParkingCharges,
       ] = await Promise.all([
         prisma.unit.count({ where: { societyId, deletedAt: null } }),
         prisma.unit.count({ where: { societyId, status: 'OCCUPIED', deletedAt: null } }),
@@ -103,6 +107,11 @@ exports.getStats = async (req, res) => {
           where: { societyId, createdAt: { gte: sixDaysAgo } },
           select: { createdAt: true },
         }),
+        // Parking snapshot
+        prisma.parkingSlot.count({ where: { societyId, isActive: true } }),
+        prisma.parkingSlot.count({ where: { societyId, isActive: true, status: 'OCCUPIED' } }),
+        prisma.parkingSession.count({ where: { societyId, status: 'ACTIVE' } }),
+        prisma.maintenanceBill.count({ where: { societyId, category: 'PARKING', status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] }, deletedAt: null } }),
       ]);
 
       const societyIncome = Number(totalBillIncome._sum.paidAmount || 0) + Number(totalDonations._sum.amount || 0);
@@ -159,15 +168,23 @@ exports.getStats = async (req, res) => {
         },
         activeCampaigns: activeCampaigns
           .filter(c => c.donations.length === 0)
-          .map(c => ({
-            ...c,
-            hasPaid: false,
-          })),
+          .map(c => ({ ...c, hasPaid: false })),
+        parking: {
+          totalSlots: parkingSlotTotal,
+          occupiedSlots: parkingSlotOccupied,
+          availableSlots: parkingSlotTotal - parkingSlotOccupied,
+          occupancyPercent: parkingSlotTotal > 0
+            ? Math.round((parkingSlotOccupied / parkingSlotTotal) * 100) : 0,
+          activeSessions: activeParkingSessions,
+          pendingCharges: pendingParkingCharges,
+        },
       });
     }
 
     // ── RESIDENT ─────────────────────────────────────────────────────────
     if (role === 'RESIDENT') {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
       const myUnit = await prisma.unitResident.findFirst({
         where: { userId },
         select: {
@@ -176,8 +193,23 @@ exports.getStats = async (req, res) => {
             select: {
               id: true, fullCode: true,
               bills: {
-                where: { status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] } },
-                select: { id: true, totalDue: true, paidAmount: true, billingMonth: true, dueDate: true, status: true },
+                // Only upcoming/unpaid bills (exclude overdue from "pending" area)
+                where: {
+                  status: { in: ['PENDING', 'PARTIAL'] },
+                  dueDate: { gte: todayStart },
+                  deletedAt: null,
+                },
+                select: {
+                  id: true,
+                  totalDue: true,
+                  paidAmount: true,
+                  billingMonth: true,
+                  dueDate: true,
+                  status: true,
+                  title: true,
+                  description: true,
+                  category: true,
+                },
                 orderBy: { billingMonth: 'desc' },
                 take: 3,
               },
@@ -233,16 +265,19 @@ exports.getStats = async (req, res) => {
       const now = new Date();
       const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-      const [todayVisitors, pendingDeliveries, activeGatePasses] = await Promise.all([
+      const [todayVisitors, pendingDeliveries, activeGatePasses, activeParkingSessions, overstayedSessions] = await Promise.all([
         prisma.visitorLog.count({ where: { visitor: { societyId }, scannedAt: { gte: startOfDay } } }),
         prisma.delivery.count({ where: { societyId, status: 'PENDING' } }),
         prisma.gatePass.count({ where: { societyId, status: 'ACTIVE' } }),
+        prisma.parkingSession.count({ where: { societyId, status: 'ACTIVE' } }),
+        prisma.parkingSession.count({ where: { societyId, status: 'OVERSTAYED' } }),
       ]);
 
       return sendSuccess(res, {
         todayVisitorScans: todayVisitors,
         pendingDeliveries,
         activeGatePasses,
+        parking: { activeSessions: activeParkingSessions, overstayed: overstayedSessions },
       });
     }
 

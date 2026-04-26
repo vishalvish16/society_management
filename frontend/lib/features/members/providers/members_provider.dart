@@ -1,7 +1,47 @@
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import '../../../core/providers/dio_provider.dart';
 import '../../../core/providers/auth_provider.dart';
+
+class HouseholdMember {
+  final String? id;
+  final String name;
+  final String relation;
+  final int? age;
+  final String? gender;
+  final String? phone;
+  final bool isAdult;
+
+  const HouseholdMember({
+    this.id,
+    required this.name,
+    required this.relation,
+    this.age,
+    this.gender,
+    this.phone,
+    this.isAdult = true,
+  });
+
+  factory HouseholdMember.fromJson(Map<String, dynamic> j) => HouseholdMember(
+        id: j['id'],
+        name: j['name'] ?? '',
+        relation: j['relation'] ?? 'OTHER',
+        age: j['age'],
+        gender: j['gender'],
+        phone: j['phone'],
+        isAdult: j['isAdult'] ?? true,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'relation': relation,
+        if (age != null) 'age': age,
+        if (gender != null) 'gender': gender,
+        if (phone != null && phone!.isNotEmpty) 'phone': phone,
+        'isAdult': isAdult,
+      };
+}
 
 class Member {
   final String id;
@@ -12,6 +52,8 @@ class Member {
   final String? unitId;
   final String unitCode;
   final bool isActive;
+  final int? householdMemberCount;
+  final List<HouseholdMember> householdMembers;
 
   const Member({
     required this.id,
@@ -22,12 +64,18 @@ class Member {
     this.unitId,
     required this.unitCode,
     required this.isActive,
+    this.householdMemberCount,
+    this.householdMembers = const [],
   });
 
   factory Member.fromJson(Map<String, dynamic> j) {
     final unitResident = (j['unitResidents'] as List?)?.isNotEmpty == true
         ? j['unitResidents'][0]
         : null;
+    final hh = (j['householdMembers'] as List?)
+            ?.map((e) => HouseholdMember.fromJson(e))
+            .toList() ??
+        const <HouseholdMember>[];
     return Member(
       id: j['id'] ?? '',
       name: j['name'] ?? '',
@@ -37,6 +85,8 @@ class Member {
       unitId: unitResident?['unit']?['id'],
       unitCode: unitResident?['unit']?['fullCode'] ?? '',
       isActive: j['isActive'] ?? true,
+      householdMemberCount: j['householdMemberCount'],
+      householdMembers: hh,
     );
   }
 }
@@ -133,6 +183,9 @@ class MembersNotifier extends StateNotifier<AsyncValue<List<Member>>> {
   Future<String?> createMember(Map<String, dynamic> data) async {
     try {
       final dio = ref.read(dioProvider);
+      if (data['householdMembers'] is List) {
+        data['householdMembers'] = jsonEncode(data['householdMembers']);
+      }
       final response = await dio.post('members', data: data);
       if (response.data['success'] == true) {
         loadMembers();
@@ -149,6 +202,9 @@ class MembersNotifier extends StateNotifier<AsyncValue<List<Member>>> {
   Future<String?> updateMember(String id, Map<String, dynamic> data) async {
     try {
       final dio = ref.read(dioProvider);
+      if (data['householdMembers'] is List) {
+        data['householdMembers'] = jsonEncode(data['householdMembers']);
+      }
       final response = await dio.patch('members/$id', data: data);
       if (response.data['success'] == true) {
         loadMembers();

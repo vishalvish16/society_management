@@ -6,6 +6,34 @@ import '../../../core/theme/app_text_styles.dart';
 import '../providers/plans_provider.dart';
 import '../../../shared/widgets/show_app_dialog.dart';
 
+Map<String, dynamic> _normalizePlanFeatures(
+  dynamic raw, {
+  Map<String, dynamic>? fallback,
+}) {
+  if (raw is Map) {
+    return Map<String, dynamic>.from(raw);
+  }
+
+  if (raw is List) {
+    final out = <String, dynamic>{};
+    for (final item in raw) {
+      if (item is String) {
+        out[item] = true;
+        continue;
+      }
+      if (item is Map) {
+        final key = item['key'] ?? item['name'] ?? item['code'] ?? item['id'];
+        if (key == null) continue;
+        final enabled = item['enabled'] ?? item['value'] ?? true;
+        out[key.toString()] = enabled == true;
+      }
+    }
+    return out;
+  }
+
+  return fallback ?? <String, dynamic>{};
+}
+
 class PlansScreen extends ConsumerStatefulWidget {
   const PlansScreen({super.key});
 
@@ -129,13 +157,16 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     final residentsC = TextEditingController(text: plan?['maxResidents']?.toString() ?? '');
     final watchmenC = TextEditingController(text: plan?['maxWatchmen']?.toString() ?? '2');
     String code = plan?['name'] ?? 'basic';
-    Map<String, dynamic> features = Map<String, dynamic>.from(plan?['features'] ?? {
-      'whatsapp': true,
-      'visitor_qr': false,
-      'pdf_receipts': false,
-      'expense_approval': false,
-      'attachments_count': false,
-    });
+    Map<String, dynamic> features = _normalizePlanFeatures(
+      plan?['features'],
+      fallback: {
+        'whatsapp': true,
+        'visitor_qr': false,
+        'pdf_receipts': false,
+        'expense_approval': false,
+        'attachments_count': false,
+      },
+    );
 
     showModalBottomSheet(
       context: context,
@@ -413,7 +444,7 @@ class _PlanCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isActive = plan['isActive'] == true;
-    final features = plan['features'] as Map<String, dynamic>? ?? {};
+    final features = _normalizePlanFeatures(plan['features']);
     final subCount = plan['societyCount'] ?? 0;
     final name = plan['name']?.toString().toUpperCase() ?? '';
     final displayName = plan['displayName'] ?? (name.isNotEmpty ? name : 'PLAN');

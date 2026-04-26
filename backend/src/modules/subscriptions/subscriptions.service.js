@@ -1,4 +1,5 @@
 const prisma = require('../../config/db');
+const { computeSubscriptionAmount, normalizeDuration } = require('../../config/planConfig');
 
 const PAYMENT_SELECT = {
   id: true,
@@ -117,17 +118,25 @@ async function assignPlan({ societyId, planName, amount, paymentMethod, referenc
     const society = await tx.society.findUnique({ where: { id: societyId }, select: { id: true } });
     if (!society) throw Object.assign(new Error('Society not found'), { status: 404 });
 
+    const unitCount = await tx.unit.count({ where: { societyId, deletedAt: null } });
+    if (plan.maxUnits !== -1 && unitCount > plan.maxUnits) {
+      throw Object.assign(
+        new Error(`Cannot assign ${plan.displayName}: Society has ${unitCount} units, but plan maximum is ${plan.maxUnits}.`),
+        { status: 400 },
+      );
+    }
+
     const now = new Date();
-    const cycle = billingCycle || 'monthly';
+    // Back-compat: accept billingCycle but store duration as Society.planDuration + SubscriptionPayment.duration
+    const duration = normalizeDuration(billingCycle || 'MONTHLY');
+    const quote = computeSubscriptionAmount(plan, unitCount, duration);
     let periodEnd;
-    if (cycle === 'monthly') periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
-    else if (cycle === 'quarterly') periodEnd = new Date(now.getFullYear(), now.getMonth() + 3, now.getDate());
-    else periodEnd = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
+    periodEnd = new Date(now.getFullYear(), now.getMonth() + quote.months, now.getDate());
 
     // Update society plan
     await tx.society.update({
       where: { id: societyId },
-      data: { planId: plan.id, planStartDate: now, planRenewalDate: periodEnd, status: 'ACTIVE' },
+      data: { planId: plan.id, planStartDate: now, planRenewalDate: periodEnd, planDuration: quote.duration, status: 'ACTIVE' },
     });
 
     // Record payment
@@ -135,9 +144,11 @@ async function assignPlan({ societyId, planName, amount, paymentMethod, referenc
       data: {
         societyId,
         planId: plan.id,
-        amount: amount !== undefined ? amount : (cycle === 'yearly' ? plan.priceYearly : plan.priceMonthly),
+        amount: amount !== undefined ? amount : quote.amount,
         periodStart: now,
         periodEnd,
+        duration: quote.duration,
+        unitCount: quote.unitCount,
         paymentMethod: paymentMethod || null,
         reference: reference || null,
         notes: notes || null,
@@ -170,7 +181,7 @@ async function renewSubscription(
   });
   if (!society) throw Object.assign(new Error('Society not found'), { status: 404 });
 
-  const cycle = (billingCycle || 'monthly').toLowerCase();
+  const duration = normalizeDuration(billingCycle || 'MONTHLY');
   const count = Math.max(parseInt(periods || 1, 10) || 1, 1);
 
   const addMonths = (date, months) => {
@@ -178,9 +189,8 @@ async function renewSubscription(
     return new Date(d.getFullYear(), d.getMonth() + months, d.getDate());
   };
 
-  let monthsToAdd = 1;
-  if (cycle === 'quarterly') monthsToAdd = 3;
-  else if (cycle === 'yearly') monthsToAdd = 12;
+  const single = computeSubscriptionAmount({ pricePerUnit: 0 }, 0, duration);
+  const monthsToAdd = single.months;
 
   const now = new Date();
   let base;
@@ -205,20 +215,32 @@ async function renewSubscription(
     plan = nextPlan;
   }
 
+  const unitCount = await prisma.unit.count({ where: { societyId, deletedAt: null } });
+  if (plan.maxUnits !== -1 && unitCount > plan.maxUnits) {
+    throw Object.assign(
+      new Error(`Cannot renew on ${plan.displayName}: Society has ${unitCount} units, but plan maximum is ${plan.maxUnits}.`),
+      { status: 400 },
+    );
+  }
+
   // compute amount if not provided
   let computedAmount;
   if (amount !== undefined && amount !== null && amount !== '') {
     computedAmount = parseFloat(amount);
   } else {
-    let baseTotal = 0;
-    if (cycle === 'yearly') baseTotal = parseFloat(plan.priceYearly) * count;
-    else if (cycle === 'quarterly') baseTotal = parseFloat(plan.priceMonthly) * 3 * count;
-    else baseTotal = parseFloat(plan.priceMonthly) * count;
-
-    const disc = discountPercent !== undefined && discountPercent !== null && discountPercent !== ''
+    // Primary pricing rule: unit-count * plan.pricePerUnit with duration discount.
+    // If discountPercent is explicitly passed, it overrides the duration default.
+    const q = computeSubscriptionAmount(plan, unitCount, duration);
+    const overrideDisc = discountPercent !== undefined && discountPercent !== null && discountPercent !== ''
       ? Math.max(Math.min(parseFloat(discountPercent), 100), 0)
-      : 0;
-    computedAmount = baseTotal * (1 - disc / 100);
+      : null;
+
+    if (overrideDisc === null) {
+      computedAmount = q.amount * count;
+    } else {
+      const base = q.unitCount * q.perUnit * q.months;
+      computedAmount = (base * (1 - overrideDisc / 100)) * count;
+    }
   }
 
   computedAmount = Math.round(computedAmount * 100) / 100;
@@ -231,6 +253,7 @@ async function renewSubscription(
         planId: plan.id,
         planStartDate: base,
         planRenewalDate: newEnd,
+        planDuration: duration,
         status: 'ACTIVE',
       },
     });
@@ -242,11 +265,13 @@ async function renewSubscription(
         amount: computedAmount,
         periodStart: base,
         periodEnd: newEnd,
+        duration,
+        unitCount,
         paymentMethod: paymentMethod || null,
         reference: reference || null,
         notes:
           notes ||
-          `Renewed (${cycle}) x${count}${discountPercent ? `, discount ${discountPercent}%` : ''}`,
+          `Renewed (${duration}) x${count}${discountPercent ? `, discount ${discountPercent}%` : ''}`,
         recordedById: recordedById || null,
       },
       select: PAYMENT_SELECT,

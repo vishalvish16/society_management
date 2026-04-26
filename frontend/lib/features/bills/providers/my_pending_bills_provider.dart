@@ -31,11 +31,14 @@ class MyPendingBillsNotifier
   }
 
   Future<void> fetch() async {
+    if (!mounted) return;
     state = const AsyncValue.loading();
     try {
       final auth = ref.read(authProvider);
       if (!auth.isAuthenticated) {
-        state = const AsyncValue.data([]);
+        if (mounted) {
+          state = const AsyncValue.data([]);
+        }
         return;
       }
       final dio = ref.read(dioProvider);
@@ -45,24 +48,37 @@ class MyPendingBillsNotifier
       if (res.data['success'] == true) {
         final raw = res.data['data'];
         final List all = (raw is Map ? (raw['bills'] ?? []) : raw) ?? [];
-        // Keep only unpaid bills
+        final now = DateTime.now();
+        final todayStart = DateTime(now.year, now.month, now.day);
+        // Keep only unpaid bills within due date (not overdue)
         final pending = all
             .whereType<Map>()
             .where((b) {
               final s = (b['status'] as String? ?? '').toUpperCase();
-              return s == 'PENDING' || s == 'PARTIAL' || s == 'OVERDUE';
+              if (!(s == 'PENDING' || s == 'PARTIAL')) return false;
+              final dueRaw = b['dueDate'] as String?;
+              if (dueRaw == null) return true;
+              final due = DateTime.tryParse(dueRaw);
+              if (due == null) return true;
+              return !due.isBefore(todayStart);
             })
             .map((b) => Map<String, dynamic>.from(b))
             .toList();
+      if (mounted) {
         state = AsyncValue.data(pending);
-      } else {
+      }
+    } else {
+      if (mounted) {
         state = const AsyncValue.data([]);
       }
-    } catch (e) {
-      // Silently fall back to empty — don't break dashboard
+    }
+  } catch (e) {
+    // Silently fall back to empty — don't break dashboard
+    if (mounted) {
       state = const AsyncValue.data([]);
     }
   }
+}
 
   Future<String?> payBill(
       String billId, double amount, String paymentMethod, String? notes) async {

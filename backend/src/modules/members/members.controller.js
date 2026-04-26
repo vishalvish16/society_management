@@ -37,6 +37,11 @@ const getMembers = async (req, res) => {
         take: parseInt(limit),
         select: {
           id: true, name: true, email: true, phone: true, role: true, isActive: true, createdAt: true,
+          householdMemberCount: true,
+          householdMembers: {
+            select: { id: true, name: true, relation: true, age: true, gender: true, phone: true, isAdult: true },
+            orderBy: { createdAt: 'asc' },
+          },
           unitResidents: { select: { unit: { select: { id: true, fullCode: true } }, isOwner: true } },
         },
         orderBy: { name: 'asc' },
@@ -53,7 +58,7 @@ const getMembers = async (req, res) => {
 const createMember = async (req, res) => {
   try {
     const { societyId, id: requesterId, role: requesterRole } = req.user;
-    let { name, phone, email, password, role = 'RESIDENT', unitId } = req.body;
+    let { name, phone, email, password, role = 'RESIDENT', unitId, householdMembers } = req.body;
 
     if (!name || !phone || !password) return sendError(res, 'name, phone and password are required', 400);
 
@@ -80,10 +85,39 @@ const createMember = async (req, res) => {
     if (existing) return sendError(res, 'Phone or email already registered', 409);
 
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+
+    let householdList = [];
+    if (householdMembers) {
+      try {
+        householdList = typeof householdMembers === 'string' ? JSON.parse(householdMembers) : householdMembers;
+      } catch {
+        householdList = [];
+      }
+    }
     
     const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
-        data: { societyId, name, phone, email: email || null, passwordHash, role },
+        data: {
+          societyId,
+          name,
+          phone,
+          email: email || null,
+          passwordHash,
+          role,
+          householdMemberCount: 1 + (Array.isArray(householdList) ? householdList.length : 0),
+          householdMembers: Array.isArray(householdList) && householdList.length > 0
+              ? {
+                  create: householdList.map((m) => ({
+                    name: m.name,
+                    relation: m.relation || 'OTHER',
+                    age: m.age ? parseInt(m.age, 10) : null,
+                    gender: m.gender || null,
+                    phone: m.phone || null,
+                    isAdult: m.isAdult !== false && m.isAdult !== 'false',
+                  })),
+                }
+              : undefined,
+        },
         select: { id: true, name: true, phone: true, email: true, role: true, societyId: true },
       });
 
@@ -110,7 +144,7 @@ const updateMember = async (req, res) => {
   try {
     const { societyId } = req.user;
     const { id } = req.params;
-    const { name, email, phone, role, isActive, unitId } = req.body;
+    const { name, email, phone, role, isActive, unitId, householdMembers } = req.body;
 
     const member = await prisma.user.findUnique({ where: { id } });
     if (!member || member.societyId !== societyId) return sendError(res, 'Member not found', 404);
@@ -122,11 +156,38 @@ const updateMember = async (req, res) => {
     if (role) updateData.role = role;
     if (isActive !== undefined) updateData.isActive = isActive;
 
+    let householdList = null;
+    if (householdMembers !== undefined) {
+      try {
+        householdList = typeof householdMembers === 'string' ? JSON.parse(householdMembers) : householdMembers;
+      } catch {
+        householdList = [];
+      }
+      if (!Array.isArray(householdList)) householdList = [];
+      updateData.householdMemberCount = 1 + householdList.length;
+    }
+
     const result = await prisma.$transaction(async (tx) => {
+      if (householdList !== null) {
+        await tx.householdMember.deleteMany({ where: { userId: id } });
+        if (householdList.length > 0) {
+          await tx.householdMember.createMany({
+            data: householdList.map((m) => ({
+              userId: id,
+              name: m.name,
+              relation: m.relation || 'OTHER',
+              age: m.age ? parseInt(m.age, 10) : null,
+              gender: m.gender || null,
+              phone: m.phone || null,
+              isAdult: m.isAdult !== false && m.isAdult !== 'false',
+            })),
+          });
+        }
+      }
       const updated = await tx.user.update({
         where: { id },
         data: updateData,
-        select: { id: true, name: true, phone: true, email: true, role: true },
+        select: { id: true, name: true, phone: true, email: true, role: true, householdMemberCount: true },
       });
 
       if (unitId) {

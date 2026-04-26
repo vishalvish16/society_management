@@ -102,7 +102,11 @@ class UserModel {
   bool hasFeature(String key) {
     if (role == 'SUPER_ADMIN') return true;
     if (planFeatures == null) return false; // deny-by-default until loaded
-    return planFeatures![key] == true;
+    final v = planFeatures![key];
+    if (v == true) return true;
+    if (v is num) return v == 1;
+    if (v is String) return v.toLowerCase() == 'true' || v == '1';
+    return false;
   }
 
   int get profileCompletenessPercent {

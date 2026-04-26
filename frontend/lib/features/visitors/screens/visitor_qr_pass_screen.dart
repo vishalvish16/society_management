@@ -3,6 +3,7 @@ import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:qr_flutter/qr_flutter.dart';
+import 'dart:ui' as ui;
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_dimensions.dart';
@@ -41,7 +42,10 @@ class VisitorQrPassScreen extends StatelessWidget {
       data: qrToken,
       version: QrVersions.auto,
       errorCorrectionLevel: QrErrorCorrectLevel.M,
-    ).toImageData(300);
+    ).toImageData(
+      300,
+      format: ui.ImageByteFormat.png,
+    );
 
     final pdf = pw.Document();
 
@@ -51,7 +55,9 @@ class VisitorQrPassScreen extends StatelessWidget {
 
     pdf.addPage(
       pw.Page(
-        pageFormat: PdfPageFormat.a5,
+        // A5 tends to letterbox heavily in many mobile PDF viewers (shows as black space).
+        // A4 provides a better default fit across devices.
+        pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(0),
         build: (ctx) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.stretch,

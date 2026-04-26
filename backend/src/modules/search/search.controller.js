@@ -128,6 +128,31 @@ exports.search = async (req, res) => {
       }
     }
 
+    // ── Suggestions ───────────────────────────────────────────────────
+    if (role !== 'SUPER_ADMIN' && !isWatchman) {
+      const suggestions = await prisma.suggestion.findMany({
+        where: {
+          societyId,
+          OR: [
+            ...containsWhere(['title', 'description'], q),
+            { unit: { fullCode: { contains: q, mode: 'insensitive' } } },
+          ],
+        },
+        select: { id: true, title: true, status: true, priority: true, createdAt: true },
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      });
+      for (const s of suggestions) {
+        results.push({
+          type: 'suggestion',
+          id: s.id,
+          title: s.title || 'Suggestion',
+          subtitle: `${s.status || ''}${s.priority ? ` · ${s.priority}` : ''}`.trim(),
+          route: `/suggestions?focusId=${encodeURIComponent(s.id)}`,
+        });
+      }
+    }
+
     // ── Bills ─────────────────────────────────────────────────────────
     if (role !== 'SUPER_ADMIN' && !isWatchman) {
       const bills = await prisma.maintenanceBill.findMany({

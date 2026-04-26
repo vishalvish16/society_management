@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,16 +11,43 @@ import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_loading_shimmer.dart';
 import '../../bills/screens/upi_pay_sheet.dart';
 import '../../donations/screens/donate_sheet.dart';
+import '../../visitors/providers/visitors_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../widgets/dashboard_portal_widgets.dart';
 
 /// Dashboard for RESIDENT role — personal unit-centric view
-class ResidentDashboard extends ConsumerWidget {
+class ResidentDashboard extends ConsumerStatefulWidget {
   const ResidentDashboard({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ResidentDashboard> createState() => _ResidentDashboardState();
+}
+
+class _ResidentDashboardState extends ConsumerState<ResidentDashboard> {
+  Timer? _approvalRefreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(pendingWalkinApprovalsProvider.notifier).fetch();
+    });
+    _approvalRefreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      if (mounted) ref.read(pendingWalkinApprovalsProvider.notifier).fetch();
+    });
+  }
+
+  @override
+  void dispose() {
+    _approvalRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ref = this.ref;
     final statsAsync = ref.watch(residentDashboardProvider);
+    final pendingApprovals = ref.watch(pendingWalkinApprovalsProvider);
     final user = ref.watch(authProvider).user;
     final isWeb = MediaQuery.of(context).size.width >= 720;
 
@@ -30,10 +58,15 @@ class ResidentDashboard extends ConsumerWidget {
         onRetry: () => ref.invalidate(residentDashboardProvider),
       ),
       data: (stats) => DashboardRefreshWithSearchStack(
-        onRefresh: () async => ref.refresh(residentDashboardProvider.future),
+        onRefresh: () async {
+          await Future.wait([
+            ref.refresh(residentDashboardProvider.future),
+            ref.read(pendingWalkinApprovalsProvider.notifier).fetch(),
+          ]);
+        },
         scrollChild: isWeb
-            ? _WebResidentLayout(stats: stats, user: user)
-            : _MobileResidentLayout(stats: stats, user: user),
+            ? _WebResidentLayout(stats: stats, pendingApprovals: pendingApprovals, user: user)
+            : _MobileResidentLayout(stats: stats, pendingApprovals: pendingApprovals, user: user),
       ),
     );
   }
@@ -43,8 +76,9 @@ class ResidentDashboard extends ConsumerWidget {
 
 class _WebResidentLayout extends StatelessWidget {
   final Map<String, dynamic> stats;
+  final AsyncValue<List<dynamic>> pendingApprovals;
   final dynamic user;
-  const _WebResidentLayout({required this.stats, required this.user});
+  const _WebResidentLayout({required this.stats, required this.pendingApprovals, required this.user});
 
   @override
   Widget build(BuildContext context) {
@@ -70,6 +104,7 @@ class _WebResidentLayout extends StatelessWidget {
           onNotifications: () => context.go('/notifications'),
         ),
         const SizedBox(height: AppDimensions.lg),
+        _GateApprovalBanner(pendingApprovals: pendingApprovals),
         // Unit + balance hero
         _UnitBalanceHero(stats: stats),
         const SizedBox(height: AppDimensions.md),
@@ -145,8 +180,9 @@ class _WebResidentLayout extends StatelessWidget {
 
 class _MobileResidentLayout extends StatelessWidget {
   final Map<String, dynamic> stats;
+  final AsyncValue<List<dynamic>> pendingApprovals;
   final dynamic user;
-  const _MobileResidentLayout({required this.stats, required this.user});
+  const _MobileResidentLayout({required this.stats, required this.pendingApprovals, required this.user});
 
   @override
   Widget build(BuildContext context) {
@@ -172,6 +208,7 @@ class _MobileResidentLayout extends StatelessWidget {
           onNotifications: () => context.go('/notifications'),
         ),
         const SizedBox(height: AppDimensions.md),
+        _GateApprovalBanner(pendingApprovals: pendingApprovals),
         _UnitBalanceHero(stats: stats),
         const SizedBox(height: AppDimensions.md),
         _CampaignBanner(stats: stats),
@@ -798,6 +835,8 @@ class _ResidentQuickActions extends StatelessWidget {
     (Icons.person_add_rounded, 'Visitor', '/visitors'),
     (Icons.local_shipping_rounded, 'Delivery', '/deliveries'),
     (Icons.campaign_rounded, 'Notices', '/notices'),
+    (Icons.how_to_vote_rounded, 'Polls', '/polls'),
+    (Icons.event_rounded, 'Events', '/events'),
   ];
 
   @override
@@ -935,6 +974,83 @@ class _ErrorCard extends StatelessWidget {
                         .copyWith(color: AppColors.dangerText))),
             TextButton(onPressed: onRetry, child: const Text('Retry')),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Gate approval banner ─────────────────────────────────────────────────────
+
+class _GateApprovalBanner extends StatelessWidget {
+  final AsyncValue<List<dynamic>> pendingApprovals;
+  const _GateApprovalBanner({required this.pendingApprovals});
+
+  @override
+  Widget build(BuildContext context) {
+    final count = pendingApprovals.when(
+      data: (list) => list.length,
+      loading: () => 0,
+      error: (_, _) => 0,
+    );
+    if (count == 0) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppDimensions.md),
+      child: GestureDetector(
+        onTap: () => context.go('/visitors/pending-approvals'),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppDimensions.lg, vertical: AppDimensions.md),
+          decoration: BoxDecoration(
+            color: AppColors.dangerSurface,
+            borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+            border: Border.all(color: AppColors.danger.withValues(alpha: 0.5)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.danger.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                ),
+                child: const Icon(Icons.person_pin_circle_rounded,
+                    color: AppColors.danger, size: 22),
+              ),
+              const SizedBox(width: AppDimensions.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      count == 1
+                          ? '1 visitor waiting at gate!'
+                          : '$count visitors waiting at gate!',
+                      style: AppTextStyles.labelLarge
+                          .copyWith(color: AppColors.dangerText),
+                    ),
+                    Text(
+                      'Tap to Allow or Deny entry',
+                      style: AppTextStyles.bodySmall.copyWith(
+                          color: AppColors.dangerText.withValues(alpha: 0.8)),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.danger,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                ),
+                child: Text('Review',
+                    style: AppTextStyles.labelSmall
+                        .copyWith(color: Colors.white)),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -88,6 +88,25 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
     return DateFormat('MMMM yyyy').format(DateTime.parse(raw));
   }
 
+  String get _category =>
+      (widget.bill['category'] as String? ?? 'MAINTENANCE').toUpperCase();
+
+  String get _title {
+    final t = (widget.bill['title'] as String?)?.trim();
+    if (t != null && t.isNotEmpty) return t;
+    if (_category == 'AMENITY') return 'Amenity Booking';
+    return 'Maintenance Bill';
+  }
+
+  String get _subTitle {
+    // For amenity bills, show due date (booking date). Otherwise show billing month.
+    if (_category == 'AMENITY' && widget.bill['dueDate'] != null) {
+      final due = DateTime.tryParse(widget.bill['dueDate'] as String);
+      if (due != null) return DateFormat('dd MMM yyyy').format(due);
+    }
+    return _billingMonth;
+  }
+
   String get _unitCode =>
       (widget.bill['unit'] as Map?)?['fullCode'] as String? ?? '-';
 
@@ -128,7 +147,7 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
         'amount': orderAmount,
         'currency': 'INR',
         'name': ps.upiName?.isNotEmpty == true ? ps.upiName : 'Society',
-        'description': 'Maintenance - $_unitCode - $_billingMonth',
+        'description': '$_title - $_unitCode - $_subTitle',
         'prefill': {
           'name': user?.name ?? '',
           'contact': user?.phone ?? '',
@@ -236,7 +255,7 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
           'pn': ps.upiName?.isNotEmpty == true ? ps.upiName! : 'Society',
           'am': amount.toStringAsFixed(2),
           'cu': 'INR',
-          'tn': 'Maintenance $_billingMonth - $_unitCode',
+          'tn': '$_title $_subTitle - $_unitCode',
         },
       );
 
@@ -337,7 +356,7 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
             Text('Payment Recorded!', style: AppTextStyles.h2),
             const SizedBox(height: AppDimensions.xs),
             Text(
-              '₹${fmt.format(amount)} · $_unitCode · $_billingMonth',
+              '₹${fmt.format(amount)} · $_unitCode · $_subTitle',
               style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
               textAlign: TextAlign.center,
             ),
@@ -447,8 +466,8 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Pay Maintenance', style: AppTextStyles.h2),
-                      Text('$_unitCode · $_billingMonth',
+                      Text(_title, style: AppTextStyles.h2),
+                      Text('$_unitCode · $_subTitle',
                           style: AppTextStyles.bodySmall
                               .copyWith(color: AppColors.textMuted)),
                     ],

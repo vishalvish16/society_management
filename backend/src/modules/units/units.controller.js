@@ -118,13 +118,19 @@ async function deleteUnit(req, res) {
 async function assignResident(req, res) {
   try {
     const { id: unitId } = req.params;
-    const { userId, isOwner } = req.body;
+    const { userId, isOwner, isStaying } = req.body;
 
     if (!userId) {
       return sendError(res, 'User ID is required', 400);
     }
 
-    const assignment = await unitsService.assignResident(unitId, userId, !!isOwner, req.user.societyId);
+    const assignment = await unitsService.assignResident(
+      unitId,
+      userId,
+      !!isOwner,
+      req.user.societyId,
+      isStaying !== undefined ? (isStaying === true || isStaying === 'true') : true,
+    );
     return sendSuccess(res, assignment, 'Resident assigned successfully', 201);
   } catch (error) {
     console.error('Assign resident error:', error.message);

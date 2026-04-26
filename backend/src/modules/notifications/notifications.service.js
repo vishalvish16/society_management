@@ -87,7 +87,14 @@ async function sendNotification(senderId, societyId, data) {
 
     const tokens = users.map((u) => u.fcmToken).filter(Boolean);
     if (tokens.length > 0) {
-      const pushData = { type, notificationId: notification.id };
+      // `type` is also used as a Prisma enum (NotificationType). For special alerts
+      // we allow overriding the push payload type without altering DB type.
+      const pushType = data.pushType || type;
+      const pushData = {
+        type: pushType,
+        notificationId: notification.id,
+        ...(data.pushData && typeof data.pushData === 'object' ? data.pushData : {}),
+      };
       if (route) pushData.route = route;
       // Fire-and-forget — don't block transaction
       setImmediate(() => pushToTokens(tokens, { title, body, data: pushData }));
@@ -97,13 +104,22 @@ async function sendNotification(senderId, societyId, data) {
   });
 }
 
-async function getNotificationsForUser(userId, societyId) {
+async function getNotificationsForUser(userId, societyId, activeUnitId = null) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { role: true, unitResidents: { select: { unitId: true } } },
+    select: { role: true },
   });
   if (!user) return [];
-  const unitIds = user.unitResidents.map((ur) => ur.unitId);
+  let unitIds = [];
+  if (activeUnitId) {
+    unitIds = [activeUnitId];
+  } else {
+    const rows = await prisma.unitResident.findMany({
+      where: { userId, unit: { societyId } },
+      select: { unitId: true },
+    });
+    unitIds = rows.map((ur) => ur.unitId);
+  }
 
   return prisma.notification.findMany({
     where: {

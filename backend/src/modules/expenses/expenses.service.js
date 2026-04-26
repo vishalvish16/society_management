@@ -127,7 +127,7 @@ async function updateExpense(expenseId, societyId, data, files = []) {
   });
 }
 
-async function reviewExpense(expenseId, reviewerId, status, societyId, rejectionReason = null) {
+async function reviewExpense(expenseId, reviewerId, status, societyId, rejectionReason = null, paymentMethod = null, referenceId = null) {
   const expense = await prisma.expense.findUnique({ where: { id: expenseId } });
 
   if (!expense) throw Object.assign(new Error('Expense not found'), { status: 404 });
@@ -137,6 +137,13 @@ async function reviewExpense(expenseId, reviewerId, status, societyId, rejection
   }
 
   const upperStatus = status.toUpperCase();
+  if (upperStatus === 'APPROVED') {
+    const allowed = ['CASH', 'BANK', 'UPI', 'ONLINE', 'RAZORPAY'];
+    const pm = paymentMethod ? String(paymentMethod).toUpperCase() : null;
+    if (!pm || !allowed.includes(pm)) {
+      throw Object.assign(new Error('paymentMethod is required to approve an expense (CASH/BANK/UPI/ONLINE/RAZORPAY)'), { status: 400 });
+    }
+  }
 
   const updated = await prisma.expense.update({
     where: { id: expenseId },
@@ -145,6 +152,10 @@ async function reviewExpense(expenseId, reviewerId, status, societyId, rejection
       approvedById: reviewerId,
       approvedAt: upperStatus === 'APPROVED' ? new Date() : null,
       rejectionReason: upperStatus === 'REJECTED' ? rejectionReason : null,
+      ...(upperStatus === 'APPROVED' ? { 
+        paymentMethod: String(paymentMethod).toUpperCase(),
+        referenceId: referenceId
+      } : {}),
     },
   });
 

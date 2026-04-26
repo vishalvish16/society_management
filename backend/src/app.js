@@ -41,10 +41,12 @@ app.use('/api/members', require('./modules/members/members.routes'));
 app.use('/api/bills', require('./modules/bills/bills.routes'));
 app.use('/api/expenses', require('./modules/expenses/expenses.routes'));
 app.use('/api/complaints', require('./modules/complaints/complaints.routes'));
+app.use('/api/suggestions', require('./modules/suggestions/suggestions.routes'));
 app.use('/api/visitors', require('./modules/visitors/visitors.routes'));
 app.use('/api/notices', require('./modules/notices/notices.routes'));
 app.use('/api/amenities', require('./modules/amenities/amenities.routes'));
 app.use('/api/notifications', require('./modules/notifications/notifications.routes'));
+app.use('/api/sos', require('./modules/sos/sos.routes'));
 app.use('/api/staff', require('./modules/staff/staff.routes'));
 app.use('/api/gatepasses', require('./modules/gatepasses/gatepasses.routes'));
 app.use('/api/domestichelp', require('./modules/domestichelp/domestichelp.routes'));
@@ -65,6 +67,13 @@ app.use('/api/parking', require('./modules/parking/parking.routes'));
 app.use('/api/donations', require('./modules/donations/donations.routes'));
 app.use('/api/reports', require('./modules/reports/reports.routes'));
 app.use('/api/search', require('./modules/search/search.routes'));
+app.use('/api/chat',   require('./modules/chat/chat.routes'));
+app.use('/api/polls',  require('./modules/polls/polls.routes'));
+app.use('/api/events', require('./modules/events/events.routes'));
+app.use('/api/rentals', require('./modules/rentals/rentals.routes'));
+app.use('/api/tasks',   require('./modules/tasks/tasks.routes'));
+app.use('/api/rules',   require('./modules/rules/rules.routes'));
+app.use('/api/assets',  require('./modules/assets/assets.routes'));
 
 // ── Health check ──────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ status: 'ok' }));

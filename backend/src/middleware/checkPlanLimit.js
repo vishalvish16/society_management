@@ -32,11 +32,10 @@ function checkPlanLimit(feature) {
           plan: {
             select: {
               maxUnits: true,
-              maxResidents: true,
-              maxWatchmen: true,
-              maxSecretaries: true,
+              maxUsers: true,
               features: true,
               isActive: true,
+              displayName: true,
             },
           },
         },
@@ -46,7 +45,8 @@ function checkPlanLimit(feature) {
         return sendError(res, 'Society is not active. Please contact your administrator.', 403);
       }
 
-      if (!society.plan || !society.plan.isActive) {
+      const plan = society.plan;
+      if (!plan || !plan.isActive) {
         return sendError(res, 'No active plan assigned. Please contact your administrator.', 403);
       }
 
@@ -54,12 +54,10 @@ function checkPlanLimit(feature) {
         return sendError(res, 'Your plan has expired. Please renew to continue.', 403);
       }
 
-      const plan = society.plan;
-
       // ── Count-based caps ──────────────────────────────────────────────
 
       if (feature === 'units') {
-        const count = await prisma.unit.count({ where: { societyId } });
+        const count = await prisma.unit.count({ where: { societyId, deletedAt: null } });
         const max = plan.maxUnits;
         if (max !== -1 && count >= max) {
           return sendError(res, `Unit limit reached (${count}/${max}). Upgrade your plan to add more.`, 403);
@@ -67,47 +65,26 @@ function checkPlanLimit(feature) {
         return next();
       }
 
-      if (feature === 'secretaries') {
+      if (feature === 'users' || ['RESIDENT', 'WATCHMAN', 'SECRETARY', 'MEMBER'].includes(feature)) {
         const count = await prisma.user.count({
-          where: { societyId, role: 'SECRETARY', deletedAt: null },
+          where: { societyId, deletedAt: null },
         });
-        const max = plan.maxSecretaries;
+        const max = plan.maxUsers;
         if (max !== -1 && count >= max) {
-          return sendError(res, `Secretary limit reached (${count}/${max}). Upgrade your plan to add more.`, 403);
-        }
-        return next();
-      }
-
-      if (feature === 'watchmen') {
-        const count = await prisma.user.count({
-          where: { societyId, role: 'WATCHMAN', deletedAt: null },
-        });
-        const max = plan.maxWatchmen ?? -1;
-        if (max !== -1 && count >= max) {
-          return sendError(res, `Watchman limit reached (${count}/${max}). Upgrade your plan to add more.`, 403);
-        }
-        return next();
-      }
-
-      if (feature === 'residents') {
-        const count = await prisma.user.count({
-          where: { societyId, role: 'RESIDENT', deletedAt: null },
-        });
-        const max = plan.maxResidents ?? -1;
-        if (max !== -1 && count >= max) {
-          return sendError(res, `Resident limit reached (${count}/${max}). Upgrade your plan to add more.`, 403);
+          return sendError(res, `User limit reached (${count}/${max}). Upgrade your plan to add more.`, 403);
         }
         return next();
       }
 
       // ── Boolean feature flags ─────────────────────────────────────────
-      // Deny-by-default: key must exist AND equal true.
-      const features = plan.features || {};
-      if (features[feature] !== true) {
+      const features = plan.features || [];
+      const hasAccess = Array.isArray(features) ? features.includes(feature) : !!features[feature];
+      
+      if (!hasAccess) {
         const label = feature.replace(/_/g, ' ');
         return sendError(
           res,
-          `"${label}" is not included in your current plan. Please upgrade to access this feature.`,
+          `"${label}" is not included in your ${plan.displayName}. Please upgrade to access this feature.`,
           403
         );
       }

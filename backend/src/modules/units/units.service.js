@@ -1,4 +1,5 @@
 const prisma = require('../../config/db');
+const { checkPlanRestriction } = require('../../utils/planRestriction');
 
 /**
  * List all units in a society with filtering.
@@ -34,7 +35,20 @@ async function listUnits(societyId, filters = {}) {
               select: { id: true, name: true, phone: true, role: true }
             }
           }
-        }
+        },
+        rentalRecords: {
+          where: { isActive: true },
+          select: {
+            id: true, portion: true, tenantName: true, tenantPhone: true,
+            agreementType: true, agreementStartDate: true, agreementEndDate: true,
+            isActive: true, rentAmount: true,
+            members: {
+              select: { id: true, name: true, relation: true, age: true, gender: true, phone: true, isAdult: true },
+              orderBy: { createdAt: 'asc' },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
       },
       skip,
       take: parseInt(limit, 10),
@@ -57,6 +71,9 @@ async function listUnits(societyId, filters = {}) {
  * @returns {Promise<object>} Created unit
  */
 async function createUnit(societyId, data) {
+  // Check plan limits
+  await checkPlanRestriction(societyId, 'UNIT');
+
   const { wing, floor, unitNumber, subUnit, areaSqft, notes } = data;
 
   // Generate fullCode
@@ -165,7 +182,7 @@ async function deleteUnit(unitId, societyId) {
  * @param {boolean} isOwner
  * @param {string} societyId
  */
-async function assignResident(unitId, userId, isOwner, societyId) {
+async function assignResident(unitId, userId, isOwner, societyId, isStaying = true) {
   const [unit, user] = await Promise.all([
     prisma.unit.findUnique({ where: { id: unitId } }),
     prisma.user.findUnique({ where: { id: userId } })
@@ -189,7 +206,13 @@ async function assignResident(unitId, userId, isOwner, societyId) {
 
   return prisma.$transaction(async (tx) => {
     const assignment = await tx.unitResident.create({
-      data: { unitId, userId, isOwner, moveInDate: new Date() }
+      data: {
+        unitId,
+        userId,
+        isOwner,
+        isStaying: isStaying !== false,
+        moveInDate: (isStaying !== false) ? new Date() : null,
+      }
     });
 
     // Update unit status if it was vacant
@@ -242,6 +265,20 @@ async function removeResident(unitId, userId, societyId) {
 }
 
 async function bulkCreate(societyId, { wing, floor, startUnit, endUnit }) {
+  // Check plan limits
+  const requestedCount = endUnit - startUnit + 1;
+  const society = await prisma.society.findUnique({
+    where: { id: societyId },
+    include: { plan: true },
+  });
+
+  if (society && society.plan && society.plan.maxUnits !== -1) {
+    const currentCount = await prisma.unit.count({ where: { societyId, deletedAt: null } });
+    if (currentCount + requestedCount > society.plan.maxUnits) {
+      throw Object.assign(new Error(`Bulk create failed: adding ${requestedCount} units would exceed the maximum of ${society.plan.maxUnits} units allowed by ${society.plan.displayName}.`), { status: 403 });
+    }
+  }
+
   const units = [];
   for (let i = startUnit; i <= endUnit; i++) {
     const unitNumber = i.toString();

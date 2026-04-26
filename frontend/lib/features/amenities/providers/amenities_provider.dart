@@ -93,20 +93,55 @@ class AmenitiesNotifier extends StateNotifier<AmenitiesState> {
     }
   }
 
-  Future<String?> createBooking(Map<String, dynamic> data) async {
+  /// Returns created booking payload (may include `billId`) on success.
+  Future<Map<String, dynamic>?> createBooking(Map<String, dynamic> data) async {
     try {
-      await _dio.post('amenities/bookings', data: data);
-      return null;
+      final res = await _dio.post('amenities/bookings', data: data);
+      if (res.data['success'] == true) {
+        final created = res.data['data'];
+        return created is Map<String, dynamic>
+            ? created
+            : (created is Map ? Map<String, dynamic>.from(created) : <String, dynamic>{});
+      }
+      throw DioException(
+        requestOptions: res.requestOptions,
+        response: res,
+        error: res.data['message'] ?? 'Failed to create booking',
+        type: DioExceptionType.badResponse,
+      );
     } on DioException catch (e) {
-      return e.response?.data['message'] ?? 'Failed to create booking';
+      throw Exception(e.response?.data['message'] ?? 'Failed to create booking');
     } catch (e) {
-      return e.toString();
+      throw Exception(e.toString());
     }
   }
 
   Future<List<dynamic>> fetchMyBookings() async {
     try {
       final res = await _dio.get('amenities/bookings/mine');
+      final data = res.data['data'];
+      return data is Map ? (data['bookings'] ?? []) : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<dynamic>> fetchBookings({
+    String? status,
+    int page = 1,
+    int limit = 30,
+    String? amenityId,
+  }) async {
+    try {
+      final res = await _dio.get(
+        'amenities/bookings',
+        queryParameters: {
+          'page': page,
+          'limit': limit,
+          if (status != null && status.isNotEmpty) 'status': status,
+          if (amenityId != null && amenityId.isNotEmpty) 'amenityId': amenityId,
+        },
+      );
       final data = res.data['data'];
       return data is Map ? (data['bookings'] ?? []) : [];
     } catch (_) {
@@ -157,6 +192,22 @@ final allAmenityBookingsProvider = FutureProvider.autoDispose<List<dynamic>>((re
   final res = await dio.get('amenities/bookings');
   final data = res.data['data'];
   return data is Map ? List<dynamic>.from(data['bookings'] ?? []) : [];
+});
+
+/// Admin pending-approvals list (server-side filter)
+final pendingAmenityBookingsProvider = FutureProvider.autoDispose<List<dynamic>>((ref) async {
+  try {
+    final dio = ref.read(dioProvider);
+    final res = await dio.get('amenities/bookings', queryParameters: {
+      'status': 'PENDING',
+      'page': 1,
+      'limit': 50,
+    });
+    final data = res.data['data'];
+    return data is Map ? List<dynamic>.from(data['bookings'] ?? []) : [];
+  } catch (_) {
+    return [];
+  }
 });
 
 bool isAmenityAdmin(String role) {

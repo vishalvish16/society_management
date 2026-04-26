@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
 const prisma = require('../../config/db');
+const { checkPlanRestriction } = require('../../utils/planRestriction');
 
 const { SALT_ROUNDS } = require('../../config/constants');
 
@@ -103,6 +104,9 @@ async function listUsers(societyId, filters = {}) {
  */
 async function createUser(data) {
   const { societyId, role, name, email, phone, password } = data;
+
+  // Check plan limits
+  await checkPlanRestriction(societyId, 'USER');
 
   // Check if phone already exists
   const existingPhone = await prisma.user.findUnique({ where: { phone } });

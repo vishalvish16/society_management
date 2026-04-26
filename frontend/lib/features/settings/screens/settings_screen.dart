@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/biometric_provider.dart';
@@ -13,6 +14,9 @@ import '../../../shared/widgets/confirm_logout.dart';
 import 'payment_settings_screen.dart';
 import 'profile_screen.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
+import 'bill_schedule_screen.dart';
+import '../../plans/screens/plans_screen.dart';
+import '../../parking/screens/parking_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -25,6 +29,8 @@ class SettingsScreen extends ConsumerWidget {
     final role = user?.role.toUpperCase() ?? '';
     final isAdmin =
         role == 'PRAMUKH' || role == 'CHAIRMAN' || role == 'SECRETARY';
+    final hasBillSchedules = user?.hasFeature('bill_schedules') ?? false;
+    final hasParking = user?.hasFeature('parking_management') ?? false;
     final bioState = ref.watch(biometricProvider);
     final isMobile = !kIsWeb;
 
@@ -208,20 +214,130 @@ class SettingsScreen extends ConsumerWidget {
               const SizedBox(height: AppDimensions.sm),
               AppCard(
                 padding: EdgeInsets.zero,
-                child: ListTile(
-                  leading: const Icon(Icons.account_balance_wallet_outlined,
-                      color: AppColors.primary),
-                  title: Text('Payment Settings',
-                      style: AppTextStyles.bodyMedium),
-                  subtitle: Text('UPI, bank details & payment gateway',
-                      style: AppTextStyles.bodySmall
-                          .copyWith(color: AppColors.textMuted)),
-                  trailing: const Icon(Icons.chevron_right_rounded,
-                      color: AppColors.textMuted),
-                  onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const PaymentSettingsScreen())),
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.account_balance_wallet_outlined,
+                          color: AppColors.primary),
+                      title: Text('Payment Settings',
+                          style: AppTextStyles.bodyMedium),
+                      subtitle: Text('UPI, bank details & payment gateway',
+                          style: AppTextStyles.bodySmall
+                              .copyWith(color: AppColors.textMuted)),
+                      trailing: const Icon(Icons.chevron_right_rounded,
+                          color: AppColors.textMuted),
+                      onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const PaymentSettingsScreen())),
+                    ),
+                    const Divider(
+                        height: 1,
+                        indent: AppDimensions.lg,
+                        endIndent: AppDimensions.lg),
+                    ListTile(
+                      leading: const Icon(Icons.schedule_rounded,
+                          color: AppColors.primary),
+                      title: Text('Bill Schedule',
+                          style: AppTextStyles.bodyMedium),
+                      subtitle: Text(
+                        'Auto-generate bills on a set date & time',
+                        style: AppTextStyles.bodySmall
+                            .copyWith(color: AppColors.textMuted),
+                      ),
+                      trailing: Icon(
+                        hasBillSchedules
+                            ? Icons.chevron_right_rounded
+                            : Icons.lock_rounded,
+                        color: AppColors.textMuted,
+                      ),
+                      onTap: () {
+                        if (hasBillSchedules) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const BillScheduleScreen(),
+                            ),
+                          );
+                          return;
+                        }
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Bill Schedule is a Premium feature. Please upgrade to access it.',
+                            ),
+                          ),
+                        );
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const PlansScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const Divider(
+                        height: 1,
+                        indent: AppDimensions.lg,
+                        endIndent: AppDimensions.lg),
+                    ListTile(
+                      leading: const Icon(Icons.local_parking_rounded,
+                          color: AppColors.primary),
+                      title: Text('Parking Management',
+                          style: AppTextStyles.bodyMedium),
+                      subtitle: Text(
+                        'Slots, allotments, entry/exit & parking dues',
+                        style: AppTextStyles.bodySmall
+                            .copyWith(color: AppColors.textMuted),
+                      ),
+                      trailing: Icon(
+                        hasParking ? Icons.chevron_right_rounded : Icons.lock_rounded,
+                        color: AppColors.textMuted,
+                      ),
+                      onTap: () {
+                        if (hasParking) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ParkingScreen(),
+                            ),
+                          );
+                          return;
+                        }
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Parking Management is a Premium feature. Please upgrade to access it.',
+                            ),
+                          ),
+                        );
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const PlansScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const Divider(
+                        height: 1,
+                        indent: AppDimensions.lg,
+                        endIndent: AppDimensions.lg),
+                    ListTile(
+                      leading: const Icon(Icons.admin_panel_settings_rounded,
+                          color: AppColors.primary),
+                      title: Text('Role Permissions',
+                          style: AppTextStyles.bodyMedium),
+                      subtitle: Text(
+                        'Control feature access for each role',
+                        style: AppTextStyles.bodySmall
+                            .copyWith(color: AppColors.textMuted),
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded,
+                          color: AppColors.textMuted),
+                      onTap: () => context.push('/settings/permissions'),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: AppDimensions.lg),
@@ -378,6 +494,9 @@ class SettingsScreen extends ConsumerWidget {
     final confirmC = TextEditingController();
     final formKey = GlobalKey<FormState>();
     bool isLoading = false;
+    bool obscureCurrent = true;
+    bool obscureNew = true;
+    bool obscureConfirm = true;
 
     showAppSheet(
       context: context,
@@ -400,20 +519,41 @@ class SettingsScreen extends ConsumerWidget {
                 const Text('Change Password', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
                 const SizedBox(height: AppDimensions.lg),
                 TextFormField(
-                  controller: currentC, obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Current Password'),
+                  controller: currentC, 
+                  obscureText: obscureCurrent,
+                  decoration: InputDecoration(
+                    labelText: 'Current Password',
+                    suffixIcon: IconButton(
+                      icon: Icon(obscureCurrent ? Icons.visibility_off_rounded : Icons.visibility_rounded),
+                      onPressed: () => setState(() => obscureCurrent = !obscureCurrent),
+                    ),
+                  ),
                   validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
                 ),
                 const SizedBox(height: AppDimensions.md),
                 TextFormField(
-                  controller: newC, obscureText: true,
-                  decoration: const InputDecoration(labelText: 'New Password'),
+                  controller: newC, 
+                  obscureText: obscureNew,
+                  decoration: InputDecoration(
+                    labelText: 'New Password',
+                    suffixIcon: IconButton(
+                      icon: Icon(obscureNew ? Icons.visibility_off_rounded : Icons.visibility_rounded),
+                      onPressed: () => setState(() => obscureNew = !obscureNew),
+                    ),
+                  ),
                   validator: (v) => (v == null || v.length < 8) ? 'Min 8 characters' : null,
                 ),
                 const SizedBox(height: AppDimensions.md),
                 TextFormField(
-                  controller: confirmC, obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Confirm New Password'),
+                  controller: confirmC, 
+                  obscureText: obscureConfirm,
+                  decoration: InputDecoration(
+                    labelText: 'Confirm New Password',
+                    suffixIcon: IconButton(
+                      icon: Icon(obscureConfirm ? Icons.visibility_off_rounded : Icons.visibility_rounded),
+                      onPressed: () => setState(() => obscureConfirm = !obscureConfirm),
+                    ),
+                  ),
                   validator: (v) => v != newC.text ? 'Passwords do not match' : null,
                 ),
                 const SizedBox(height: AppDimensions.lg),

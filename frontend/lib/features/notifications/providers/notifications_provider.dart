@@ -50,6 +50,19 @@ class AppNotification {
   };
   String get emoji => _icons[type] ?? '🔔';
 
+  /// Navigation route derived from notification type for in-app list taps
+  static const Map<String, String> _typeRoutes = {
+    'BILL':          '/bills',
+    'PAYMENT':       '/bills',
+    'VISITOR':       '/visitors/pending-approvals',
+    'DELIVERY':      '/deliveries',
+    'COMPLAINT':     '/complaints',
+    'EXPENSE':       '/expenses',
+    'ANNOUNCEMENT':  '/notices',
+    'PARKING':       '/parking',
+  };
+  String? get tapRoute => _typeRoutes[type];
+
   String get relativeTime {
     try {
       final dt = DateTime.parse(sentAt);

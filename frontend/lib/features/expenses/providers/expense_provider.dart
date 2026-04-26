@@ -201,6 +201,8 @@ class ExpensesNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
     String id,
     String status, {
     String? reason,
+    String? paymentMethod,
+    String? referenceId,
   }) async {
     try {
       final dio = ref.read(dioProvider);
@@ -211,6 +213,10 @@ class ExpensesNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
         endpoint,
         data: {
           if (status == 'rejected' && reason != null) 'rejectionReason': reason,
+          if (status == 'approved' && paymentMethod != null)
+            'paymentMethod': paymentMethod,
+          if (status == 'approved' && referenceId != null)
+            'referenceId': referenceId,
         },
       );
       if (response.data['success'] == true) {

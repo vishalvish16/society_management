@@ -2,6 +2,7 @@ const prisma = require('../../config/db');
 const authService = require('./auth.service');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../../utils/jwt');
 const { sendSuccess, sendError } = require('../../utils/response');
+const { isResidentLikeRole } = require('../../utils/unitResident');
 
 // ─── Role enum values (match schema exactly) ───────────────────────────────
 const VALID_ROLES = ['SUPER_ADMIN', 'PRAMUKH', 'CHAIRMAN', 'VICE_CHAIRMAN', 'SECRETARY', 'ASSISTANT_SECRETARY', 'TREASURER', 'ASSISTANT_TREASURER', 'MEMBER', 'RESIDENT', 'WATCHMAN'];
@@ -159,8 +160,30 @@ function _authFailureMessage(err) {
 
 // Shared helper — generates tokens and returns full login payload
 async function _issueTokens(res, user) {
-  const payload = { id: user.id, role: user.role, societyId: user.societyId, name: user.name };
-  const accessToken  = generateAccessToken(payload);
+  // Determine the active unit deterministically for resident-like roles.
+  // This avoids Prisma returning an arbitrary UnitResident when the user is linked to multiple units.
+  let activeUnit = user.unitResidents?.[0]?.unit || null;
+  if (user.societyId && isResidentLikeRole(user.role)) {
+    const ur = await prisma.unitResident.findFirst({
+      where: {
+        userId: user.id,
+        isStaying: true,
+        unit: { societyId: user.societyId },
+      },
+      orderBy: [{ isOwner: 'desc' }, { createdAt: 'desc' }],
+      select: { unit: { select: { id: true, fullCode: true } } },
+    });
+    activeUnit = ur?.unit || activeUnit;
+  }
+
+  const payload = {
+    id: user.id,
+    role: user.role,
+    societyId: user.societyId,
+    name: user.name,
+    unitId: activeUnit?.id || null,
+  };
+  const accessToken = generateAccessToken(payload);
   const refreshToken = generateRefreshToken(payload);
 
   await prisma.refreshToken.create({
@@ -183,7 +206,7 @@ async function _issueTokens(res, user) {
       societyId: user.societyId,
       society: user.society,
       isActive: user.isActive,
-      unit: user.unitResidents?.[0]?.unit || null,
+      unit: activeUnit,
       profilePhotoUrl: user.profilePhotoUrl ?? null,
       dateOfBirth: user.dateOfBirth ?? null,
       householdMemberCount: user.householdMemberCount ?? null,
@@ -224,7 +247,27 @@ exports.refresh = async (req, res) => {
     });
     if (!user || !user.isActive) return sendError(res, 'User not found or deactivated', 401);
 
-    const payload = { id: user.id, role: user.role, societyId: user.societyId, name: user.name };
+    let activeUnitId = null;
+    if (user.societyId && isResidentLikeRole(user.role)) {
+      const ur = await prisma.unitResident.findFirst({
+        where: {
+          userId: user.id,
+          isStaying: true,
+          unit: { societyId: user.societyId },
+        },
+        orderBy: [{ isOwner: 'desc' }, { createdAt: 'desc' }],
+        select: { unitId: true },
+      });
+      activeUnitId = ur?.unitId || null;
+    }
+
+    const payload = {
+      id: user.id,
+      role: user.role,
+      societyId: user.societyId,
+      name: user.name,
+      unitId: activeUnitId,
+    };
     const newAccessToken  = generateAccessToken(payload);
     const newRefreshToken = generateRefreshToken(payload);
 

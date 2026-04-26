@@ -13,7 +13,11 @@ async function getNotifications(req, res) {
 
 async function getMyNotifications(req, res) {
   try {
-    const notifications = await notificationsService.getNotificationsForUser(req.user.id, req.user.societyId);
+    const notifications = await notificationsService.getNotificationsForUser(
+      req.user.id,
+      req.user.societyId,
+      req.user.unitId || null
+    );
     return sendSuccess(res, notifications, 'Your notifications retrieved');
   } catch (error) {
     return sendError(res, error.message, error.status || 500);

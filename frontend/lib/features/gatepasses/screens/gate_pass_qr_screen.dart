@@ -3,6 +3,7 @@ import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:qr_flutter/qr_flutter.dart';
+import 'dart:ui' as ui;
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_dimensions.dart';
@@ -35,7 +36,10 @@ class GatePassQrScreen extends StatelessWidget {
       data: passCode,
       version: QrVersions.auto,
       errorCorrectionLevel: QrErrorCorrectLevel.M,
-    ).toImageData(300);
+    ).toImageData(
+      300,
+      format: ui.ImageByteFormat.png,
+    );
 
     final pdf = pw.Document();
     final pdfQrImage = qrImage != null

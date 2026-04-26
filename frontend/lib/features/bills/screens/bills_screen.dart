@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -14,10 +13,11 @@ import '../../../shared/widgets/app_status_chip.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
 import '../providers/bill_provider.dart';
 import '../../units/providers/unit_provider.dart';
-import '../../settings/providers/payment_settings_provider.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
 import '../../../shared/widgets/app_date_picker.dart';
 import 'upi_pay_sheet.dart';
+import '../../settings/screens/bill_schedule_screen.dart';
+import '../../plans/screens/plans_screen.dart';
 
 class BillsScreen extends ConsumerStatefulWidget {
   const BillsScreen({super.key});
@@ -62,9 +62,11 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final role = ref.watch(authProvider).user?.role.toUpperCase() ?? '';
+    final user = ref.watch(authProvider).user;
+    final role = user?.role.toUpperCase() ?? '';
     final isAdmin =
         role == 'PRAMUKH' || role == 'CHAIRMAN' || role == 'SECRETARY';
+    final hasBillSchedules = user?.hasFeature('bill_schedules') ?? false;
     final billsAsync = ref.watch(billsProvider);
     final notifier = ref.read(billsProvider.notifier);
     final fmt = NumberFormat('#,##0');
@@ -91,6 +93,39 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
                           color: AppColors.textOnPrimary,
                         ),
                       ),
+                      IconButton(
+                        tooltip: hasBillSchedules
+                            ? 'Bill Schedule'
+                            : 'Bill Schedule (Premium)',
+                        onPressed: () {
+                          if (hasBillSchedules) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const BillScheduleScreen(),
+                              ),
+                            );
+                            return;
+                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Bill Schedule is a Premium feature. Please upgrade to access it.',
+                              ),
+                            ),
+                          );
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const PlansScreen()),
+                          );
+                        },
+                        icon: Icon(
+                          hasBillSchedules
+                              ? Icons.schedule_rounded
+                              : Icons.lock_rounded,
+                          color: AppColors.textOnPrimary,
+                        ),
+                      ),
                     ]
                   : null,
             )
@@ -100,34 +135,55 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                FloatingActionButton.extended(
-                  heroTag: 'payAdvance',
-                  onPressed: () => _showPayAdvanceDialog(context, ref),
-                  backgroundColor: AppColors.success,
-                  icon: const Icon(
-                    Icons.account_balance_wallet_rounded,
-                    color: AppColors.textOnPrimary,
+                if (isWide) ...[
+                  FloatingActionButton.extended(
+                    heroTag: 'payAdvance',
+                    onPressed: () => _showPayAdvanceDialog(context, ref),
+                    backgroundColor: AppColors.success,
+                    icon: const Icon(
+                      Icons.account_balance_wallet_rounded,
+                      color: AppColors.textOnPrimary,
+                    ),
+                    label: Text(
+                      'Pay Advance',
+                      style: AppTextStyles.labelLarge.copyWith(
+                        color: AppColors.textOnPrimary,
+                      ),
+                    ),
                   ),
-                  label: Text(
-                    'Pay Advance',
-                    style: AppTextStyles.labelLarge.copyWith(
+                  const SizedBox(height: AppDimensions.md),
+                  FloatingActionButton.extended(
+                    heroTag: 'generateBills',
+                    onPressed: () => _showGenerateDialog(context, ref),
+                    backgroundColor: AppColors.primary,
+                    icon: const Icon(Icons.add, color: AppColors.textOnPrimary),
+                    label: Text(
+                      'Generate',
+                      style: AppTextStyles.labelLarge.copyWith(
+                        color: AppColors.textOnPrimary,
+                      ),
+                    ),
+                  ),
+                ] else ...[
+                  FloatingActionButton(
+                    heroTag: 'payAdvance',
+                    onPressed: () => _showPayAdvanceDialog(context, ref),
+                    backgroundColor: AppColors.success,
+                    tooltip: 'Pay Advance',
+                    child: const Icon(
+                      Icons.account_balance_wallet_rounded,
                       color: AppColors.textOnPrimary,
                     ),
                   ),
-                ),
-                const SizedBox(height: AppDimensions.md),
-                FloatingActionButton.extended(
-                  heroTag: 'generateBills',
-                  onPressed: () => _showGenerateDialog(context, ref),
-                  backgroundColor: AppColors.primary,
-                  icon: const Icon(Icons.add, color: AppColors.textOnPrimary),
-                  label: Text(
-                    'Generate',
-                    style: AppTextStyles.labelLarge.copyWith(
-                      color: AppColors.textOnPrimary,
-                    ),
+                  const SizedBox(height: AppDimensions.md),
+                  FloatingActionButton(
+                    heroTag: 'generateBills',
+                    onPressed: () => _showGenerateDialog(context, ref),
+                    backgroundColor: AppColors.primary,
+                    tooltip: 'Generate Bills',
+                    child: const Icon(Icons.add, color: AppColors.textOnPrimary),
                   ),
-                ),
+                ],
               ],
             )
           : null,
@@ -145,10 +201,53 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
                 if (isAdmin)
                   Padding(
                     padding: const EdgeInsets.only(bottom: AppDimensions.sm),
-                    child: OutlinedButton.icon(
-                      onPressed: () => context.push('/bills/audit-logs'),
-                      icon: const Icon(Icons.history_rounded, size: 18),
-                      label: const Text('Audit Logs'),
+                    child: Wrap(
+                      spacing: AppDimensions.sm,
+                      runSpacing: AppDimensions.sm,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () => context.push('/bills/audit-logs'),
+                          icon: const Icon(Icons.history_rounded, size: 18),
+                          label: const Text('Audit Logs'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            if (hasBillSchedules) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const BillScheduleScreen(),
+                                ),
+                              );
+                              return;
+                            }
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Bill Schedule is a Premium feature. Please upgrade to access it.',
+                                ),
+                              ),
+                            );
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const PlansScreen(),
+                              ),
+                            );
+                          },
+                          icon: Icon(
+                            hasBillSchedules
+                                ? Icons.schedule_rounded
+                                : Icons.lock_rounded,
+                            size: 18,
+                          ),
+                          label: Text(
+                            hasBillSchedules
+                                ? 'Bill Schedule'
+                                : 'Bill Schedule (Premium)',
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 SingleChildScrollView(
@@ -230,9 +329,14 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
                       ref.read(billsProvider.notifier).fetchBills(),
                   child: ListView.separated(
                     controller: _scrollController,
-                    padding: const EdgeInsets.all(AppDimensions.screenPadding),
+                    padding: const EdgeInsets.fromLTRB(
+                      AppDimensions.screenPadding,
+                      AppDimensions.screenPadding,
+                      AppDimensions.screenPadding,
+                      AppDimensions.xxxl * 5, // Extra space for dual FABs
+                    ),
                     itemCount: filtered.length + (notifier.hasMore ? 1 : 0),
-                    separatorBuilder: (_, __) =>
+                    separatorBuilder: (context, index) =>
                         const SizedBox(height: AppDimensions.sm),
                     itemBuilder: (_, i) {
                       if (i == filtered.length) {

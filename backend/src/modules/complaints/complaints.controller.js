@@ -5,12 +5,27 @@ const { pushToUsers, pushToRole } = require('../../utils/push');
 
 const createComplaint = async (req, res) => {
   try {
-    const { societyId, id: raisedById } = req.user;
+    const { societyId, id: raisedById, role, unitId: activeUnitId } = req.user;
     const { title, description, category, unitId, priority } = req.body;
     if (!title || !category) return sendError(res, 'title and category are required', 400);
 
+    // Residents/Members can only raise complaints for their active unit.
+    const roleUpper = String(role || '').toUpperCase();
+    const finalUnitId =
+      (roleUpper === 'RESIDENT' || roleUpper === 'MEMBER') && activeUnitId
+        ? activeUnitId
+        : (unitId || null);
+
     const complaint = await prisma.complaint.create({
-      data: { societyId, raisedById, title, description, category: category.toUpperCase(), unitId: unitId || null, priority: priority || 'medium' },
+      data: {
+        societyId,
+        raisedById,
+        title,
+        description,
+        category: category.toUpperCase(),
+        unitId: finalUnitId,
+        priority: priority || 'medium',
+      },
       include: { raisedBy: { select: { name: true } } },
     });
 
@@ -45,13 +60,18 @@ const createComplaint = async (req, res) => {
 
 const getComplaints = async (req, res) => {
   try {
-    const { societyId } = req.user;
+    const { societyId, role, unitId: activeUnitId } = req.user;
     const { status, category, page = 1, limit = 20 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const where = { societyId };
     if (status) where.status = status.toUpperCase();
     if (category) where.category = category.toUpperCase();
+    // Residents/Members only see complaints for their active unit.
+    const roleUpper = String(role || '').toUpperCase();
+    if ((roleUpper === 'RESIDENT' || roleUpper === 'MEMBER') && activeUnitId) {
+      where.unitId = activeUnitId;
+    }
 
     const [complaints, total] = await Promise.all([
       prisma.complaint.findMany({

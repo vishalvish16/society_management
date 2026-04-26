@@ -443,8 +443,9 @@ class _HelperFormState extends ConsumerState<_HelperForm> {
  
     if (mounted) {
       if (error == null) {
+        final messenger = ScaffoldMessenger.of(context);
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(content: Text(_isEdit ? 'Helper updated' : 'Helper added successfully')),
         );
       } else {

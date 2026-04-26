@@ -46,6 +46,8 @@ class _WatchmanLayout extends StatelessWidget {
     final scans = stats['todayVisitorScans'] ?? 0;
     final deliveries = stats['pendingDeliveries'] ?? 0;
     final gatePasses = stats['activeGatePasses'] ?? 0;
+    final parkingActive = stats['parking']?['activeSessions'] ?? 0;
+    final parkingOverstayed = stats['parking']?['overstayed'] ?? 0;
     final name = (user?.name?.toString().trim().isNotEmpty ?? false)
         ? user.name.toString().trim()
         : 'Watchman';
@@ -79,6 +81,13 @@ class _WatchmanLayout extends StatelessWidget {
             subtitle: 'Active',
             gradient: AppColors.gradientPurple,
           ),
+          _StatCard(
+            icon: Icons.local_parking_rounded,
+            label: 'Parking',
+            value: '$parkingActive',
+            subtitle: parkingOverstayed > 0 ? '$parkingOverstayed overstayed' : 'Active',
+            gradient: parkingOverstayed > 0 ? AppColors.gradientOrange : AppColors.gradientBlue,
+          ),
         ];
 
         return Column(
@@ -108,13 +117,10 @@ class _WatchmanLayout extends StatelessWidget {
               )
             else
               Row(
-                children: [
-                  Expanded(child: statCards[0]),
-                  const SizedBox(width: 12),
-                  Expanded(child: statCards[1]),
-                  const SizedBox(width: 12),
-                  Expanded(child: statCards[2]),
-                ],
+                children: statCards
+                    .expand((c) => [Expanded(child: c), const SizedBox(width: 12)])
+                    .toList()
+                  ..removeLast(),
               ),
             const SizedBox(height: AppDimensions.xl),
 
@@ -341,6 +347,8 @@ class _QuickAccessGrid extends StatelessWidget {
         '/deliveries', AppColors.success),
     _AccessItem(Icons.cleaning_services_rounded, 'Domestic Help',
         '/domestichelp', AppColors.teal),
+    _AccessItem(Icons.local_parking_rounded, 'Parking',
+        '/parking', AppColors.warning),
   ];
 
   @override
@@ -415,6 +423,7 @@ class _ActivityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final overstayed = stats['parking']?['overstayed'] ?? 0;
     final rows = [
       _Row(Icons.person_pin_circle_rounded, AppColors.primary,
           'Visitor Scans Today', '${stats['todayVisitorScans'] ?? 0}'),
@@ -422,6 +431,11 @@ class _ActivityCard extends StatelessWidget {
           'Pending Deliveries', '${stats['pendingDeliveries'] ?? 0}'),
       _Row(Icons.badge_rounded, AppColors.info,
           'Active Gate Passes', '${stats['activeGatePasses'] ?? 0}'),
+      _Row(Icons.directions_car_rounded, AppColors.primary,
+          'Active Parking Sessions', '${stats['parking']?['activeSessions'] ?? 0}'),
+      if (overstayed > 0)
+        _Row(Icons.warning_rounded, AppColors.danger,
+            'Overstayed Vehicles', '$overstayed'),
     ];
 
     return Container(

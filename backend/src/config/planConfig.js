@@ -1,30 +1,128 @@
 /**
- * Canonical feature keys for plan enforcement.
- * Each key maps to a route group gated by checkPlanLimit(key).
- * Boolean features: false = denied, true = allowed.
- * Numeric features: -1 = unlimited, 0 = denied, N = cap.
+ * VIDYRON canonical plan config.
  *
- * Only features with real backend modules and checkPlanLimit wiring are listed.
+ * Rules implemented:
+ * - Plan eligibility is based on current UNIT count (maxUnits).
+ * - User creation is capped by maxUsers (fair usage for unlimited can be added later).
+ * - Feature access is denied-by-default and enforced via `checkPlanLimit(key)` middleware.
+ * - Pricing is unit-count based with duration discounts.
+ *
+ * IMPORTANT: Keep feature keys aligned with existing backend middleware + routes.
  */
 
+const PLAN_DURATIONS = {
+  MONTHLY: { months: 1, discountPercent: 0 },
+  THREE_MONTHS: { months: 3, discountPercent: 5 },
+  SIX_MONTHS: { months: 6, discountPercent: 10 },
+  YEARLY: { months: 12, discountPercent: 20 },
+};
+
+/**
+ * Canonical feature keys for plan enforcement.
+ * Boolean features: false = denied, true = allowed.
+ * Numeric features: -1 = unlimited, 0 = denied, N = cap.
+ */
 const FEATURE_DEFAULTS = {
-  visitors: false,           // visitor log (manual walk-in)
-  visitor_qr: false,         // QR invite for visitors
-  gate_passes: false,        // gate pass create/scan
-  expenses: false,           // expense submission
-  expense_approval: false,   // expense review/approve workflow
-  financial_reports: false,  // /reports/financial and /reports/balance
-  donations: false,          // donation campaigns + contributions
-  complaint_assignment: false, // assign & track complaints
-  society_gates: false,      // society gate management
-  amenities: false,          // amenity listing & management
-  amenity_booking: false,    // amenity booking by residents
-  parking_management: false, // parking slot management
-  delivery_tracking: false,  // delivery create/respond/collect
-  domestic_help: false,      // domestic help register/log workflow
-  move_requests: false,      // move-in/out request workflow
+  // Security Management
+  visitors: false,
+  visitor_qr: false,
+  gate_passes: false,
+  delivery_tracking: false,
+  domestic_help: false,
+  parking_management: false,
+
+  // Society Operations
+  society_gates: false,
+  amenities: false,
+  amenity_booking: false,
+  move_requests: false,
+  complaint_assignment: false,
+
+  // Finance & Billing
+  expenses: false,
+  expense_approval: false,
+  bill_schedules: false,
+  financial_reports: false,
+  donations: false,
+
+  // Asset Management
+  asset_management: false,
+
   // Numeric
-  attachments_count: 0,      // max file attachments per record (-1 = unlimited)
+  attachments_count: 0,
+};
+
+/**
+ * Canonical 3 plans as per VIDYRON table.
+ * Pricing is per-unit-per-month (unit count is billing base).
+ */
+const VIDYRON_PLANS = {
+  basic: {
+    name: 'basic',
+    displayName: 'Basic 🟢',
+    pricePerUnit: 5,
+    maxUnits: 100,
+    maxUsers: 250,
+    features: {
+      ...FEATURE_DEFAULTS,
+      // Core platform + communication are always allowed (not feature-gated here)
+    },
+  },
+  standard: {
+    name: 'standard',
+    displayName: 'Standard 🔵',
+    pricePerUnit: 8,
+    maxUnits: 500,
+    maxUsers: 1200,
+    features: {
+      ...FEATURE_DEFAULTS,
+      // Security Management ✅
+      visitors: true,
+      visitor_qr: true,
+      gate_passes: true,
+      delivery_tracking: true,
+      domestic_help: true,
+      parking_management: true,
+      // Society Operations ✅
+      society_gates: true,
+      amenities: true,
+      amenity_booking: true,
+      move_requests: true,
+      complaint_assignment: true,
+      asset_management: true,
+      // Finance/Admin ❌ (remain false)
+      attachments_count: 10,
+    },
+  },
+  premium: {
+    name: 'premium',
+    displayName: 'Premium 🔴',
+    pricePerUnit: 12,
+    maxUnits: -1,
+    maxUsers: -1, // unlimited (fair usage can be enforced later)
+    features: {
+      ...FEATURE_DEFAULTS,
+      // Everything ✅
+      visitors: true,
+      visitor_qr: true,
+      gate_passes: true,
+      delivery_tracking: true,
+      domestic_help: true,
+      parking_management: true,
+      society_gates: true,
+      amenities: true,
+      amenity_booking: true,
+      move_requests: true,
+      complaint_assignment: true,
+      expenses: true,
+      expense_approval: true,
+      bill_schedules: true,
+      financial_reports: true,
+      donations: true,
+      asset_management: true,
+      attachments_count: -1,
+    },
+  },
 };
 
 /**
@@ -63,15 +161,42 @@ function requireFeature(planFeatures, key) {
 }
 
 /**
- * Compute the monthly bill for a society given their unit count.
- * totalMonthly = plan.priceMonthly + (unitCount * plan.pricePerUnit)
- * @param {{ priceMonthly: number, pricePerUnit: number }} plan
- * @param {number} unitCount
+ * Normalize a plan duration string to known codes.
+ * @param {string} duration
  */
-function computeMonthlyBill(plan, unitCount) {
-  const base = Number(plan.priceMonthly) || 0;
-  const perUnit = Number(plan.pricePerUnit) || 0;
-  return base + perUnit * (unitCount || 0);
+function normalizeDuration(duration) {
+  const d = String(duration || 'MONTHLY').toUpperCase().trim();
+  if (PLAN_DURATIONS[d]) return d;
+  // Back-compat: accept billingCycle-ish strings
+  if (d === 'QUARTERLY') return 'THREE_MONTHS';
+  if (d === 'HALF_YEARLY') return 'SIX_MONTHS';
+  return 'MONTHLY';
 }
 
-module.exports = { FEATURE_DEFAULTS, hasFeature, featureLimit, requireFeature, computeMonthlyBill };
+/**
+ * Compute subscription pricing based on unit count, plan, and duration discount.
+ * @param {{ pricePerUnit: number }} plan
+ * @param {number} unitCount
+ * @param {string} duration - MONTHLY | THREE_MONTHS | SIX_MONTHS | YEARLY
+ */
+function computeSubscriptionAmount(plan, unitCount, duration) {
+  const units = Math.max(parseInt(unitCount || 0, 10) || 0, 0);
+  const perUnit = Number(plan.pricePerUnit) || 0;
+  const dur = normalizeDuration(duration);
+  const { months, discountPercent } = PLAN_DURATIONS[dur];
+  const base = units * perUnit * months;
+  const discounted = base * (1 - discountPercent / 100);
+  const rounded = Math.round(discounted * 100) / 100;
+  return { amount: rounded, months, discountPercent, duration: dur, perUnit, unitCount: units };
+}
+
+module.exports = {
+  FEATURE_DEFAULTS,
+  PLAN_DURATIONS,
+  VIDYRON_PLANS,
+  hasFeature,
+  featureLimit,
+  requireFeature,
+  normalizeDuration,
+  computeSubscriptionAmount,
+};

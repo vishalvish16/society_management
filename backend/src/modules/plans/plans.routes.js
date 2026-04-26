@@ -7,12 +7,14 @@ const router = Router();
 
 // Public endpoint — no auth required (for pricing page)
 router.get('/public', plansController.listPublicPlans);
+router.get('/public/quote', plansController.publicQuote);
 
 // All other plan routes require SUPER_ADMIN
 router.use(authMiddleware);
 router.use(roleGuard('SUPER_ADMIN'));
 
 router.get('/', plansController.listPlans);
+router.post('/cleanup', plansController.cleanupPlans);
 router.get('/:id', plansController.getPlan);
 router.post('/', plansController.createPlan);
 router.patch('/:id', plansController.updatePlan);

@@ -25,12 +25,37 @@ class _BalanceReportScreenState extends State<BalanceReportScreen> {
   bool _loading = false;
   String? _error;
 
-  double _openingBalance = 0;
+  Map<String, dynamic> _opening = const {'cash': 0, 'bank': 0, 'total': 0};
+  Map<String, dynamic> _closing = const {'cash': 0, 'bank': 0, 'total': 0};
   List<Map<String, dynamic>> _txns = const [];
-  Map<String, dynamic> _summary = const {};
+
+  String _view = 'ALL'; // ALL | CASH | BANK
 
   final _currency = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
   final _dateFmt = DateFormat('dd MMM yyyy');
+
+  String _displayDescription(Map<String, dynamic> t) {
+    final raw = (t['description'] ?? '').toString().trim();
+    if (raw.isNotEmpty) return raw;
+
+    final transferGroupId = t['transferGroupId'];
+    if (transferGroupId == null) return '—';
+
+    final dc = (t['deltaCash'] as num?)?.toDouble() ?? 0;
+    final db = (t['deltaBank'] as num?)?.toDouble() ?? 0;
+
+    // When backend sends transfers as 2 separate rows:
+    // - CASH OUT or BANK IN => Deposit Cash → Bank
+    // - BANK OUT or CASH IN => Withdraw Bank → Cash
+    final isDeposit = dc < 0 || db > 0;
+    final isWithdraw = db < 0 || dc > 0;
+
+    if (isDeposit && !isWithdraw) return 'Deposit Cash → Bank';
+    if (isWithdraw && !isDeposit) return 'Withdraw Bank → Cash';
+    if (isDeposit) return 'Deposit Cash → Bank';
+    if (isWithdraw) return 'Withdraw Bank → Cash';
+    return 'Transfer';
+  }
 
   @override
   void initState() {
@@ -44,15 +69,15 @@ class _BalanceReportScreenState extends State<BalanceReportScreen> {
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final res = await _client.dio.get('/reports/balance', queryParameters: {
+      final res = await _client.dio.get('/reports/ledger', queryParameters: {
         'fromDate': _from.toIso8601String(),
         'toDate': DateTime(_to.year, _to.month, _to.day, 23, 59, 59).toIso8601String(),
       });
       final data = res.data['data'] as Map<String, dynamic>;
       setState(() {
-        _openingBalance = (data['openingBalance'] as num).toDouble();
+        _opening = Map<String, dynamic>.from(data['opening'] ?? const {'cash': 0, 'bank': 0, 'total': 0});
+        _closing = Map<String, dynamic>.from(data['closing'] ?? const {'cash': 0, 'bank': 0, 'total': 0});
         _txns = List<Map<String, dynamic>>.from(data['transactions'] ?? []);
-        _summary = Map<String, dynamic>.from(data['summary'] ?? {});
       });
     } catch (e) {
       setState(() => _error = e.toString());
@@ -95,7 +120,7 @@ class _BalanceReportScreenState extends State<BalanceReportScreen> {
             borderRadius: pw.BorderRadius.circular(6),
           ),
           child: pw.Text(
-            'Opening Balance: ${currencyFormat.format(_openingBalance)}',
+            'Opening Total: ${currencyFormat.format((_opening['total'] ?? 0) as num)}',
             style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold),
           ),
         ),
@@ -119,10 +144,14 @@ class _BalanceReportScreenState extends State<BalanceReportScreen> {
                       ))
                   .toList(),
             ),
-            ..._txns.map((t) {
-              final isIncome = t['type'] == 'income';
+            ..._filteredTxns().map((t) {
+              final isIncome = (t['deltaCash'] as num? ?? 0) + (t['deltaBank'] as num? ?? 0) > 0;
               final amt = (t['amount'] as num).toDouble();
-              final bal = (t['runningBalance'] as num).toDouble();
+              final bal = _view == 'CASH'
+                  ? (t['balanceCash'] as num?)?.toDouble() ?? 0
+                  : _view == 'BANK'
+                      ? (t['balanceBank'] as num?)?.toDouble() ?? 0
+                      : (t['balanceTotal'] as num?)?.toDouble() ?? 0;
               return pw.TableRow(children: [
                 pw.Padding(
                   padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
@@ -130,7 +159,7 @@ class _BalanceReportScreenState extends State<BalanceReportScreen> {
                 ),
                 pw.Padding(
                   padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                  child: pw.Text(t['description'] ?? '', style: const pw.TextStyle(fontSize: 9)),
+                  child: pw.Text(_displayDescription(t), style: const pw.TextStyle(fontSize: 9)),
                 ),
                 pw.Padding(
                   padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
@@ -157,10 +186,10 @@ class _BalanceReportScreenState extends State<BalanceReportScreen> {
               borderRadius: pw.BorderRadius.circular(6),
             ),
             child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-              pw.Text('Total Income:  ${currencyFormat.format(_summary['periodIncome'] ?? 0)}', style: const pw.TextStyle(fontSize: 11)),
-              pw.Text('Total Expense: ${currencyFormat.format(_summary['periodExpense'] ?? 0)}', style: const pw.TextStyle(fontSize: 11)),
+              pw.Text('Closing Cash:  ${currencyFormat.format((_closing['cash'] ?? 0) as num)}', style: const pw.TextStyle(fontSize: 11)),
+              pw.Text('Closing Bank:  ${currencyFormat.format((_closing['bank'] ?? 0) as num)}', style: const pw.TextStyle(fontSize: 11)),
               pw.SizedBox(height: 4),
-              pw.Text('Closing Balance: ${currencyFormat.format(_summary['closingBalance'] ?? 0)}',
+              pw.Text('Closing Total: ${currencyFormat.format((_closing['total'] ?? 0) as num)}',
                   style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
             ]),
           ),
@@ -169,6 +198,282 @@ class _BalanceReportScreenState extends State<BalanceReportScreen> {
     ));
 
     await Printing.layoutPdf(onLayout: (_) async => pdf.save());
+  }
+
+  Future<void> _openLedgerActions() async {
+    await showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 8,
+              bottom: 16 + MediaQuery.of(ctx).viewInsets.bottom,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Ledger Actions', style: AppTextStyles.h3),
+                const SizedBox(height: 12),
+                _ActionTile(
+                  icon: Icons.add_circle_outline_rounded,
+                  title: 'Add Entry (Cash/Bank IN/OUT)',
+                  subtitle: 'Record received/paid money in cash or bank',
+                  onTap: () async {
+                    Navigator.of(ctx).pop();
+                    await _openAddEntryDialog();
+                  },
+                ),
+                const SizedBox(height: 8),
+                _ActionTile(
+                  icon: Icons.swap_horiz_rounded,
+                  title: 'Transfer (Deposit/Withdraw)',
+                  subtitle: 'Move money between cash and bank',
+                  onTap: () async {
+                    Navigator.of(ctx).pop();
+                    await _openTransferDialog();
+                  },
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Tip: Deposit = CASH → BANK, Withdraw = BANK → CASH.',
+                  style: AppTextStyles.labelSmall.copyWith(color: AppColors.textMuted),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openAddEntryDialog() async {
+    final amountCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    String account = 'CASH';
+    String direction = 'IN';
+    bool saving = false;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            Future<void> submit() async {
+              final amt = double.tryParse(amountCtrl.text.trim().replaceAll(',', ''));
+              if (amt == null || amt <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Enter valid amount')),
+                );
+                return;
+              }
+              setLocal(() => saving = true);
+              try {
+                await _client.dio.post('/reports/ledger/entry', data: {
+                  'account': account,
+                  'direction': direction,
+                  'amount': amt,
+                  'description': descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
+                  'occurredAt': DateTime.now().toIso8601String(),
+                });
+                if (ctx.mounted) Navigator.of(ctx).pop();
+                await _load();
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed: $e')),
+                );
+              } finally {
+                if (ctx.mounted) setLocal(() => saving = false);
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('Add Ledger Entry'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: account,
+                            decoration: const InputDecoration(labelText: 'Account'),
+                            items: const [
+                              DropdownMenuItem(value: 'CASH', child: Text('Cash')),
+                              DropdownMenuItem(value: 'BANK', child: Text('Bank')),
+                            ],
+                            onChanged: saving ? null : (v) => setLocal(() => account = v ?? 'CASH'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: direction,
+                            decoration: const InputDecoration(labelText: 'Type'),
+                            items: const [
+                              DropdownMenuItem(value: 'IN', child: Text('In (Received)')),
+                              DropdownMenuItem(value: 'OUT', child: Text('Out (Paid)')),
+                            ],
+                            onChanged: saving ? null : (v) => setLocal(() => direction = v ?? 'IN'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: amountCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Amount'),
+                      enabled: !saving,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: descCtrl,
+                      decoration: const InputDecoration(labelText: 'Description (optional)'),
+                      enabled: !saving,
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: saving ? null : submit,
+                  child: saving ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _openTransferDialog() async {
+    final amountCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    String fromAccount = 'CASH';
+    String toAccount = 'BANK';
+    bool saving = false;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            Future<void> submit() async {
+              final amt = double.tryParse(amountCtrl.text.trim().replaceAll(',', ''));
+              if (amt == null || amt <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Enter valid amount')),
+                );
+                return;
+              }
+              if (fromAccount == toAccount) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Choose different accounts')),
+                );
+                return;
+              }
+              setLocal(() => saving = true);
+              try {
+                await _client.dio.post('/reports/ledger/transfer', data: {
+                  'fromAccount': fromAccount,
+                  'toAccount': toAccount,
+                  'amount': amt,
+                  'description': descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
+                  'occurredAt': DateTime.now().toIso8601String(),
+                });
+                if (ctx.mounted) Navigator.of(ctx).pop();
+                await _load();
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed: $e')),
+                );
+              } finally {
+                if (ctx.mounted) setLocal(() => saving = false);
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('Transfer'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: fromAccount,
+                            decoration: const InputDecoration(labelText: 'From'),
+                            items: const [
+                              DropdownMenuItem(value: 'CASH', child: Text('Cash')),
+                              DropdownMenuItem(value: 'BANK', child: Text('Bank')),
+                            ],
+                            onChanged: saving ? null : (v) => setLocal(() {
+                              fromAccount = v ?? 'CASH';
+                              if (fromAccount == toAccount) toAccount = fromAccount == 'CASH' ? 'BANK' : 'CASH';
+                            }),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: toAccount,
+                            decoration: const InputDecoration(labelText: 'To'),
+                            items: const [
+                              DropdownMenuItem(value: 'CASH', child: Text('Cash')),
+                              DropdownMenuItem(value: 'BANK', child: Text('Bank')),
+                            ],
+                            onChanged: saving ? null : (v) => setLocal(() {
+                              toAccount = v ?? 'BANK';
+                              if (fromAccount == toAccount) fromAccount = toAccount == 'CASH' ? 'BANK' : 'CASH';
+                            }),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: amountCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Amount'),
+                      enabled: !saving,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: descCtrl,
+                      decoration: const InputDecoration(labelText: 'Description (optional)'),
+                      enabled: !saving,
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: saving ? null : submit,
+                  child: saving ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -181,9 +486,14 @@ class _BalanceReportScreenState extends State<BalanceReportScreen> {
         title: Text('Balance Report', style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
         actions: [
           IconButton(
+            icon: const Icon(Icons.add_rounded),
+            tooltip: 'Ledger actions',
+            onPressed: _openLedgerActions,
+          ),
+          IconButton(
             icon: const Icon(Icons.picture_as_pdf_rounded),
             tooltip: 'Export PDF',
-            onPressed: _txns.isEmpty ? null : _exportPdf,
+            onPressed: _filteredTxns().isEmpty ? null : _exportPdf,
           ),
         ],
       ),
@@ -197,6 +507,20 @@ class _BalanceReportScreenState extends State<BalanceReportScreen> {
               from: _from,
               to: _to,
               onTap: _pickDateRange,
+            ),
+          ),
+
+          // ── View selector (All / Cash / Bank) ───────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Row(
+              children: [
+                _ViewChip(label: 'All', value: 'ALL', selected: _view, onSelected: (v) => setState(() => _view = v)),
+                const SizedBox(width: 8),
+                _ViewChip(label: 'Cash', value: 'CASH', selected: _view, onSelected: (v) => setState(() => _view = v)),
+                const SizedBox(width: 8),
+                _ViewChip(label: 'Bank', value: 'BANK', selected: _view, onSelected: (v) => setState(() => _view = v)),
+              ],
             ),
           ),
 
@@ -223,18 +547,46 @@ class _BalanceReportScreenState extends State<BalanceReportScreen> {
                 padding: const EdgeInsets.all(16),
                 children: [
                   // ── Opening balance card ──────────────────────────
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _SummaryCard(
+                          label: 'Opening Cash',
+                          sublabel: 'As of ${_dateFmt.format(_from)}',
+                          amount: ((_opening['cash'] as num?)?.toDouble() ?? 0),
+                          icon: Icons.payments_rounded,
+                          color: AppColors.success,
+                          surface: AppColors.successSurface,
+                          compact: true,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _SummaryCard(
+                          label: 'Opening Bank',
+                          sublabel: 'As of ${_dateFmt.format(_from)}',
+                          amount: ((_opening['bank'] as num?)?.toDouble() ?? 0),
+                          icon: Icons.account_balance_rounded,
+                          color: AppColors.primary,
+                          surface: AppColors.primarySurface,
+                          compact: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
                   _SummaryCard(
-                    label: 'Opening Balance',
+                    label: 'Opening Total',
                     sublabel: 'As of ${_dateFmt.format(_from)}',
-                    amount: _openingBalance,
-                    icon: Icons.account_balance_rounded,
+                    amount: ((_opening['total'] as num?)?.toDouble() ?? 0),
+                    icon: Icons.account_balance_wallet_rounded,
                     color: AppColors.primary,
                     surface: AppColors.primarySurface,
                   ),
                   const SizedBox(height: 12),
 
                   // ── Transactions list ──────────────────────────────
-                  if (_txns.isEmpty)
+                  if (_filteredTxns().isEmpty)
                     Container(
                       padding: const EdgeInsets.all(32),
                       decoration: BoxDecoration(
@@ -285,12 +637,16 @@ class _BalanceReportScreenState extends State<BalanceReportScreen> {
                               ],
                             ),
                           ),
-                          ..._txns.asMap().entries.map((entry) {
+                          ..._filteredTxns().asMap().entries.map((entry) {
                             final i = entry.key;
                             final t = entry.value;
-                            final isIncome = t['type'] == 'income';
+                            final selectedBalance = _view == 'CASH'
+                                ? ((t['balanceCash'] as num?)?.toDouble() ?? 0)
+                                : _view == 'BANK'
+                                    ? ((t['balanceBank'] as num?)?.toDouble() ?? 0)
+                                    : ((t['balanceTotal'] as num?)?.toDouble() ?? 0);
+                            final isIncome = ((t['deltaCash'] as num? ?? 0) + (t['deltaBank'] as num? ?? 0)) > 0;
                             final amt = (t['amount'] as num).toDouble();
-                            final bal = (t['runningBalance'] as num).toDouble();
                             final date = DateTime.tryParse(t['date'].toString());
                             return Column(
                               children: [
@@ -308,7 +664,7 @@ class _BalanceReportScreenState extends State<BalanceReportScreen> {
                                             Text(date != null ? _dateFmt.format(date) : '—',
                                                 style: AppTextStyles.labelSmall.copyWith(color: AppColors.textMuted)),
                                             const SizedBox(height: 2),
-                                            Text(t['description'] ?? '—',
+                                            Text(_displayDescription(t),
                                                 style: AppTextStyles.bodySmall.copyWith(color: AppColors.textPrimary),
                                                 maxLines: 2, overflow: TextOverflow.ellipsis),
                                             if (t['unit'] != null)
@@ -338,10 +694,10 @@ class _BalanceReportScreenState extends State<BalanceReportScreen> {
                                       Expanded(
                                         flex: 2,
                                         child: Text(
-                                          _currency.format(bal),
+                                          _currency.format(selectedBalance),
                                           textAlign: TextAlign.right,
                                           style: AppTextStyles.bodySmall.copyWith(
-                                              color: bal >= 0 ? AppColors.textPrimary : AppColors.danger,
+                                              color: selectedBalance >= 0 ? AppColors.textPrimary : AppColors.danger,
                                               fontWeight: FontWeight.w600),
                                         ),
                                       ),
@@ -368,15 +724,15 @@ class _BalanceReportScreenState extends State<BalanceReportScreen> {
                     ),
                     child: Column(
                       children: [
-                        Text('Period Summary', style: AppTextStyles.labelLarge.copyWith(color: AppColors.textSecondary)),
+                        Text('Closing Balances', style: AppTextStyles.labelLarge.copyWith(color: AppColors.textSecondary)),
                         const SizedBox(height: 12),
                         Row(
                           children: [
                             Expanded(
                               child: _SummaryCard(
-                                label: 'Total Income',
-                                amount: (_summary['periodIncome'] as num?)?.toDouble() ?? 0,
-                                icon: Icons.arrow_downward_rounded,
+                                label: 'Cash',
+                                amount: ((_closing['cash'] as num?)?.toDouble() ?? 0),
+                                icon: Icons.payments_rounded,
                                 color: AppColors.success,
                                 surface: AppColors.successSurface,
                                 compact: true,
@@ -385,11 +741,11 @@ class _BalanceReportScreenState extends State<BalanceReportScreen> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: _SummaryCard(
-                                label: 'Total Expense',
-                                amount: (_summary['periodExpense'] as num?)?.toDouble() ?? 0,
-                                icon: Icons.arrow_upward_rounded,
-                                color: AppColors.danger,
-                                surface: AppColors.dangerSurface,
+                                label: 'Bank',
+                                amount: ((_closing['bank'] as num?)?.toDouble() ?? 0),
+                                icon: Icons.account_balance_rounded,
+                                color: AppColors.primary,
+                                surface: AppColors.primarySurface,
                                 compact: true,
                               ),
                             ),
@@ -397,9 +753,9 @@ class _BalanceReportScreenState extends State<BalanceReportScreen> {
                         ),
                         const SizedBox(height: 8),
                         _SummaryCard(
-                          label: 'Closing Balance',
+                          label: 'Total',
                           sublabel: 'As of ${_dateFmt.format(_to)}',
-                          amount: (_summary['closingBalance'] as num?)?.toDouble() ?? 0,
+                          amount: ((_closing['total'] as num?)?.toDouble() ?? 0),
                           icon: Icons.account_balance_wallet_rounded,
                           color: AppColors.primary,
                           surface: AppColors.primarySurface,
@@ -412,6 +768,94 @@ class _BalanceReportScreenState extends State<BalanceReportScreen> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> _filteredTxns() {
+    if (_view == 'CASH') {
+      return _txns.where((t) => (t['deltaCash'] as num? ?? 0) != 0).toList(growable: false);
+    }
+    if (_view == 'BANK') {
+      return _txns.where((t) => (t['deltaBank'] as num? ?? 0) != 0).toList(growable: false);
+    }
+    return _txns;
+  }
+}
+
+class _ViewChip extends StatelessWidget {
+  final String label;
+  final String value;
+  final String selected;
+  final ValueChanged<String> onSelected;
+
+  const _ViewChip({
+    required this.label,
+    required this.value,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isSelected = selected == value;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (_) => onSelected(value),
+    );
+  }
+}
+
+class _ActionTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _ActionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+          color: AppColors.surface,
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.primarySurface,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: AppColors.primary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+          ],
+        ),
       ),
     );
   }

@@ -48,13 +48,20 @@ async function submitExpense(req, res) {
 async function reviewExpense(req, res) {
   try {
     const { id: expenseId } = req.params;
-    const { status, rejectionReason } = req.body;
+    const { status, rejectionReason, paymentMethod } = req.body;
 
     if (!['approved', 'rejected'].includes(status)) {
       return sendError(res, 'Status must be approved or rejected', 400);
     }
 
-    const reviewed = await expensesService.reviewExpense(expenseId, req.user.id, status, req.user.societyId, rejectionReason);
+    const reviewed = await expensesService.reviewExpense(
+      expenseId,
+      req.user.id,
+      status,
+      req.user.societyId,
+      rejectionReason,
+      paymentMethod
+    );
     return sendSuccess(res, reviewed, `Expense ${status} successfully`);
   } catch (error) {
     console.error('Review expense error:', error.message);
@@ -93,7 +100,16 @@ async function getPendingExpenses(req, res) {
 
 async function approveExpense(req, res) {
   try {
-    const reviewed = await expensesService.reviewExpense(req.params.id, req.user.id, 'approved', req.user.societyId);
+    const { paymentMethod, referenceId } = req.body;
+    const reviewed = await expensesService.reviewExpense(
+      req.params.id,
+      req.user.id,
+      'approved',
+      req.user.societyId,
+      null,
+      paymentMethod,
+      referenceId
+    );
     return sendSuccess(res, reviewed, 'Expense approved');
   } catch (error) {
     return sendError(res, error.message, error.status || 500);

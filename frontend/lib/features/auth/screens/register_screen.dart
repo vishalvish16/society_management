@@ -79,8 +79,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _confirmCtrl,
-                    obscureText: true,
-                    decoration: _inputDec('Confirm Password', Icons.lock_outline),
+                    obscureText: _obscure,
+                    decoration: _inputDec('Confirm Password', Icons.lock_outline).copyWith(
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                        onPressed: () => setState(() => _obscure = !_obscure),
+                      ),
+                    ),
                     validator: (v) => v != _passCtrl.text ? 'Passwords do not match' : null,
                   ),
                   const SizedBox(height: 16),

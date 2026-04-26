@@ -49,7 +49,12 @@ async function listGatePasses(req, res, next) {
     const societyId = req.user.societyId;
     const { unitId, status, page = 1, limit = 20 } = req.query;
     const where = { societyId };
-    if (unitId) where.unitId = unitId;
+    // Residents/Members must only see their active unit's gate passes.
+    if ((req.user.role === 'RESIDENT' || req.user.role === 'MEMBER') && req.user.unitId) {
+      where.unitId = req.user.unitId;
+    } else if (unitId) {
+      where.unitId = unitId;
+    }
     if (status) where.status = status.toUpperCase();
 
     const [passes, total] = await Promise.all([

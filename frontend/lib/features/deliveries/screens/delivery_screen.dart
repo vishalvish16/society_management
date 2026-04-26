@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimensions.dart';
@@ -230,7 +232,7 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
                               style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
                             ),
                           ],
-                          // ── Resident: Allow / Deny on PENDING ──────────
+                          // ── Resident: Allow / Deny / Drop at Gate on PENDING ──
                           if (isResident && status == 'pending' && id.isNotEmpty) ...[
                             const SizedBox(height: AppDimensions.sm),
                             Row(children: [
@@ -264,6 +266,57 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
                                 ),
                               ),
                             ]),
+                            const SizedBox(height: AppDimensions.sm),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: () => _respond(id, 'LEFT_AT_GATE'),
+                                icon: const Icon(Icons.storefront_outlined, size: 16),
+                                label: const Text('Drop at Gate'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.info,
+                                  side: const BorderSide(color: AppColors.info),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
+                                  padding: const EdgeInsets.symmetric(vertical: AppDimensions.sm),
+                                ),
+                              ),
+                            ),
+                          ],
+                          // ── Staff: Photograph parcel for LEFT_AT_GATE ──
+                          if (isStaff && status == 'left_at_gate' && id.isNotEmpty) ...[
+                            const SizedBox(height: AppDimensions.sm),
+                            Container(
+                              padding: const EdgeInsets.all(AppDimensions.sm),
+                              decoration: BoxDecoration(
+                                color: AppColors.infoSurface,
+                                borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                              ),
+                              child: Row(children: [
+                                const Icon(Icons.info_outline_rounded, size: 14, color: AppColors.info),
+                                const SizedBox(width: AppDimensions.sm),
+                                Expanded(child: Text(
+                                  'Resident chose "Drop at Gate" — photograph the parcel.',
+                                  style: AppTextStyles.caption.copyWith(color: AppColors.info),
+                                )),
+                              ]),
+                            ),
+                            const SizedBox(height: AppDimensions.sm),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: () => _showDropPhotoSheet(context, id),
+                                icon: const Icon(Icons.camera_alt_rounded, size: 16),
+                                label: const Text('Take Parcel Photo'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.info,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
+                                  padding: const EdgeInsets.symmetric(vertical: AppDimensions.sm),
+                                ),
+                              ),
+                            ),
                           ],
                           // ── Staff: Mark Collected on PENDING or ALLOWED ─
                           if (isStaff && (status == 'pending' || status == 'allowed') && id.isNotEmpty) ...[
@@ -346,6 +399,18 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
     }
   }
 
+  void _showDropPhotoSheet(BuildContext context, String deliveryId) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
+      ),
+      builder: (_) => _DropPhotoSheet(deliveryId: deliveryId),
+    );
+  }
+
   void _showLogDeliverySheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -412,8 +477,9 @@ class _LogDeliveryFormState extends ConsumerState<_LogDeliveryForm> {
 
     if (mounted) {
       if (error == null) {
+        final messenger = ScaffoldMessenger.of(context);
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           const SnackBar(content: Text('Delivery logged successfully')),
         );
       } else {
@@ -427,109 +493,301 @@ class _LogDeliveryFormState extends ConsumerState<_LogDeliveryForm> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppDimensions.screenPadding,
-        AppDimensions.lg,
-        AppDimensions.screenPadding,
-        MediaQuery.of(context).viewInsets.bottom + AppDimensions.lg,
-      ),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.border,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+    return SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: EdgeInsets.fromLTRB(
+              AppDimensions.screenPadding,
+              AppDimensions.lg,
+              AppDimensions.screenPadding,
+              MediaQuery.of(context).viewInsets.bottom + AppDimensions.lg,
             ),
-            const SizedBox(height: AppDimensions.lg),
-            Text('Log Delivery', style: AppTextStyles.h1),
-            const SizedBox(height: AppDimensions.lg),
-            if (!_lockUnit) ...[
-              UnitPickerField(
-                selectedUnitId: _selectedUnitId,
-                selectedUnitCode: _selectedUnitCode,
-                onChanged: (id, code) => setState(() {
-                  _selectedUnitId = id;
-                  _selectedUnitCode = code;
-                }),
-              ),
-              const SizedBox(height: AppDimensions.md),
-            ],
-            TextFormField(
-              controller: _agentNameController,
-              decoration: const InputDecoration(
-                labelText: 'Agent Name',
-                prefixIcon: Icon(Icons.person_rounded),
-              ),
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-            ),
-            const SizedBox(height: AppDimensions.md),
-            TextFormField(
-              controller: _companyController,
-              decoration: const InputDecoration(
-                labelText: 'Company (Optional)',
-                prefixIcon: Icon(Icons.business_rounded),
-              ),
-            ),
-            const SizedBox(height: AppDimensions.md),
-            TextFormField(
-              controller: _descriptionController,
-              decoration: const InputDecoration(
-                labelText: 'Description (Optional)',
-                prefixIcon: Icon(Icons.notes_rounded),
-              ),
-            ),
-            if (_errorMsg != null) ...[
-              const SizedBox(height: AppDimensions.md),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(AppDimensions.sm),
-                decoration: BoxDecoration(
-                  color: AppColors.dangerSurface,
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
-                ),
-                child: Text(
-                  _errorMsg!,
-                  style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText),
-                ),
-              ),
-            ],
-            const SizedBox(height: AppDimensions.xl),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.textOnPrimary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                  ),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          color: AppColors.textOnPrimary,
-                          strokeWidth: 2,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppColors.border,
+                          borderRadius: BorderRadius.circular(2),
                         ),
-                      )
-                    : Text('Log Delivery', style: AppTextStyles.buttonLarge),
+                      ),
+                    ),
+                    const SizedBox(height: AppDimensions.lg),
+                    Text('Log Delivery', style: AppTextStyles.h1),
+                    const SizedBox(height: AppDimensions.lg),
+                    if (!_lockUnit) ...[
+                      UnitPickerField(
+                        selectedUnitId: _selectedUnitId,
+                        selectedUnitCode: _selectedUnitCode,
+                        onChanged: (id, code) => setState(() {
+                          _selectedUnitId = id;
+                          _selectedUnitCode = code;
+                        }),
+                      ),
+                      const SizedBox(height: AppDimensions.md),
+                    ],
+                    TextFormField(
+                      controller: _agentNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Agent Name',
+                        prefixIcon: Icon(Icons.person_rounded),
+                      ),
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                    ),
+                    const SizedBox(height: AppDimensions.md),
+                    TextFormField(
+                      controller: _companyController,
+                      decoration: const InputDecoration(
+                        labelText: 'Company (Optional)',
+                        prefixIcon: Icon(Icons.business_rounded),
+                      ),
+                    ),
+                    const SizedBox(height: AppDimensions.md),
+                    TextFormField(
+                      controller: _descriptionController,
+                      decoration: const InputDecoration(
+                        labelText: 'Description (Optional)',
+                        prefixIcon: Icon(Icons.notes_rounded),
+                      ),
+                    ),
+                    if (_errorMsg != null) ...[
+                      const SizedBox(height: AppDimensions.md),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(AppDimensions.sm),
+                        decoration: BoxDecoration(
+                          color: AppColors.dangerSurface,
+                          borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                        ),
+                        child: Text(
+                          _errorMsg!,
+                          style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: AppDimensions.xl),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _submit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: AppColors.textOnPrimary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                          ),
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  color: AppColors.textOnPrimary,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text('Log Delivery', style: AppTextStyles.buttonLarge),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ],
-        ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ─── Drop Photo Sheet ─────────────────────────────────────────────────────────
+
+class _DropPhotoSheet extends ConsumerStatefulWidget {
+  final String deliveryId;
+  const _DropPhotoSheet({required this.deliveryId});
+
+  @override
+  ConsumerState<_DropPhotoSheet> createState() => _DropPhotoSheetState();
+}
+
+class _DropPhotoSheetState extends ConsumerState<_DropPhotoSheet> {
+  File? _photo;
+  bool  _loading = false;
+  String? _error;
+  final _picker = ImagePicker();
+
+  Future<void> _pick(ImageSource source) async {
+    final picked = await _picker.pickImage(source: source, imageQuality: 75, maxWidth: 1024);
+    if (picked != null) setState(() => _photo = File(picked.path));
+  }
+
+  Future<void> _submit() async {
+    if (_photo == null) {
+      setState(() => _error = 'Please capture a photo first');
+      return;
+    }
+    setState(() { _loading = true; _error = null; });
+    final error = await ref.read(deliveryProvider.notifier).uploadDropPhoto(widget.deliveryId, _photo!);
+    if (mounted) {
+      if (error == null) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Parcel photo uploaded — unit member notified.'),
+          backgroundColor: AppColors.success,
+        ));
+      } else {
+        setState(() { _loading = false; _error = error; });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: EdgeInsets.fromLTRB(
+              AppDimensions.screenPadding,
+              AppDimensions.lg,
+              AppDimensions.screenPadding,
+              MediaQuery.of(context).viewInsets.bottom + AppDimensions.lg,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.border,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppDimensions.lg),
+                  Text('Photograph Parcel', style: AppTextStyles.h1),
+                  const SizedBox(height: AppDimensions.xs),
+                  Text(
+                    'Resident chose "Drop at Gate". Take a photo of the parcel for their records.',
+                    style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
+                  ),
+                  const SizedBox(height: AppDimensions.lg),
+
+                  // ── Photo preview / capture ──────────────────────────────────
+                  GestureDetector(
+                    onTap: () => showModalBottomSheet(
+                      context: context,
+                      backgroundColor: AppColors.surface,
+                      builder: (_) => SafeArea(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(height: AppDimensions.md),
+                            ListTile(
+                              leading: const Icon(Icons.camera_alt_rounded, color: AppColors.primary),
+                              title: const Text('Take Photo'),
+                              onTap: () {
+                                Navigator.pop(context);
+                                _pick(ImageSource.camera);
+                              },
+                            ),
+                            ListTile(
+                              leading: const Icon(Icons.photo_library_rounded, color: AppColors.primary),
+                              title: const Text('Choose from Gallery'),
+                              onTap: () {
+                                Navigator.pop(context);
+                                _pick(ImageSource.gallery);
+                              },
+                            ),
+                            const SizedBox(height: AppDimensions.md),
+                          ],
+                        ),
+                      ),
+                    ),
+                    child: Container(
+                      width: double.infinity,
+                      height: _photo != null ? 200 : 120,
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        border: Border.all(
+                          color: _photo != null ? AppColors.primary : AppColors.border,
+                        ),
+                        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                      ),
+                      child: _photo != null
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(AppDimensions.radiusMd - 1),
+                              child: Image.file(_photo!, fit: BoxFit.cover),
+                            )
+                          : Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.camera_alt_rounded,
+                                    size: 36, color: AppColors.textMuted),
+                                const SizedBox(height: AppDimensions.sm),
+                                Text(
+                                  'Tap to capture parcel photo',
+                                  style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+
+                  if (_error != null) ...[
+                    const SizedBox(height: AppDimensions.sm),
+                    Text(
+                      _error!,
+                      style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText),
+                    ),
+                  ],
+
+                  const SizedBox(height: AppDimensions.lg),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      onPressed: _loading ? null : _submit,
+                      icon: _loading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2),
+                            )
+                          : const Icon(Icons.upload_rounded, size: 18),
+                      label: Text(_loading ? 'Uploading…' : 'Upload & Notify Resident'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: AppColors.textOnPrimary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

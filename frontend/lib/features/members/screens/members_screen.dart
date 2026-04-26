@@ -14,6 +14,8 @@ import '../providers/members_provider.dart';
 import '../../units/providers/unit_provider.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
+import 'dart:convert';
+import '../../../shared/widgets/responsive_two_column.dart';
 
 class MembersScreen extends ConsumerStatefulWidget {
   const MembersScreen({super.key});
@@ -292,6 +294,18 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
     final passCtrl = TextEditingController();
     String role = member?.role ?? 'MEMBER';
     bool isActive = member?.isActive ?? true;
+    final List<_HouseholdEntry> householdEntries = [];
+    if (member != null && member.householdMembers.isNotEmpty) {
+      for (final m in member.householdMembers) {
+        householdEntries.add(_HouseholdEntry(
+          nameCtrl: TextEditingController(text: m.name),
+          phoneCtrl: TextEditingController(text: m.phone ?? ''),
+          ageCtrl: TextEditingController(text: m.age?.toString() ?? ''),
+          relation: m.relation,
+          gender: m.gender,
+        ));
+      }
+    }
 
     const privilegedRoles = {
       'PRAMUKH',
@@ -344,158 +358,322 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                       style: AppTextStyles.h1,
                     ),
                     const SizedBox(height: AppDimensions.lg),
-                    AppTextField(label: 'Full Name *', controller: nameCtrl),
-                    const SizedBox(height: AppDimensions.md),
-                    AppTextField(
-                      label: 'Phone Number *',
-                      controller: phoneCtrl,
-                      hint: 'Used as Login ID',
-                      keyboardType: TextInputType.phone,
-                    ),
-                    const SizedBox(height: AppDimensions.md),
-                    AppTextField(
-                      label: 'Email (Optional)',
-                      controller: emailCtrl,
-                    ),
-                    const SizedBox(height: AppDimensions.md),
-                    if (!isEdit) ...[
-                      AppTextField(
-                        label: 'Password *',
-                        controller: passCtrl,
-                        obscureText: true,
-                      ),
-                      const SizedBox(height: AppDimensions.md),
-                    ],
-                    AppSearchableDropdown<String>(
-                      label: 'Role',
-                      value: role,
-                      items: lockUnit
-                          ? const [
-                              AppDropdownItem(value: 'MEMBER', label: 'Member'),
-                              AppDropdownItem(
-                                value: 'RESIDENT',
-                                label: 'Resident',
-                              ),
-                            ]
-                          : const [
-                              AppDropdownItem(value: 'MEMBER', label: 'Member'),
-                              AppDropdownItem(
-                                value: 'RESIDENT',
-                                label: 'Resident',
-                              ),
-                              AppDropdownItem(
-                                value: 'PRAMUKH',
-                                label: 'Chairman',
-                              ),
-                              AppDropdownItem(
-                                value: 'VICE_CHAIRMAN',
-                                label: 'Vice-Chairman',
-                              ),
-                              AppDropdownItem(
-                                value: 'SECRETARY',
-                                label: 'Secretary',
-                              ),
-                              AppDropdownItem(
-                                value: 'TREASURER',
-                                label: 'Treasurer',
-                              ),
-                              AppDropdownItem(
-                                value: 'WATCHMAN',
-                                label: 'Watchman',
-                              ),
-                            ],
-                      onChanged: (v) => setDlgState(() => role = v ?? 'MEMBER'),
-                    ),
-                    const SizedBox(height: AppDimensions.md),
-                    Consumer(
-                      builder: (ctx, ref, _) {
-                        final unitsAsync = ref.watch(unitsProvider);
-                        if (lockUnit) {
-                          final unitCode =
-                              member?.unitCode ?? authUser?.unitCode;
-                          return Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppDimensions.md,
-                              vertical: 14,
+                    ResponsiveTwoColumn(
+                      desktopLeftFlex: 0.9,
+                      desktopRightFlex: 1.1,
+                      left: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          AppTextField(label: 'Full Name *', controller: nameCtrl),
+                          const SizedBox(height: AppDimensions.md),
+                          AppTextField(
+                            label: 'Phone Number *',
+                            controller: phoneCtrl,
+                            hint: 'Used as Login ID',
+                            keyboardType: TextInputType.phone,
+                          ),
+                          const SizedBox(height: AppDimensions.md),
+                          AppTextField(
+                            label: 'Email (Optional)',
+                            controller: emailCtrl,
+                          ),
+                          const SizedBox(height: AppDimensions.md),
+                          if (!isEdit) ...[
+                            AppTextField(
+                              label: 'Password *',
+                              controller: passCtrl,
+                              obscureText: true,
                             ),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceVariant,
-                              borderRadius: BorderRadius.circular(
-                                AppDimensions.radiusMd,
-                              ),
-                              border: Border.all(
-                                color: selectedUnitId != null
-                                    ? AppColors.primary.withOpacity(0.5)
-                                    : AppColors.border,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                            const SizedBox(height: AppDimensions.md),
+                          ],
+                          AppSearchableDropdown<String>(
+                            label: 'Role',
+                            value: role,
+                            items: lockUnit
+                                ? const [
+                                    AppDropdownItem(value: 'MEMBER', label: 'Member'),
+                                    AppDropdownItem(value: 'RESIDENT', label: 'Resident'),
+                                  ]
+                                : const [
+                                    AppDropdownItem(value: 'MEMBER', label: 'Member'),
+                                    AppDropdownItem(value: 'RESIDENT', label: 'Resident'),
+                                    AppDropdownItem(value: 'PRAMUKH', label: 'Chairman'),
+                                    AppDropdownItem(value: 'VICE_CHAIRMAN', label: 'Vice-Chairman'),
+                                    AppDropdownItem(value: 'SECRETARY', label: 'Secretary'),
+                                    AppDropdownItem(value: 'TREASURER', label: 'Treasurer'),
+                                    AppDropdownItem(value: 'WATCHMAN', label: 'Watchman'),
+                                  ],
+                            onChanged: (v) => setDlgState(() => role = v ?? 'MEMBER'),
+                          ),
+                          const SizedBox(height: AppDimensions.md),
+                          Consumer(
+                            builder: (ctx, ref, _) {
+                              final unitsAsync = ref.watch(unitsProvider);
+                              if (lockUnit) {
+                                final unitCode = member?.unitCode ?? authUser?.unitCode;
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: AppDimensions.md,
+                                    vertical: 14,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surfaceVariant,
+                                    borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                                    border: Border.all(
+                                      color: selectedUnitId != null
+                                          ? AppColors.primary.withOpacity(0.5)
+                                          : AppColors.border,
+                                    ),
+                                  ),
+                                  child: Row(
                                     children: [
-                                      Text(
-                                        'Assigned Unit',
-                                        style: AppTextStyles.caption.copyWith(
-                                          color: AppColors.textMuted,
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Assigned Unit',
+                                              style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                                            ),
+                                            Text(unitCode ?? 'No unit assigned', style: AppTextStyles.bodyMedium),
+                                          ],
                                         ),
                                       ),
-                                      Text(
-                                        unitCode ?? 'No unit assigned',
-                                        style: AppTextStyles.bodyMedium,
+                                      Icon(Icons.lock_outline_rounded, color: AppColors.textMuted, size: 18),
+                                    ],
+                                  ),
+                                );
+                              }
+                              return unitsAsync.when(
+                                data: (units) => AppSearchableDropdown<String?>(
+                                  label: 'Assigned Unit',
+                                  value: units.any((u) => u['id'].toString() == selectedUnitId) ? selectedUnitId : null,
+                                  items: [
+                                    const AppDropdownItem(value: null, label: 'No Unit'),
+                                    ...units.map((u) => AppDropdownItem(value: u['id'].toString(), label: u['fullCode'])),
+                                  ],
+                                  onChanged: (v) => setDlgState(() => selectedUnitId = v),
+                                ),
+                                loading: () => const LinearProgressIndicator(),
+                                error: (_, __) => const Text('Error loading units'),
+                              );
+                            },
+                          ),
+                          if (isEdit) ...[
+                            const SizedBox(height: AppDimensions.md),
+                            SwitchListTile(
+                              title: const Text('Account Active'),
+                              value: isActive,
+                              onChanged: (v) => setDlgState(() => isActive = v),
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ],
+                        ],
+                      ),
+                      right: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.primarySurface.withOpacity(0.35),
+                        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                        border: Border.all(color: AppColors.primary.withOpacity(0.18)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.groups_rounded, color: AppColors.primary),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            'Family Members / Who Lives',
+                                            style: AppTextStyles.h3.copyWith(color: AppColors.primary),
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.primary.withOpacity(0.10),
+                                            borderRadius: BorderRadius.circular(999),
+                                          ),
+                                          child: Text(
+                                            'Total: ${householdEntries.where((e) => e.nameCtrl.text.trim().isNotEmpty).length + 1}',
+                                            style: AppTextStyles.caption.copyWith(
+                                              color: AppColors.primary,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Add spouse/parents/children so society can see who actually lives in the unit.',
+                                      style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppDimensions.md),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: FilledButton.icon(
+                              onPressed: () {
+                                setDlgState(() {
+                                  householdEntries.add(_HouseholdEntry(
+                                    nameCtrl: TextEditingController(),
+                                    phoneCtrl: TextEditingController(),
+                                    ageCtrl: TextEditingController(),
+                                  ));
+                                });
+                              },
+                              icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                              label: const Text('Add family member'),
+                            ),
+                          ),
+                          const SizedBox(height: AppDimensions.md),
+                          if (householdEntries.isEmpty)
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceVariant,
+                                borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                                border: Border.all(color: AppColors.border),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.info_outline_rounded, color: AppColors.textMuted.withOpacity(0.8)),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'No family members added yet. Tap “Add family member”.',
+                                      style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ...List.generate(householdEntries.length, (i) {
+                            final entry = householdEntries[i];
+                            final relationLabel = {
+                              'SPOUSE': 'Spouse',
+                              'FATHER': 'Father',
+                              'MOTHER': 'Mother',
+                              'CHILD': 'Child',
+                              'PARENT': 'Parent',
+                              'SIBLING': 'Sibling',
+                              'OTHER': 'Other',
+                            }[entry.relation] ?? 'Other';
+
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: AppDimensions.sm),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                                border: Border.all(color: AppColors.border),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.04),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.surfaceVariant,
+                                          borderRadius: BorderRadius.circular(999),
+                                          border: Border.all(color: AppColors.border),
+                                        ),
+                                        child: Text(
+                                          'Person ${i + 1} • $relationLabel',
+                                          style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700),
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      IconButton(
+                                        tooltip: 'Remove',
+                                        icon: const Icon(Icons.delete_outline_rounded, color: AppColors.danger, size: 20),
+                                        onPressed: () => setDlgState(() => householdEntries.removeAt(i)),
+                                        constraints: const BoxConstraints(),
+                                        padding: EdgeInsets.zero,
                                       ),
                                     ],
                                   ),
-                                ),
-                                Icon(
-                                  Icons.lock_outline_rounded,
-                                  color: AppColors.textMuted,
-                                  size: 18,
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                        return unitsAsync.when(
-                          data: (units) => AppSearchableDropdown<String?>(
-                            label: 'Assigned Unit',
-                            value:
-                                units.any(
-                                  (u) => u['id'].toString() == selectedUnitId,
-                                )
-                                ? selectedUnitId
-                                : null,
-                            items: [
-                              const AppDropdownItem(
-                                value: null,
-                                label: 'No Unit',
+                                  const SizedBox(height: AppDimensions.sm),
+                                  AppTextField(label: 'Full name *', controller: entry.nameCtrl),
+                                  const SizedBox(height: AppDimensions.sm),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: AppSearchableDropdown<String>(
+                                          label: 'Relation',
+                                          value: entry.relation,
+                                          items: const [
+                                            AppDropdownItem(value: 'SPOUSE', label: 'Spouse'),
+                                            AppDropdownItem(value: 'FATHER', label: 'Father'),
+                                            AppDropdownItem(value: 'MOTHER', label: 'Mother'),
+                                            AppDropdownItem(value: 'CHILD', label: 'Child'),
+                                            AppDropdownItem(value: 'PARENT', label: 'Parent'),
+                                            AppDropdownItem(value: 'SIBLING', label: 'Sibling'),
+                                            AppDropdownItem(value: 'OTHER', label: 'Other'),
+                                          ],
+                                          onChanged: (v) => setDlgState(() => entry.relation = v ?? 'OTHER'),
+                                        ),
+                                      ),
+                                      const SizedBox(width: AppDimensions.sm),
+                                      SizedBox(
+                                        width: 74,
+                                        child: AppTextField(label: 'Age', controller: entry.ageCtrl, keyboardType: TextInputType.number),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: AppDimensions.sm),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: AppSearchableDropdown<String?>(
+                                          label: 'Gender (optional)',
+                                          value: entry.gender,
+                                          items: const [
+                                            AppDropdownItem(value: null, label: 'Select'),
+                                            AppDropdownItem(value: 'MALE', label: 'Male'),
+                                            AppDropdownItem(value: 'FEMALE', label: 'Female'),
+                                            AppDropdownItem(value: 'OTHER', label: 'Other'),
+                                          ],
+                                          onChanged: (v) => setDlgState(() => entry.gender = v),
+                                        ),
+                                      ),
+                                      const SizedBox(width: AppDimensions.sm),
+                                      Expanded(
+                                        child: AppTextField(label: 'Phone (optional)', controller: entry.phoneCtrl, keyboardType: TextInputType.phone),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
-                              ...units.map(
-                                (u) => AppDropdownItem(
-                                  value: u['id'].toString(),
-                                  label: u['fullCode'],
-                                ),
-                              ),
-                            ],
-                            onChanged: (v) =>
-                                setDlgState(() => selectedUnitId = v),
-                          ),
-                          loading: () => const LinearProgressIndicator(),
-                          error: (_, __) => const Text('Error loading units'),
-                        );
-                      },
-                    ),
-                    if (isEdit) ...[
-                      const SizedBox(height: AppDimensions.md),
-                      SwitchListTile(
-                        title: const Text('Account Active'),
-                        value: isActive,
-                        onChanged: (v) => setDlgState(() => isActive = v),
-                        contentPadding: EdgeInsets.zero,
+                            );
+                          }),
+                        ],
                       ),
-                    ],
+                    ),
+                    ),
                     if (errorMsg != null) ...[
                       const SizedBox(height: AppDimensions.md),
                       Container(
@@ -542,6 +720,18 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                                   'role': role,
                                   'unitId': selectedUnitId,
                                 };
+                                final householdList = householdEntries
+                                    .where((e) => e.nameCtrl.text.trim().isNotEmpty)
+                                    .map((e) => {
+                                          'name': e.nameCtrl.text.trim(),
+                                          'relation': e.relation,
+                                          'age': int.tryParse(e.ageCtrl.text),
+                                          'gender': e.gender,
+                                          'phone': e.phoneCtrl.text.trim().isEmpty ? null : e.phoneCtrl.text.trim(),
+                                          'isAdult': (int.tryParse(e.ageCtrl.text) ?? 18) >= 18,
+                                        })
+                                    .toList();
+                                data['householdMembers'] = jsonEncode(householdList);
                                 if (!isEdit) data['password'] = passCtrl.text;
                                 if (isEdit) data['isActive'] = isActive;
                                 final error = isEdit
@@ -750,4 +940,20 @@ class _FilterChip extends StatelessWidget {
       ),
     );
   }
+}
+
+class _HouseholdEntry {
+  final TextEditingController nameCtrl;
+  final TextEditingController phoneCtrl;
+  final TextEditingController ageCtrl;
+  String relation;
+  String? gender;
+
+  _HouseholdEntry({
+    required this.nameCtrl,
+    required this.phoneCtrl,
+    required this.ageCtrl,
+    this.relation = 'SPOUSE',
+    this.gender,
+  });
 }

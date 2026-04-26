@@ -1,4 +1,4 @@
-const { runOverdueReminderSweep } = require('./bills.service');
+const { runOverdueReminderSweep, runMaintenanceBillScheduleSweep } = require('./bills.service');
 
 let schedulerHandle = null;
 
@@ -7,7 +7,7 @@ function startBillingJobs() {
     return;
   }
 
-  const runSweep = async () => {
+  const runOverdueSweep = async () => {
     try {
       const result = await runOverdueReminderSweep();
       if (result.remindersSent > 0) {
@@ -18,8 +18,28 @@ function startBillingJobs() {
     }
   };
 
-  setTimeout(runSweep, 10 * 1000);
-  schedulerHandle = setInterval(runSweep, 60 * 60 * 1000);
+  const runScheduleSweep = async () => {
+    try {
+      const result = await runMaintenanceBillScheduleSweep();
+      if (result.schedulesRun > 0) {
+        console.log(`[billing-jobs] ran ${result.schedulesRun} schedule(s), created ${result.billsCreated} bill(s)`);
+      }
+    } catch (error) {
+      console.error('[billing-jobs] bill schedule sweep failed:', error.message);
+    }
+  };
+
+  // Start shortly after boot.
+  setTimeout(() => {
+    runScheduleSweep();
+    runOverdueSweep();
+  }, 10 * 1000);
+
+  // Bill schedule sweep: every minute.
+  schedulerHandle = setInterval(runScheduleSweep, 60 * 1000);
+
+  // Overdue reminder sweep: hourly.
+  setInterval(runOverdueSweep, 60 * 60 * 1000);
 }
 
 module.exports = { startBillingJobs };

@@ -7,6 +7,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/providers/dio_provider.dart';
 import '../providers/societies_provider.dart';
 import '../../visitors/providers/visitor_config_provider.dart';
+import '../../plans/providers/plans_provider.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
 import '../../../shared/widgets/show_app_dialog.dart';
@@ -25,9 +26,10 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(
-      () => ref.read(societiesProvider.notifier).loadSocieties(),
-    );
+    Future.microtask(() {
+      ref.read(societiesProvider.notifier).loadSocieties();
+      ref.read(plansProvider.notifier).loadPlans();
+    });
   }
 
   @override
@@ -782,6 +784,7 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
     final emailC = TextEditingController(text: society?['contactEmail'] ?? '');
     final existingPlanName = society?['plan']?['name'] as String?;
     String selectedPlan = (existingPlanName ?? 'basic').toLowerCase();
+    String selectedDuration = society?['planDuration'] ?? 'MONTHLY';
     bool planChanged = false;
 
     // Controllers for Chairman (only for create)
@@ -847,17 +850,86 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                       ],
                     ),
                     const SizedBox(height: 10),
-                    AppSearchableDropdown<String>(
-                      label: 'Plan',
-                      value: selectedPlan,
-                      items: const [
-                        AppDropdownItem(value: 'basic', label: 'Basic'),
-                        AppDropdownItem(value: 'standard', label: 'Standard'),
-                        AppDropdownItem(value: 'premium', label: 'Premium'),
-                      ],
-                      onChanged: (v) {
-                        selectedPlan = v ?? 'basic';
-                        planChanged = true;
+                    Consumer(
+                      builder: (context, ref, child) {
+                        final plansState = ref.watch(plansProvider);
+                        final plans = plansState.plans;
+                        
+                        if (plans.isEmpty && plansState.isLoading) {
+                          return const LinearProgressIndicator();
+                        }
+                        
+                        final currentPlan = plans.firstWhere(
+                          (p) => p['name'].toString().toLowerCase() == selectedPlan.toLowerCase(),
+                          orElse: () => {},
+                        );
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            AppSearchableDropdown<String>(
+                              label: 'Plan',
+                              value: selectedPlan,
+                              items: plans.map((p) => AppDropdownItem(
+                                value: p['name'].toString().toLowerCase(),
+                                label: p['displayName'] ?? p['name'],
+                              )).toList(),
+                              onChanged: (v) {
+                                setS(() {
+                                  selectedPlan = v ?? 'basic';
+                                  planChanged = true;
+                                });
+                              },
+                            ),
+                            if (currentPlan.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primarySurface,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: AppColors.primary.withValues(alpha: 0.1),
+                                  ),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        _planInfoItem('Units', currentPlan['maxUnits'] == -1 ? 'Unlimited' : '${currentPlan['maxUnits']}'),
+                                        _planInfoItem('Users', currentPlan['maxUsers'] == -1 ? 'Unlimited' : '${currentPlan['maxUsers']}'),
+                                        _planInfoItem('Rate', '₹${currentPlan['pricePerUnit']}/unit'),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: _durationButton(
+                                            'Monthly',
+                                            'MONTHLY',
+                                            selectedDuration == 'MONTHLY',
+                                            () => setS(() => selectedDuration = 'MONTHLY'),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: _durationButton(
+                                            'Yearly',
+                                            'YEARLY',
+                                            selectedDuration == 'YEARLY',
+                                            () => setS(() => selectedDuration = 'YEARLY'),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        );
                       },
                     ),
                     if (!isEdit) ...[
@@ -973,6 +1045,7 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
 
                         if (!isEdit || planChanged) {
                           data['planName'] = selectedPlan;
+                          data['planDuration'] = selectedDuration;
                         }
 
                         if (!isEdit) {
@@ -1332,6 +1405,7 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
     final unitsC = TextEditingController();
 
     String selectedPlan = 'standard';
+    String selectedDuration = 'MONTHLY';
     bool enableTrial = true;
     final trialDaysC = TextEditingController(text: '30');
 
@@ -1484,23 +1558,77 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                             ),
                           ],
                           if (step == 1) ...[
-                            AppSearchableDropdown<String>(
-                              label: 'Plan *',
-                              value: selectedPlan,
-                              items: const [
-                                AppDropdownItem(value: 'basic', label: 'Basic'),
-                                AppDropdownItem(
-                                  value: 'standard',
-                                  label: 'Standard',
-                                ),
-                                AppDropdownItem(
-                                  value: 'premium',
-                                  label: 'Premium',
-                                ),
-                              ],
-                              onChanged: (v) => setSheetState(
-                                () => selectedPlan = v ?? 'standard',
-                              ),
+                            Consumer(
+                              builder: (context, ref, child) {
+                                final plansState = ref.watch(plansProvider);
+                                final plans = plansState.plans;
+                                
+                                if (plans.isEmpty && plansState.isLoading) {
+                                  return const LinearProgressIndicator();
+                                }
+                                
+                                final currentPlan = plans.firstWhere(
+                                  (p) => p['name'].toString().toLowerCase() == selectedPlan.toLowerCase(),
+                                  orElse: () => {},
+                                );
+
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    AppSearchableDropdown<String>(
+                                      label: 'Plan *',
+                                      value: selectedPlan,
+                                      items: plans.map((p) => AppDropdownItem(
+                                        value: p['name'].toString().toLowerCase(),
+                                        label: p['displayName'] ?? p['name'],
+                                      )).toList(),
+                                      onChanged: (v) => setSheetState(
+                                        () => selectedPlan = v ?? 'standard',
+                                      ),
+                                    ),
+                                    if (currentPlan.isNotEmpty) ...[
+                                      const SizedBox(height: 12),
+                                      Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primarySurface,
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            _planInfoItem('Units', currentPlan['maxUnits'] == -1 ? 'Unlimited' : '${currentPlan['maxUnits']}'),
+                                            _planInfoItem('Users', currentPlan['maxUsers'] == -1 ? 'Unlimited' : '${currentPlan['maxUsers']}'),
+                                            _planInfoItem('Rate', '₹${currentPlan['pricePerUnit']}/unit'),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: _durationButton(
+                                              'Monthly',
+                                              'MONTHLY',
+                                              selectedDuration == 'MONTHLY',
+                                              () => setSheetState(() => selectedDuration = 'MONTHLY'),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: _durationButton(
+                                              'Yearly',
+                                              'YEARLY',
+                                              selectedDuration == 'YEARLY',
+                                              () => setSheetState(() => selectedDuration = 'YEARLY'),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ],
+                                );
+                              },
                             ),
                             const SizedBox(height: 10),
                             CheckboxListTile(
@@ -1731,6 +1859,7 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                                       societyId!,
                                       {
                                         'planName': selectedPlan,
+                                        'planDuration': selectedDuration,
                                         'settings': {
                                           if (wingsC.text.trim().isNotEmpty)
                                             'wings':
@@ -2032,6 +2161,56 @@ class _SocietyCard extends StatelessWidget {
     );
   }
 }
+
+  Widget _planInfoItem(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: AppTextStyles.labelSmall.copyWith(
+            color: AppColors.textMuted,
+            fontSize: 10,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: AppTextStyles.bodyMedium.copyWith(
+            fontWeight: FontWeight.bold,
+            color: AppColors.primary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _durationButton(String label, String value, bool isSelected, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? AppColors.primary : AppColors.border,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: AppTextStyles.bodySmall.copyWith(
+              color: isSelected ? AppColors.textOnPrimary : AppColors.textMuted,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
 class _StatsRow extends StatelessWidget {
   final bool isMobile;

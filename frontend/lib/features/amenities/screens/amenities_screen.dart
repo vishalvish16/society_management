@@ -11,6 +11,8 @@ import '../../../shared/widgets/app_loading_shimmer.dart';
 import '../../../shared/widgets/app_status_chip.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
 import '../providers/amenities_provider.dart';
+import '../../bills/screens/upi_pay_sheet.dart';
+import '../../../core/providers/dio_provider.dart';
 
 // ─── icon helper ──────────────────────────────────────────────────────────────
 IconData _amenityIcon(String name) {
@@ -61,6 +63,52 @@ class AmenitiesScreen extends ConsumerWidget {
     final isAdmin = isAmenityAdmin(role);
     final state = ref.watch(amenitiesProvider);
     final user = ref.watch(authProvider).user;
+
+    if (isAdmin) {
+      return DefaultTabController(
+        length: 2,
+        child: Scaffold(
+          backgroundColor: AppColors.background,
+          appBar: AppBar(
+            backgroundColor: AppColors.primary,
+            foregroundColor: AppColors.textOnPrimary,
+            title: const Text('Amenities'),
+            bottom: TabBar(
+              labelColor: AppColors.textOnPrimary,
+              unselectedLabelColor: AppColors.textOnPrimary.withValues(alpha: 0.75),
+              indicatorColor: AppColors.textOnPrimary,
+              tabs: const [
+                Tab(text: 'Amenities'),
+                Tab(text: 'Pending Approvals'),
+              ],
+            ),
+          ),
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: () => _showAmenityForm(context, ref, null),
+            backgroundColor: AppColors.primary,
+            icon: const Icon(Icons.add_rounded, color: AppColors.textOnPrimary),
+            label: Text(
+              'Add Amenity',
+              style: AppTextStyles.labelLarge.copyWith(color: AppColors.textOnPrimary),
+            ),
+          ),
+          body: TabBarView(
+            children: [
+              _AmenitiesTabBody(
+                state: state,
+                user: user,
+                isAdmin: isAdmin,
+                onBook: _showBookingFlow,
+                onCalendar: _showCalendar,
+                onEditAmenity: _showAmenityForm,
+                onDeleteAmenity: (ctx, r, id) => _confirmDelete(ctx, r, id),
+              ),
+              const _AmenityApprovalsTab(),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -154,11 +202,26 @@ class AmenitiesScreen extends ConsumerWidget {
           borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl))),
       builder: (_) => _BookingSheet(amenity: amenity, user: user,
         onSubmit: (data) async {
-          final err = await ref.read(amenitiesProvider.notifier).createBooking(data);
-          if (context.mounted) {
+          try {
+            final created = await ref.read(amenitiesProvider.notifier).createBooking(data);
+            if (!context.mounted) return;
             Navigator.pop(context);
-            _snack(context, err ?? 'Booking submitted successfully!', err == null);
-            if (err == null) ref.invalidate(myAmenityBookingsProvider);
+            _snack(context, 'Booking submitted successfully!', true);
+            ref.invalidate(myAmenityBookingsProvider);
+
+            final billId = created?['billId'] as String?;
+            if (billId != null && billId.isNotEmpty) {
+              final dio = ref.read(dioProvider);
+              final billRes = await dio.get('bills/$billId');
+              if (billRes.data['success'] == true) {
+                final bill = Map<String, dynamic>.from(billRes.data['data'] as Map);
+                if (context.mounted) showPaySheet(context, bill: bill);
+              }
+            }
+          } catch (e) {
+            if (!context.mounted) return;
+            Navigator.pop(context);
+            _snack(context, e.toString().replaceFirst('Exception: ', ''), false);
           }
         }),
     );
@@ -188,6 +251,216 @@ class AmenitiesScreen extends ConsumerWidget {
       ));
 }
 
+class _AmenitiesTabBody extends ConsumerWidget {
+  final AmenitiesState state;
+  final dynamic user;
+  final bool isAdmin;
+  final void Function(BuildContext context, WidgetRef ref, Map<String, dynamic> amenity, dynamic user) onBook;
+  final void Function(BuildContext context, WidgetRef ref, Map<String, dynamic> amenity) onCalendar;
+  final void Function(BuildContext context, WidgetRef ref, Map<String, dynamic>? existing) onEditAmenity;
+  final void Function(BuildContext context, WidgetRef ref, String amenityId) onDeleteAmenity;
+
+  const _AmenitiesTabBody({
+    required this.state,
+    required this.user,
+    required this.isAdmin,
+    required this.onBook,
+    required this.onCalendar,
+    required this.onEditAmenity,
+    required this.onDeleteAmenity,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (state.isLoading) {
+      return const AppLoadingShimmer(itemCount: 6, itemHeight: 120);
+    }
+    if (state.error != null) {
+      return Center(
+        child: _ErrorBox(
+          message: state.error!,
+          onRetry: () => ref.read(amenitiesProvider.notifier).loadAmenities(),
+        ),
+      );
+    }
+    if (state.amenities.isEmpty) {
+      return const AppEmptyState(
+        emoji: '🏊',
+        title: 'No Amenities',
+        subtitle: 'No amenities have been added yet.',
+      );
+    }
+
+    final isWide = MediaQuery.of(context).size.width >= 1000;
+    final crossAxisCount = isWide ? 4 : (MediaQuery.of(context).size.width >= 600 ? 3 : 2);
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        await ref.read(amenitiesProvider.notifier).loadAmenities();
+      },
+      child: CustomScrollView(
+        slivers: [
+          if (user?.unitId != null)
+            SliverToBoxAdapter(child: _MyBookingsStrip(unitId: user!.unitId!)),
+          SliverPadding(
+            padding: const EdgeInsets.all(AppDimensions.md),
+            sliver: SliverGrid(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                crossAxisSpacing: AppDimensions.md,
+                mainAxisSpacing: AppDimensions.md,
+                childAspectRatio: 1.08, // shorter, denser cards
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (_, i) {
+                  final a = state.amenities[i];
+                  return _AmenityCard(
+                    amenity: a,
+                    isAdmin: isAdmin,
+                    user: user,
+                    onBook: () => onBook(context, ref, a, user),
+                    onCalendar: () => onCalendar(context, ref, a),
+                    onEdit: () => onEditAmenity(context, ref, a),
+                    onDelete: () => onDeleteAmenity(context, ref, a['id'] as String),
+                  );
+                },
+                childCount: state.amenities.length,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AmenityApprovalsTab extends ConsumerWidget {
+  const _AmenityApprovalsTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(pendingAmenityBookingsProvider);
+    return async.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('Error: $e')),
+      data: (bookings) {
+        final pending = bookings.whereType<Map>().map((b) => Map<String, dynamic>.from(b)).toList();
+
+        if (pending.isEmpty) {
+          return const AppEmptyState(
+            emoji: '✅',
+            title: 'No Pending Approvals',
+            subtitle: 'All amenity bookings are already processed.',
+          );
+        }
+
+        return RefreshIndicator(
+          onRefresh: () async {
+            return ref.refresh(pendingAmenityBookingsProvider.future);
+          },
+          child: ListView.separated(
+            padding: const EdgeInsets.all(AppDimensions.screenPadding),
+            itemCount: pending.length,
+            separatorBuilder: (_, __) => const SizedBox(height: AppDimensions.sm),
+            itemBuilder: (_, i) {
+              final b = pending[i];
+              final amenityName = b['amenity']?['name']?.toString() ?? 'Amenity';
+              final unitCode = b['unit']?['fullCode']?.toString() ?? '-';
+              final bookedBy = b['bookedBy']?['name']?.toString() ?? '';
+              final phone = b['bookedBy']?['phone']?.toString() ?? '';
+              final bookingDate = b['bookingDate'] != null
+                  ? DateFormat('dd MMM yyyy').format(DateTime.parse(b['bookingDate']))
+                  : (b['monthYear']?.toString() ?? '');
+              final time = (b['startTime'] != null && b['endTime'] != null)
+                  ? '${b['startTime']} - ${b['endTime']}'
+                  : (b['halfDaySlot']?.toString() ?? '');
+              final fee = b['feeCharged']?.toString() ?? '0';
+              final payStatus = (b['paymentStatus'] as String? ?? 'UNPAID').toUpperCase();
+
+              return AppCard(
+                padding: const EdgeInsets.all(AppDimensions.md),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text('$amenityName · $unitCode', style: AppTextStyles.h3),
+                        ),
+                        AppStatusChip(status: 'pending'),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Date: $bookingDate${time.isNotEmpty ? ' · $time' : ''}',
+                      style: AppTextStyles.caption,
+                    ),
+                    const SizedBox(height: 4),
+                    Text('Booked by: $bookedBy ${phone.isNotEmpty ? '($phone)' : ''}', style: AppTextStyles.caption),
+                    const SizedBox(height: 4),
+                    Text('Fee: ₹$fee · Payment: $payStatus', style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
+                    const SizedBox(height: AppDimensions.sm),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              final err = await ref.read(amenitiesProvider.notifier).updateBookingStatus(
+                                b['id'] as String,
+                                'CANCELLED',
+                              );
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                  content: Text(err ?? 'Booking rejected'),
+                                  backgroundColor: err == null ? AppColors.success : AppColors.danger,
+                                ));
+                                // ignore: unused_result
+                                await ref.refresh(pendingAmenityBookingsProvider.future);
+                              }
+                            },
+                            icon: const Icon(Icons.close_rounded),
+                            label: const Text('Reject'),
+                          ),
+                        ),
+                        const SizedBox(width: AppDimensions.sm),
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: () async {
+                              final err = await ref.read(amenitiesProvider.notifier).updateBookingStatus(
+                                b['id'] as String,
+                                'CONFIRMED',
+                              );
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                  content: Text(err ?? 'Booking approved'),
+                                  backgroundColor: err == null ? AppColors.success : AppColors.danger,
+                                ));
+                                // ignore: unused_result
+                                await ref.refresh(pendingAmenityBookingsProvider.future);
+                              }
+                            },
+                            icon: const Icon(Icons.check_rounded),
+                            label: const Text('Approve'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Note: approvals require payment first.',
+                      style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 //  My Bookings horizontal strip
 // ════════════════════════════════════════════════════════════════════════════
@@ -206,7 +479,7 @@ class _MyBookingsStrip extends ConsumerWidget {
         final active = bookings.where((b) {
           final s = (b['status'] as String? ?? '').toUpperCase();
           return s == 'PENDING' || s == 'CONFIRMED';
-        }).toList();
+        }).toList().take(8).toList();
         if (active.isEmpty) return const SizedBox.shrink();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -217,7 +490,7 @@ class _MyBookingsStrip extends ConsumerWidget {
               child: Text('My Bookings', style: AppTextStyles.h3),
             ),
             SizedBox(
-              height: 90,
+              height: 74,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: AppDimensions.screenPadding),
@@ -237,8 +510,8 @@ class _MyBookingsStrip extends ConsumerWidget {
                       ? _halfDayLabel(b['halfDaySlot'])
                       : (b['startTime'] != null ? '${b['startTime']} - ${b['endTime']}' : '');
                   return Container(
-                    width: 160,
-                    padding: const EdgeInsets.all(10),
+                    width: 140,
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: AppColors.surface,
                       borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
@@ -249,9 +522,13 @@ class _MyBookingsStrip extends ConsumerWidget {
                         Expanded(child: Text(name, style: AppTextStyles.labelLarge, maxLines: 1, overflow: TextOverflow.ellipsis)),
                         AppStatusChip(status: status.toLowerCase()),
                       ]),
-                      const SizedBox(height: 4),
-                      Text(dateStr, style: AppTextStyles.caption),
-                      if (slot.isNotEmpty) Text(slot, style: AppTextStyles.caption),
+                      const SizedBox(height: 2),
+                      Text(
+                        slot.isNotEmpty ? '$dateStr · $slot' : dateStr,
+                        style: AppTextStyles.caption,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ]),
                   );
                 },

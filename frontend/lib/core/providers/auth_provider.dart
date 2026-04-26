@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../api/dio_client.dart';
 import '../models/user_model.dart';
 import '../services/notification_service.dart';
+import '../../features/settings/providers/permissions_provider.dart';
 
 class AuthState {
   final UserModel? user;
@@ -149,8 +150,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
     await _client.storage.write(key: 'userRole', value: user.role);
     await _client.storage.write(key: 'userId', value: user.id);
 
-    state = AuthState(user: user, token: token, isAuthenticated: true);
+    // Set initial auth state immediately, then hydrate full profile (incl. society plan features)
+    // from `GET users/me`. This fixes cases where the login payload is missing/partial.
+    state = AuthState(user: user, token: token, isAuthenticated: true, isLoading: false);
     ref.read(notificationServiceProvider).registerTokenAfterLogin();
+
+    // Best-effort refresh; don't fail login if this request fails.
+    await refreshProfileFromServer();
+
+    // Best-effort hydrate role permissions so sidebar can hide restricted features.
+    // This endpoint is readable by any authenticated user.
+    try {
+      await ref.read(rolePermissionsProvider.notifier).fetch();
+    } catch (_) {}
   }
 
   Future<String?> forgotPassword(String phone) async {
@@ -236,6 +248,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
         state = AuthState(user: user, token: token, isAuthenticated: true, isLoading: false);
         // Re-register FCM token on auto-login (token may have rotated)
         ref.read(notificationServiceProvider).registerTokenAfterLogin();
+
+        // Best-effort hydrate role permissions for UI gating.
+        try {
+          await ref.read(rolePermissionsProvider.notifier).fetch();
+        } catch (_) {}
       } else {
         throw Exception('Me failed');
       }

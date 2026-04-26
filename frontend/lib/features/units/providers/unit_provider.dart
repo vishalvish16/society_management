@@ -37,6 +37,30 @@ class UnitsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
   bool get hasMore => _hasMore;
   bool get isLoadingMore => _isLoadingMore;
 
+  /// Refresh first page without switching state to loading.
+  /// This prevents UI sheets from falling back to stale snapshots.
+  Future<void> refreshUnitsSoft() async {
+    if (!authState.isAuthenticated) return;
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.get('units', queryParameters: {
+        'page': 1,
+        'limit': _limit,
+      });
+      if (response.data['success'] == true) {
+        final data = response.data['data'];
+        final List newUnits = data['units'] ?? [];
+        final total = data['total'] ?? 0;
+        state = AsyncValue.data(newUnits);
+        _currentPage = 1;
+        _hasMore = (newUnits.length) < total;
+        if (_hasMore) _currentPage++;
+      }
+    } catch (_) {
+      // Keep existing state on soft refresh failure.
+    }
+  }
+
   Future<void> fetchUnits({bool refresh = true}) async {
     if (!authState.isAuthenticated) return;
     
@@ -164,12 +188,20 @@ class UnitsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
     }
   }
 
-  Future<String?> assignResident(String unitId, String userId, {bool isOwner = false}) async {
+  Future<String?> assignResident(
+    String unitId,
+    String userId, {
+    bool isOwner = false,
+    bool isStaying = true,
+  }) async {
     try {
       final dio = ref.read(dioProvider);
-      final response = await dio.post('units/$unitId/residents', data: {'userId': userId, 'isOwner': isOwner});
+      final response = await dio.post(
+        'units/$unitId/residents',
+        data: {'userId': userId, 'isOwner': isOwner, 'isStaying': isStaying},
+      );
       if (response.data['success'] == true) {
-        fetchUnits();
+        await refreshUnitsSoft();
         return null;
       }
       return response.data['message'] ?? 'Failed to assign resident';
@@ -185,7 +217,7 @@ class UnitsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
       final dio = ref.read(dioProvider);
       final response = await dio.delete('units/$unitId/residents/$userId');
       if (response.data['success'] == true) {
-        fetchUnits();
+        await refreshUnitsSoft();
         return null;
       }
       return response.data['message'] ?? 'Failed to remove resident';

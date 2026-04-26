@@ -7,6 +7,10 @@ const { sendSuccess, sendError } = require('../../utils/response');
 async function getBills(req, res) {
   try {
     const filters = req.query;
+    // Residents/Members only see bills for their active unit.
+    if (req.user?.unitId && (req.user.role === 'RESIDENT' || req.user.role === 'MEMBER')) {
+      filters.unitId = req.user.unitId;
+    }
     const result = await billsService.listBills(req.user.societyId, filters);
     return sendSuccess(res, result, 'Bills retrieved successfully');
   } catch (error) {
@@ -115,7 +119,9 @@ async function recordPayment(req, res) {
     const isAdmin = adminRoles.includes(req.user.role);
 
     // Non-admins can only pay bills for units they belong to
-    const residentUnitIds = isAdmin ? null : await billsService.getResidentUnitIds(req.user.id);
+    const residentUnitIds = isAdmin
+      ? null
+      : await billsService.getResidentUnitIds(req.user.id, req.user.societyId, req.user.unitId || null);
 
     const updated = await billsService.recordPayment(billId, {
       paidAmount: Number(paidAmount),
@@ -133,7 +139,7 @@ async function recordPayment(req, res) {
 
 async function getMyBills(req, res) {
   try {
-    const result = await billsService.getMyBills(req.user.id, req.user.societyId, req.query);
+    const result = await billsService.getMyBills(req.user.id, req.user.societyId, req.query, req.user.unitId || null);
     return sendSuccess(res, result, 'Your bills retrieved');
   } catch (error) {
     return sendError(res, error.message, error.status || 500);
@@ -176,6 +182,45 @@ async function getBillAuditLogs(req, res) {
   }
 }
 
+/**
+ * GET /api/bills/schedules
+ * Admin-only: list bill generation schedules for this society.
+ */
+async function listSchedules(req, res) {
+  try {
+    const schedules = await billsService.listMaintenanceBillSchedules(req.user.societyId);
+    return sendSuccess(res, schedules, 'Bill schedules retrieved');
+  } catch (error) {
+    return sendError(res, error.message, error.status || 500);
+  }
+}
+
+/**
+ * POST /api/bills/schedules
+ * Admin-only: create/update a schedule for a billing month.
+ * Body: { billingMonth, scheduledFor, defaultAmount, dueDate, isActive? }
+ */
+async function upsertSchedule(req, res) {
+  try {
+    const { billingMonth, scheduledFor, defaultAmount, dueDate, isActive } = req.body || {};
+
+    if (!billingMonth || !scheduledFor || !defaultAmount || !dueDate) {
+      return sendError(res, 'billingMonth, scheduledFor, defaultAmount, and dueDate are required', 400);
+    }
+
+    const schedule = await billsService.upsertMaintenanceBillSchedule(
+      req.user.societyId,
+      { billingMonth, scheduledFor, defaultAmount, dueDate, isActive },
+      req.user.id,
+    );
+
+    return sendSuccess(res, schedule, 'Bill schedule saved', 201);
+  } catch (error) {
+    console.error('Upsert schedule error:', error.message);
+    return sendError(res, error.message, error.status || 500);
+  }
+}
+
 module.exports = {
   getBills,
   getBillById,
@@ -187,4 +232,6 @@ module.exports = {
   getBillAuditLogs,
   getMyBills,
   getDefaulters,
+  upsertSchedule,
+  listSchedules,
 };

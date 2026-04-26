@@ -1,5 +1,6 @@
 const prisma = require('../../config/db');
 const { sendSuccess, sendError } = require('../../utils/response');
+const { userHasUnit } = require('../../utils/unitResident');
 
 // GET /api/vehicles
 exports.getAllVehicles = async (req, res) => {
@@ -9,7 +10,10 @@ exports.getAllVehicles = async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const where = { societyId, isActive: true };
-    if (unitId) where.unitId = unitId;
+    // Listing is society-wide by default; optionally filter by unitId for staff/admin UIs.
+    if (unitId) {
+      where.unitId = unitId;
+    }
 
     const [vehicles, total] = await Promise.all([
       prisma.vehicle.findMany({
@@ -31,20 +35,36 @@ exports.getAllVehicles = async (req, res) => {
 // POST /api/vehicles
 exports.createVehicle = async (req, res) => {
   try {
-    const { societyId, id: registeredById } = req.user;
+    const { societyId, id: registeredById, role, unitId: activeUnitId } = req.user;
     const { unitId, type, numberPlate, brand, model, colour } = req.body;
 
-    if (!unitId || !type || !numberPlate) {
+    if (!type || !numberPlate) {
       return sendError(res, 'unitId, type, and numberPlate are required', 400);
     }
 
-    const unit = await prisma.unit.findUnique({ where: { id: unitId } });
+    const roleUpper = String(role || '').toUpperCase();
+    const finalUnitId =
+      (roleUpper === 'RESIDENT' || roleUpper === 'MEMBER') && activeUnitId
+        ? activeUnitId
+        : unitId;
+
+    if (!finalUnitId) {
+      return sendError(res, 'unitId, type, and numberPlate are required', 400);
+    }
+
+    const unit = await prisma.unit.findUnique({ where: { id: finalUnitId } });
     if (!unit || unit.societyId !== societyId) {
       return sendError(res, 'Unit not found in your society', 404);
     }
 
+    // Residents/Members can only create vehicles for their own unit.
+    if (roleUpper === 'RESIDENT' || roleUpper === 'MEMBER') {
+      const allowed = await userHasUnit(registeredById, societyId, finalUnitId);
+      if (!allowed) return sendError(res, 'You can only add vehicles for your own unit', 403);
+    }
+
     const vehicle = await prisma.vehicle.create({
-      data: { societyId, unitId, registeredById, type, numberPlate, brand, model, colour },
+      data: { societyId, unitId: finalUnitId, registeredById, type, numberPlate, brand, model, colour },
     });
 
     return sendSuccess(res, vehicle, 'Vehicle registered', 201);
@@ -57,12 +77,22 @@ exports.createVehicle = async (req, res) => {
 // PATCH /api/vehicles/:id
 exports.updateVehicle = async (req, res) => {
   try {
-    const { societyId } = req.user;
+    const { societyId, role, unitId: activeUnitId, id: userId } = req.user;
     const { id } = req.params;
 
     const vehicle = await prisma.vehicle.findUnique({ where: { id } });
     if (!vehicle || vehicle.societyId !== societyId) {
       return sendError(res, 'Vehicle not found', 404);
+    }
+
+    // Residents/Members can only edit vehicles for their own unit.
+    const roleUpper = String(role || '').toUpperCase();
+    if (roleUpper === 'RESIDENT' || roleUpper === 'MEMBER') {
+      if (!activeUnitId || vehicle.unitId !== activeUnitId) {
+        return sendError(res, 'You can only edit vehicles for your own unit', 403);
+      }
+      const allowed = await userHasUnit(userId, societyId, activeUnitId);
+      if (!allowed) return sendError(res, 'You can only edit vehicles for your own unit', 403);
     }
 
     const { numberPlate, brand, model, colour, isActive } = req.body;
@@ -83,9 +113,17 @@ exports.updateVehicle = async (req, res) => {
 // GET /api/vehicles/mine
 exports.getMyVehicles = async (req, res) => {
   try {
-    const { societyId, id: userId } = req.user;
-    const unitResidents = await prisma.unitResident.findMany({ where: { userId }, select: { unitId: true } });
-    const unitIds = unitResidents.map((ur) => ur.unitId);
+    const { societyId, id: userId, unitId: activeUnitId } = req.user;
+    let unitIds = [];
+    if (activeUnitId) {
+      unitIds = [activeUnitId];
+    } else {
+      const unitResidents = await prisma.unitResident.findMany({
+        where: { userId, unit: { societyId } },
+        select: { unitId: true },
+      });
+      unitIds = unitResidents.map((ur) => ur.unitId);
+    }
 
     const vehicles = await prisma.vehicle.findMany({
       where: { societyId, unitId: { in: unitIds }, isActive: true },
@@ -117,12 +155,22 @@ exports.lookupByPlate = async (req, res) => {
 // DELETE /api/vehicles/:id
 exports.deleteVehicle = async (req, res) => {
   try {
-    const { societyId } = req.user;
+    const { societyId, role, unitId: activeUnitId, id: userId } = req.user;
     const { id } = req.params;
 
     const vehicle = await prisma.vehicle.findUnique({ where: { id } });
     if (!vehicle || vehicle.societyId !== societyId) {
       return sendError(res, 'Vehicle not found', 404);
+    }
+
+    // Residents/Members can only remove vehicles for their own unit.
+    const roleUpper = String(role || '').toUpperCase();
+    if (roleUpper === 'RESIDENT' || roleUpper === 'MEMBER') {
+      if (!activeUnitId || vehicle.unitId !== activeUnitId) {
+        return sendError(res, 'You can only remove vehicles for your own unit', 403);
+      }
+      const allowed = await userHasUnit(userId, societyId, activeUnitId);
+      if (!allowed) return sendError(res, 'You can only remove vehicles for your own unit', 403);
     }
 
     await prisma.vehicle.update({ where: { id }, data: { isActive: false } });

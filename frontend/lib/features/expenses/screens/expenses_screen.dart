@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'package:open_filex/open_filex.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
@@ -365,26 +367,11 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                                   ),
                                   const SizedBox(width: AppDimensions.sm),
                                   FilledButton.icon(
-                                    onPressed: () async {
-                                      final error = await notifier.updateStatus(
-                                        ex['id'],
-                                        'approved',
-                                      );
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              error ?? 'Expense approved',
-                                            ),
-                                            backgroundColor: error == null
-                                                ? AppColors.success
-                                                : AppColors.danger,
-                                          ),
-                                        );
-                                      }
-                                    },
+                                    onPressed: () => _confirmApprove(
+                                      context,
+                                      ex['id'],
+                                      notifier,
+                                    ),
                                     icon: const Icon(Icons.check, size: 14),
                                     label: const Text('Approve'),
                                     style: FilledButton.styleFrom(
@@ -546,6 +533,19 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                 approverName,
                 color: AppColors.success,
               ),
+            if (ex['paymentMethod'] != null)
+              _detailRow(
+                Icons.payment_outlined,
+                'Payment Method',
+                ex['paymentMethod'],
+              ),
+            if (ex['referenceId'] != null &&
+                (ex['referenceId'] as String).isNotEmpty)
+              _detailRow(
+                Icons.tag,
+                'Reference ID',
+                ex['referenceId'],
+              ),
             if (ex['description'] != null &&
                 (ex['description'] as String).isNotEmpty)
               _detailRow(
@@ -576,9 +576,10 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      'View Attachment',
+                      attachments.first['fileName'] ?? 'View Attachment',
                       style: AppTextStyles.bodySmall.copyWith(
                         color: AppColors.primary,
+                        decoration: TextDecoration.underline,
                       ),
                     ),
                   ],
@@ -765,6 +766,152 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
     );
   }
 
+  void _confirmApprove(
+    BuildContext context,
+    String id,
+    ExpensesNotifier notifier,
+  ) {
+    String? selectedMethod = 'CASH';
+    final methods = ['CASH', 'BANK', 'UPI', 'ONLINE', 'RAZORPAY'];
+    final refC = TextEditingController();
+
+    showAppSheet(
+      context: context,
+      builder: (ctx) {
+        bool isSubmitting = false;
+        String? sheetError;
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                MediaQuery.of(ctx).viewInsets.bottom + 32,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE0E0E0),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Approve Expense',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Please select the payment method and enter the reference ID (if any).',
+                    style: TextStyle(color: AppColors.textMuted),
+                  ),
+                  const SizedBox(height: 24),
+                  AppSearchableDropdown<String>(
+                    label: 'Payment Method',
+                    value: selectedMethod,
+                    items: methods
+                        .map((m) => AppDropdownItem(value: m, label: m))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) setSheetState(() => selectedMethod = v);
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: refC,
+                    decoration: const InputDecoration(
+                      labelText: 'Reference ID / Transaction ID',
+                      hintText: 'e.g. UPI Ref, Check No, etc.',
+                    ),
+                  ),
+                  if (sheetError != null) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(AppDimensions.sm),
+                      decoration: BoxDecoration(
+                        color: AppColors.dangerSurface,
+                        borderRadius: BorderRadius.circular(
+                          AppDimensions.radiusSm,
+                        ),
+                      ),
+                      child: Text(
+                        sheetError!,
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: AppColors.dangerText,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.success,
+                      ),
+                      onPressed: isSubmitting
+                          ? null
+                          : () async {
+                              setSheetState(() {
+                                isSubmitting = true;
+                                sheetError = null;
+                              });
+
+                              final error = await notifier.updateStatus(
+                                id,
+                                'approved',
+                                paymentMethod: selectedMethod,
+                                referenceId: refC.text.trim(),
+                              );
+
+                              if (context.mounted) {
+                                if (error == null) {
+                                  Navigator.pop(ctx);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Expense approved'),
+                                      backgroundColor: AppColors.success,
+                                    ),
+                                  );
+                                } else {
+                                  setSheetState(() {
+                                    isSubmitting = false;
+                                    sheetError = error;
+                                  });
+                                }
+                              }
+                            },
+                      child: isSubmitting
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Approve Expense'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _showAddDialog(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -851,6 +998,55 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
     }
   }
 
+  void _previewAttachment() async {
+    if (_attachment == null) return;
+    final file = _attachment!;
+    final isPdf = file.name.toLowerCase().endsWith('.pdf');
+
+    if (isPdf) {
+      if (file.path.isNotEmpty) {
+        await OpenFilex.open(file.path);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Cannot preview PDF from memory. Please upload to view.'),
+            ),
+          );
+        }
+      }
+    } else {
+      if (!mounted) return;
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        builder: (_) => Dialog(
+          backgroundColor: Colors.black,
+          insetPadding: EdgeInsets.zero,
+          child: Stack(
+            children: [
+              InteractiveViewer(
+                child: Center(
+                  child: Image.memory(bytes),
+                ),
+              ),
+              Positioned(
+                top: 40,
+                right: 20,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> _submit() async {
     if (_titleCtrl.text.trim().isEmpty || _amountCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -871,8 +1067,9 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
     }, attachments: _attachment != null ? [_attachment!] : null);
     if (mounted) {
       if (error == null) {
+        final messenger = ScaffoldMessenger.of(context);
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           const SnackBar(
             content: Text('Expense added'),
             backgroundColor: AppColors.success,
@@ -1033,9 +1230,16 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
                             ),
                           ),
                           IconButton(
+                            onPressed: _previewAttachment,
+                            icon: const Icon(Icons.visibility_outlined,
+                                size: 18, color: AppColors.primary),
+                            tooltip: 'Preview',
+                          ),
+                          IconButton(
                             onPressed: () =>
                                 setState(() => _attachment = null),
                             icon: const Icon(Icons.close, size: 18),
+                            tooltip: 'Remove',
                           ),
                         ],
                       ),
@@ -1180,6 +1384,55 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
     }
   }
 
+  void _previewAttachment() async {
+    if (_attachment == null) return;
+    final file = _attachment!;
+    final isPdf = file.name.toLowerCase().endsWith('.pdf');
+
+    if (isPdf) {
+      if (file.path.isNotEmpty) {
+        await OpenFilex.open(file.path);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Cannot preview PDF from memory. Please upload to view.'),
+            ),
+          );
+        }
+      }
+    } else {
+      if (!mounted) return;
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        builder: (_) => Dialog(
+          backgroundColor: Colors.black,
+          insetPadding: EdgeInsets.zero,
+          child: Stack(
+            children: [
+              InteractiveViewer(
+                child: Center(
+                  child: Image.memory(bytes),
+                ),
+              ),
+              Positioned(
+                top: 40,
+                right: 20,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> _submit() async {
     if (_titleCtrl.text.trim().isEmpty || _amountCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1202,8 +1455,9 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
         }, attachments: _attachment != null ? [_attachment!] : null);
     if (mounted) {
       if (error == null) {
+        final messenger = ScaffoldMessenger.of(context);
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           const SnackBar(
             content: Text('Expense updated'),
             backgroundColor: AppColors.success,
@@ -1367,9 +1621,16 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
                             ),
                           ),
                           IconButton(
+                            onPressed: _previewAttachment,
+                            icon: const Icon(Icons.visibility_outlined,
+                                size: 18, color: AppColors.primary),
+                            tooltip: 'Preview',
+                          ),
+                          IconButton(
                             onPressed: () =>
                                 setState(() => _attachment = null),
                             icon: const Icon(Icons.close, size: 18),
+                            tooltip: 'Remove',
                           ),
                         ],
                       ),

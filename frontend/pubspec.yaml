@@ -65,6 +65,11 @@ dependencies:
   mobile_scanner: ^6.0.5
   crop_your_image: ^2.0.0
   image: ^4.5.4
+  socket_io_client: ^2.0.3+1
+  just_audio: ^0.9.42
+  record: ^6.2.0
+  path_provider: ^2.1.4
+  open_filex: ^4.3.4
 
 dev_dependencies:
   flutter_test:

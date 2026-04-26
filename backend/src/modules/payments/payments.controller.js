@@ -355,5 +355,123 @@ module.exports = {
   createDonationOrder, 
   verifyDonationPayment,
   createComplaintOrder,
-  verifyComplaintPayment
+  verifyComplaintPayment,
+  createSuggestionOrder,
+  verifySuggestionPayment
 };
+
+/**
+ * POST /api/payments/create-suggestion-order
+ */
+async function createSuggestionOrder(req, res) {
+  try {
+    const { suggestionId } = req.body;
+    if (!suggestionId) return sendError(res, 'suggestionId is required', 400);
+
+    const suggestion = await prisma.suggestion.findUnique({
+      where: { id: suggestionId },
+      include: { unit: { select: { fullCode: true } } },
+    });
+
+    if (!suggestion) return sendError(res, 'Suggestion not found', 404);
+    if (suggestion.societyId !== req.user.societyId) return sendError(res, 'Access denied', 403);
+    if (suggestion.paymentStatus === 'PAID') return sendError(res, 'Suggestion is already paid', 400);
+
+    const amount = Number(suggestion.amount) || 0;
+    const paid = Number(suggestion.paidAmount) || 0;
+    const remaining = amount - paid;
+    if (remaining <= 0) return sendError(res, 'No outstanding amount', 400);
+
+    const razorpay = await getRazorpayForSociety(req.user.societyId);
+    if (!razorpay) return sendError(res, 'Payment gateway not configured. Contact your admin.', 400);
+
+    const order = await razorpay.orders.create({
+      amount: Math.round(remaining * 100),
+      currency: 'INR',
+      receipt: `sug_${suggestionId.slice(0, 20)}`,
+      notes: {
+        suggestionId,
+        unitCode: suggestion.unit?.fullCode ?? '',
+        societyId: req.user.societyId,
+      },
+    });
+
+    return sendSuccess(
+      res,
+      {
+        orderId: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        suggestionId,
+        remaining,
+      },
+      'Suggestion order created'
+    );
+  } catch (err) {
+    console.error('Create suggestion order error:', err.message);
+    return sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * POST /api/payments/verify-suggestion
+ */
+async function verifySuggestionPayment(req, res) {
+  try {
+    const { suggestionId, razorpayOrderId, razorpayPaymentId, razorpaySignature, paidAmount } = req.body;
+
+    if (!suggestionId || !razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+      return sendError(res, 'Missing payment verification fields', 400);
+    }
+
+    const society = await prisma.society.findUnique({
+      where: { id: req.user.societyId },
+      select: { settings: true },
+    });
+    const keySecret = society?.settings?.razorpayKeySecret;
+    if (!keySecret) return sendError(res, 'Payment gateway not configured', 400);
+
+    const expectedSignature = crypto
+      .createHmac('sha256', keySecret)
+      .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+      .digest('hex');
+
+    if (expectedSignature !== razorpaySignature) {
+      return sendError(res, 'Payment verification failed — invalid signature', 400);
+    }
+
+    const suggestion = await prisma.suggestion.findUnique({ where: { id: suggestionId } });
+    if (!suggestion) return sendError(res, 'Suggestion not found', 404);
+
+    const amount = paidAmount
+      ? Number(paidAmount)
+      : Number(suggestion.amount) - Number(suggestion.paidAmount);
+    const newPaidAmount = Number(suggestion.paidAmount) + amount;
+    const remaining = Number(suggestion.amount) - newPaidAmount;
+    const newStatus = remaining <= 0 ? 'PAID' : 'PARTIAL';
+
+    const updated = await prisma.suggestion.update({
+      where: { id: suggestionId },
+      data: {
+        paidAmount: newPaidAmount,
+        paidAt: new Date(),
+        paymentMethod: 'ONLINE',
+        transactionId: razorpayPaymentId,
+        paymentStatus: newStatus,
+      },
+    });
+
+    return sendSuccess(
+      res,
+      {
+        suggestion: updated,
+        razorpayPaymentId,
+        razorpayOrderId,
+      },
+      'Suggestion payment verified and recorded'
+    );
+  } catch (err) {
+    console.error('Verify suggestion payment error:', err.message);
+    return sendError(res, err.message, 500);
+  }
+}

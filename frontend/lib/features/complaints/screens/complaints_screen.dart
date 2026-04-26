@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -468,8 +469,9 @@ class _RaiseComplaintSheetState extends State<_RaiseComplaintSheet> {
     }, _attachments);
     if (mounted) {
       if (error == null) {
+        final messenger = ScaffoldMessenger.of(context);
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        messenger.showSnackBar(const SnackBar(
           content: Text('Complaint raised successfully.'),
           backgroundColor: AppColors.success,
         ));
@@ -487,6 +489,7 @@ class _RaiseComplaintSheetState extends State<_RaiseComplaintSheet> {
       allowMultiple: true,
       type: FileType.custom,
       allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf', 'mp4', 'doc', 'docx'],
+      withData: kIsWeb,
     );
     if (result != null && mounted) {
       setState(() {

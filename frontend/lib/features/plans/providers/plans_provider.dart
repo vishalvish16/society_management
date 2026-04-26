@@ -22,12 +22,33 @@ class PlansNotifier extends StateNotifier<PlansState> {
 
   final _client = DioClient();
 
+  List<Map<String, dynamic>> _canonicalizePlans(List<dynamic> raw) {
+    final items = raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+    const canonical = {'basic', 'standard', 'premium'};
+
+    // Keep only canonical lowercase plan names and active plans.
+    final filtered = items.where((p) {
+      final name = (p['name'] ?? '').toString();
+      return canonical.contains(name) && name == name.toLowerCase() && p['isActive'] == true;
+    }).toList();
+
+    // Stable order: Basic, Standard, Premium
+    int rank(String name) {
+      if (name == 'basic') return 0;
+      if (name == 'standard') return 1;
+      return 2;
+    }
+
+    filtered.sort((a, b) => rank(a['name']?.toString() ?? '').compareTo(rank(b['name']?.toString() ?? '')));
+    return filtered;
+  }
+
   Future<void> loadPlans() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final response = await _client.dio.get('/plans');
       state = state.copyWith(
-        plans: List<Map<String, dynamic>>.from(response.data['data'] ?? []),
+        plans: _canonicalizePlans((response.data['data'] ?? []) as List),
         isLoading: false,
       );
     } catch (e) {

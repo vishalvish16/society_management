@@ -2,7 +2,6 @@ const crypto = require('crypto');
 
 const prisma                                      = require('../../config/db');
 const notificationsService                        = require('../notifications/notifications.service');
-const { pushToUnit }                              = require('../../utils/push');
 const { sendVisitorQrMail }                       = require('../../utils/mailer');
 const WhatsApp                                    = require('../../utils/whatsapp');
 const { generateQrBuffer, buildVisitorQrPayload } = require('../../utils/qrGenerator');
@@ -291,15 +290,38 @@ async function validateToken(qrToken, scannerId, societyId, _deviceInfo = {}) {
  * Only used by watchmen or admins — NO QR dispatch.
  */
 async function logWalkinEntry(userId, societyId, data) {
-  const { unitId, visitorName, visitorPhone, numberOfAdults = 1, description, noteForWatchman } = data;
+  const { unitId, visitorName, visitorPhone, numberOfAdults = 1, description, noteForWatchman, entryPhotoUrl } = data;
 
   const unit = await prisma.unit.findUnique({ where: { id: unitId } });
   if (!unit || unit.societyId !== societyId) {
     throw Object.assign(new Error('Unit not found in your society'), { status: 404 });
   }
 
-  return prisma.$transaction(async (tx) => {
-    const visitor = await tx.visitor.create({
+  // Walk-in approvals should not be treated as "expired" immediately.
+  // We reuse the visitor QR max-hours as a sensible approval window.
+  let approvalWindowHrs = 3;
+  try {
+    const platformMaxHrs = await getVisitorQrMaxHrs();
+    const society = await prisma.society.findUnique({
+      where: { id: societyId },
+      select: { settings: true },
+    });
+    const societyMaxHrs = society?.settings?.visitor_qr_max_hrs
+      ? parseInt(society.settings.visitor_qr_max_hrs, 10)
+      : null;
+    const effectiveMaxHrs = (Number.isFinite(societyMaxHrs) && societyMaxHrs > 0)
+      ? societyMaxHrs
+      : platformMaxHrs;
+    approvalWindowHrs = Math.max(1, parseInt(effectiveMaxHrs, 10) || 3);
+  } catch (e) {
+    // fallback to 3 hours
+  }
+
+  const visitor = await prisma.$transaction(async (tx) => {
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + approvalWindowHrs);
+
+    const v = await tx.visitor.create({
       data: {
         societyId,
         unitId,
@@ -309,18 +331,40 @@ async function logWalkinEntry(userId, societyId, data) {
         numberOfAdults:  parseInt(numberOfAdults, 10) || 1,
         description:     description || null,
         noteForWatchman: noteForWatchman || null,
+        entryPhotoUrl:   entryPhotoUrl || null,
         qrToken:         crypto.randomUUID(),
-        qrExpiresAt:     new Date(),   // immediate expiry — walk-in
-        status:          'USED',
+        qrExpiresAt:     expiresAt,
+        // Walk-in with photo waits for member approval; without photo, mark directly USED
+        status:          entryPhotoUrl ? 'PENDING' : 'USED',
+        approvalStatus:  entryPhotoUrl ? 'AWAITING' : null,
       },
     });
 
-    await tx.visitorLog.create({
-      data: { visitorId: visitor.id, scannedById: userId, scanResult: 'VALID' },
-    });
+    if (!entryPhotoUrl) {
+      await tx.visitorLog.create({
+        data: { visitorId: v.id, scannedById: userId, scanResult: 'VALID' },
+      });
+    }
 
-    return visitor;
+    return v;
   });
+
+  // Notify unit residents so they can approve/deny (only when photo captured)
+  if (entryPhotoUrl) {
+    setImmediate(() =>
+      notificationsService.sendNotification(userId, societyId, {
+        targetType: 'unit',
+        targetId: unitId,
+        title: '🚨 Visitor at Gate',
+        body: `${visitorName} is at the gate for ${unit.fullCode}. Please allow or deny entry.`,
+        type: 'VISITOR',
+        route: '/visitors/pending-approvals',
+        excludeUserId: userId,
+      })
+    );
+  }
+
+  return visitor;
 }
 
 module.exports = {

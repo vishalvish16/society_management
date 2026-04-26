@@ -22,4 +22,8 @@ router.post('/verify-donation', paymentsController.verifyDonationPayment);
 router.post('/create-complaint-order', paymentsController.createComplaintOrder);
 router.post('/verify-complaint', paymentsController.verifyComplaintPayment);
 
+// Suggestion payments
+router.post('/create-suggestion-order', paymentsController.createSuggestionOrder);
+router.post('/verify-suggestion', paymentsController.verifySuggestionPayment);
+
 module.exports = router;

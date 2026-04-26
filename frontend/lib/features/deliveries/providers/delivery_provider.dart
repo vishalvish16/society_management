@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/dio_client.dart';
 import '../../../core/providers/auth_provider.dart';
@@ -107,6 +108,25 @@ class DeliveryNotifier extends StateNotifier<DeliveryState> {
       return res.data['message'] ?? 'Failed to mark as returned';
     } on DioException catch (e) {
       return e.response?.data['message'] ?? 'Failed to mark as returned';
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  /// Watchman uploads a parcel photo for a LEFT_AT_GATE delivery.
+  Future<String?> uploadDropPhoto(String id, File photo) async {
+    try {
+      final formData = FormData.fromMap({
+        'photo': await MultipartFile.fromFile(photo.path, filename: 'parcel.jpg'),
+      });
+      final res = await _client.dio.patch('/deliveries/$id/drop-photo', data: formData);
+      if (res.data['success'] == true) {
+        await loadDeliveries();
+        return null;
+      }
+      return res.data['message'] ?? 'Failed to upload photo';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to upload photo';
     } catch (e) {
       return e.toString();
     }

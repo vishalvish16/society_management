@@ -4,9 +4,9 @@ class AppConstants {
 
   // For mobile devices on the same WiFi, use your machine's LAN IP.
   // For Flutter web (browser), use localhost.
-  // static const String apiBaseUrl = 'http://192.168.1.5:3001/api/';
+  // static const String apiBaseUrl = 'http://localhost:3001/api/';
   static const String apiBaseUrl =
-      'https://kentucky-selections-wines-expires.trycloudflare.com/api/';
+      'https://encourage-pen-acting-flexible.trycloudflare.com/api/';
 
   /// Server root for static `/uploads/...` paths returned by the API.
   static String get uploadsBaseUrl => apiBaseUrl.replaceAll('/api/', '');

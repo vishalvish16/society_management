@@ -230,6 +230,8 @@ class _WebAdminLayout extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: AppDimensions.lg),
+                  _ParkingSnapshotCard(stats: stats),
+                  const SizedBox(height: AppDimensions.lg),
                   _SectionHeader(
                     title: 'Shortcuts',
                     onViewAll: () => context.go('/dashboard'),
@@ -290,7 +292,7 @@ class _MobileAdminLayout extends ConsumerWidget {
         _AdminCampaignBanner(stats: stats),
         const SizedBox(height: AppDimensions.md),
         _BillingCard(stats: stats),
-        const SizedBox(height: AppDimensions.lg),
+        const SizedBox.shrink(),
 
         DashboardSectionHeaderRow(
           title: 'Overview',
@@ -299,6 +301,9 @@ class _MobileAdminLayout extends ConsumerWidget {
         ),
         const SizedBox(height: AppDimensions.md),
         _KpiRow(stats: stats, crossAxisCount: 2),
+        const SizedBox(height: AppDimensions.lg),
+
+        _ParkingSnapshotCard(stats: stats),
         const SizedBox(height: AppDimensions.lg),
 
         DashboardSectionHeaderRow(
@@ -1129,6 +1134,8 @@ List<_ActionItem> _actionsForRole(String role) {
     _ActionItem(Icons.money_off_rounded, 'Expenses', '/expenses'),
     _ActionItem(Icons.person_add_rounded, 'Visitor', '/visitors'),
     _ActionItem(Icons.campaign_rounded, 'Notice', '/notices'),
+    _ActionItem(Icons.how_to_vote_rounded, 'Polls', '/polls'),
+    _ActionItem(Icons.event_rounded, 'Events', '/events'),
     _ActionItem(Icons.report_problem_rounded, 'Complaints', '/complaints'),
   ];
   // TREASURER and ASSISTANT_TREASURER see billing-focused actions first
@@ -1138,6 +1145,7 @@ List<_ActionItem> _actionsForRole(String role) {
       _ActionItem(Icons.money_off_rounded, 'Expenses', '/expenses'),
       _ActionItem(Icons.bar_chart_rounded, 'Reports', '/reports/balance'),
       _ActionItem(Icons.campaign_rounded, 'Notice', '/notices'),
+      _ActionItem(Icons.event_rounded, 'Events', '/events'),
       _ActionItem(Icons.report_problem_rounded, 'Complaints', '/complaints'),
     ];
   }
@@ -1158,6 +1166,132 @@ class _ActionChipWidget extends StatelessWidget {
       backgroundColor: AppColors.primarySurface,
       side: BorderSide.none,
       onPressed: () => context.go(item.route),
+    );
+  }
+}
+
+// ─── Parking snapshot card ────────────────────────────────────────────────────
+
+class _ParkingSnapshotCard extends StatelessWidget {
+  final Map<String, dynamic> stats;
+  const _ParkingSnapshotCard({required this.stats});
+
+  @override
+  Widget build(BuildContext context) {
+    final parking = stats['parking'] as Map<String, dynamic>?;
+    if (parking == null) return const SizedBox.shrink();
+
+    final total = parking['totalSlots'] ?? 0;
+    final occupied = parking['occupiedSlots'] ?? 0;
+    final available = parking['availableSlots'] ?? 0;
+    final pct = parking['occupancyPercent'] ?? 0;
+    final sessions = parking['activeSessions'] ?? 0;
+    final charges = parking['pendingCharges'] ?? 0;
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 32, height: 32,
+                decoration: BoxDecoration(
+                  color: AppColors.primarySurface,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                ),
+                child: const Icon(Icons.local_parking_rounded,
+                    size: 16, color: AppColors.primary),
+              ),
+              const SizedBox(width: AppDimensions.sm),
+              Expanded(
+                child: Text('Parking', style: AppTextStyles.h2),
+              ),
+              TextButton(
+                onPressed: () => context.go('/parking'),
+                child: const Text('Manage'),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppDimensions.md),
+          // Occupancy bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: total > 0 ? occupied / total : 0,
+              minHeight: 6,
+              backgroundColor: AppColors.border,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                pct > 80 ? AppColors.danger : AppColors.success,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppDimensions.sm),
+          Row(
+            children: [
+              Expanded(
+                child: Text('$occupied/$total occupied ($pct%)',
+                    style: AppTextStyles.bodySmallMuted),
+              ),
+              Text('$available free',
+                  style: AppTextStyles.labelSmall.copyWith(
+                      color: AppColors.success)),
+            ],
+          ),
+          const SizedBox(height: AppDimensions.md),
+          Row(
+            children: [
+              _ParkingStatPill(
+                icon: Icons.directions_car_rounded,
+                label: 'Active',
+                value: '$sessions',
+                color: AppColors.info,
+              ),
+              const SizedBox(width: AppDimensions.sm),
+              _ParkingStatPill(
+                icon: Icons.receipt_rounded,
+                label: 'Unpaid',
+                value: '$charges',
+                color: charges > 0 ? AppColors.warning : AppColors.textMuted,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ParkingStatPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+  const _ParkingStatPill({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 5),
+          Text('$value $label',
+              style: AppTextStyles.labelSmall.copyWith(color: color)),
+        ],
+      ),
     );
   }
 }

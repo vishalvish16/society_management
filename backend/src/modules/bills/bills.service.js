@@ -415,9 +415,10 @@ async function splitExpenseAmongUnits(societyId, expenseId, totalAmount, title, 
   return result;
 }
 
-async function getResidentUnitIds(userId) {
+async function getResidentUnitIds(userId, societyId, activeUnitId = null) {
+  if (activeUnitId) return [activeUnitId];
   const unitResidents = await prisma.unitResident.findMany({
-    where: { userId },
+    where: { userId, unit: { societyId } },
     select: { unitId: true },
   });
   return unitResidents.map((item) => item.unitId);
@@ -484,6 +485,17 @@ async function recordPayment(billId, paymentData, societyId, allowedUnitIds = nu
         paymentMethod: normalizePaymentMethod(paymentData.paymentMethod),
       },
     });
+
+    // If this is an amenity booking bill, sync payment status back to booking.
+    if (updatedBill.category === 'AMENITY' && typeof updatedBill.notes === 'string') {
+      const match = updatedBill.notes.match(/amenityBooking:([a-f0-9-]+)/i);
+      if (match?.[1]) {
+        await tx.amenityBooking.updateMany({
+          where: { id: match[1], societyId: updatedBill.societyId },
+          data: { paymentStatus: updatedBill.status === 'PAID' ? 'PAID' : 'PARTIAL' },
+        });
+      }
+    }
 
     return updatedBill;
   });
@@ -648,15 +660,11 @@ async function softDeleteBill(billId, societyId, deletedById) {
   });
 }
 
-async function getMyBills(userId, societyId, filters = {}) {
+async function getMyBills(userId, societyId, filters = {}, activeUnitId = null) {
   const { page = 1, limit = 20, status } = filters;
   const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
 
-  const unitResidents = await prisma.unitResident.findMany({
-    where: { userId },
-    select: { unitId: true },
-  });
-  const unitIds = unitResidents.map((item) => item.unitId);
+  const unitIds = await getResidentUnitIds(userId, societyId, activeUnitId);
 
   if (unitIds.length === 0) {
     return { bills: [], total: 0, page: parseInt(page, 10), limit: parseInt(limit, 10) };
@@ -804,6 +812,108 @@ async function runOverdueReminderSweep() {
   return { remindersSent };
 }
 
+async function upsertMaintenanceBillSchedule(societyId, scheduleInput, actorId) {
+  const billingMonth = getMonthStart(scheduleInput.billingMonth);
+  const scheduledFor = new Date(scheduleInput.scheduledFor);
+  const dueDate = new Date(scheduleInput.dueDate);
+  const defaultAmount = Number(scheduleInput.defaultAmount);
+
+  if (Number.isNaN(billingMonth.getTime())) {
+    throw Object.assign(new Error('billingMonth must be a valid date'), { status: 400 });
+  }
+  if (Number.isNaN(scheduledFor.getTime())) {
+    throw Object.assign(new Error('scheduledFor must be a valid date+time'), { status: 400 });
+  }
+  if (Number.isNaN(dueDate.getTime())) {
+    throw Object.assign(new Error('dueDate must be a valid date'), { status: 400 });
+  }
+  if (!defaultAmount || defaultAmount <= 0) {
+    throw Object.assign(new Error('defaultAmount must be greater than zero'), { status: 400 });
+  }
+
+  return prisma.maintenanceBillSchedule.upsert({
+    where: {
+      societyId_billingMonth: {
+        societyId,
+        billingMonth,
+      },
+    },
+    create: {
+      societyId,
+      billingMonth,
+      scheduledFor,
+      defaultAmount,
+      dueDate,
+      isActive: scheduleInput.isActive !== undefined ? Boolean(scheduleInput.isActive) : true,
+      createdById: actorId || null,
+    },
+    update: {
+      scheduledFor,
+      defaultAmount,
+      dueDate,
+      isActive: scheduleInput.isActive !== undefined ? Boolean(scheduleInput.isActive) : true,
+      // If admin updates schedule, allow it to run again for that month.
+      executedAt: null,
+    },
+  });
+}
+
+async function listMaintenanceBillSchedules(societyId) {
+  return prisma.maintenanceBillSchedule.findMany({
+    where: { societyId },
+    orderBy: [{ billingMonth: 'desc' }],
+  });
+}
+
+async function runMaintenanceBillScheduleSweep() {
+  const now = new Date();
+
+  const dueSchedules = await prisma.maintenanceBillSchedule.findMany({
+    where: {
+      isActive: true,
+      executedAt: null,
+      scheduledFor: { lte: now },
+    },
+    orderBy: [{ scheduledFor: 'asc' }],
+    take: 25,
+  });
+
+  let schedulesRun = 0;
+  let billsCreated = 0;
+
+  for (const schedule of dueSchedules) {
+    try {
+      // Claim the schedule (idempotent) so multiple servers don't double-run.
+      const claim = await prisma.maintenanceBillSchedule.updateMany({
+        where: { id: schedule.id, executedAt: null },
+        data: { lastRunAt: now, executedAt: now },
+      });
+
+      if (claim.count === 0) continue;
+
+      const result = await bulkGenerateBills(
+        schedule.societyId,
+        schedule.billingMonth,
+        Number(schedule.defaultAmount),
+        schedule.dueDate,
+        null,
+      );
+
+      schedulesRun += 1;
+      billsCreated += result.count;
+    } catch (error) {
+      // If generation fails, unclaim so it can retry on next sweep.
+      await prisma.maintenanceBillSchedule.updateMany({
+        where: { id: schedule.id, executedAt: now },
+        data: { executedAt: null },
+      });
+      console.error('[billing-schedules] schedule run failed:', error.message);
+    }
+  }
+
+  return { schedulesRun, billsCreated };
+}
+
 module.exports = {
   listBills,
   bulkGenerateBills,
@@ -817,4 +927,7 @@ module.exports = {
   getDefaulters,
   getResidentUnitIds,
   runOverdueReminderSweep,
+  upsertMaintenanceBillSchedule,
+  listMaintenanceBillSchedules,
+  runMaintenanceBillScheduleSweep,
 };

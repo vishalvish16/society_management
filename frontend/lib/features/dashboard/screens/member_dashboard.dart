@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +12,7 @@ import '../../../shared/widgets/app_loading_shimmer.dart';
 import '../../bills/providers/my_pending_bills_provider.dart';
 import '../../bills/screens/upi_pay_sheet.dart';
 import '../../donations/screens/donate_sheet.dart';
+import '../../visitors/providers/visitors_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../widgets/dashboard_portal_widgets.dart';
 
@@ -24,12 +26,24 @@ class MemberDashboard extends ConsumerStatefulWidget {
 }
 
 class _MemberDashboardState extends ConsumerState<MemberDashboard> {
+  Timer? _approvalRefreshTimer;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(myPendingBillsProvider.notifier).fetch();
+      ref.read(pendingWalkinApprovalsProvider.notifier).fetch();
     });
+    _approvalRefreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      if (mounted) ref.read(pendingWalkinApprovalsProvider.notifier).fetch();
+    });
+  }
+
+  @override
+  void dispose() {
+    _approvalRefreshTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -38,6 +52,8 @@ class _MemberDashboardState extends ConsumerState<MemberDashboard> {
     final pendingBills = ref.watch(myPendingBillsProvider);
     final user = ref.watch(authProvider).user;
     final isWeb = MediaQuery.of(context).size.width >= 720;
+
+    final pendingApprovals = ref.watch(pendingWalkinApprovalsProvider);
 
     return statsAsync.when(
       loading: () => const AppLoadingShimmer(itemCount: 4, itemHeight: 100),
@@ -50,13 +66,16 @@ class _MemberDashboardState extends ConsumerState<MemberDashboard> {
           await Future.wait([
             ref.refresh(memberDashboardProvider.future),
             ref.read(myPendingBillsProvider.notifier).fetch(),
+            ref.read(pendingWalkinApprovalsProvider.notifier).fetch(),
           ]);
         },
         scrollChild: isWeb
             ? _WebMemberLayout(
-                stats: stats, pendingBills: pendingBills, user: user)
+                stats: stats, pendingBills: pendingBills,
+                pendingApprovals: pendingApprovals, user: user)
             : _MobileMemberLayout(
-                stats: stats, pendingBills: pendingBills, user: user),
+                stats: stats, pendingBills: pendingBills,
+                pendingApprovals: pendingApprovals, user: user),
       ),
     );
   }
@@ -67,9 +86,11 @@ class _MemberDashboardState extends ConsumerState<MemberDashboard> {
 class _WebMemberLayout extends StatelessWidget {
   final Map<String, dynamic> stats;
   final AsyncValue<List<Map<String, dynamic>>> pendingBills;
+  final AsyncValue<List<dynamic>> pendingApprovals;
   final dynamic user;
   const _WebMemberLayout(
-      {required this.stats, required this.pendingBills, required this.user});
+      {required this.stats, required this.pendingBills,
+       required this.pendingApprovals, required this.user});
 
   @override
   Widget build(BuildContext context) {
@@ -94,6 +115,7 @@ class _WebMemberLayout extends StatelessWidget {
           onNotifications: () => context.go('/notifications'),
         ),
         const SizedBox(height: AppDimensions.lg),
+        _GateApprovalBanner(pendingApprovals: pendingApprovals),
         // My Unit and pending bills
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -174,9 +196,11 @@ class _WebMemberLayout extends StatelessWidget {
 class _MobileMemberLayout extends StatelessWidget {
   final Map<String, dynamic> stats;
   final AsyncValue<List<Map<String, dynamic>>> pendingBills;
+  final AsyncValue<List<dynamic>> pendingApprovals;
   final dynamic user;
   const _MobileMemberLayout(
-      {required this.stats, required this.pendingBills, required this.user});
+      {required this.stats, required this.pendingBills,
+       required this.pendingApprovals, required this.user});
 
   @override
   Widget build(BuildContext context) {
@@ -201,6 +225,7 @@ class _MobileMemberLayout extends StatelessWidget {
           onNotifications: () => context.go('/notifications'),
         ),
         const SizedBox(height: AppDimensions.md),
+        _GateApprovalBanner(pendingApprovals: pendingApprovals),
         if (user?.unitCode != null) ...[
           _MyUnitCard(unitCode: user!.unitCode!),
           const SizedBox(height: AppDimensions.md),
@@ -252,6 +277,82 @@ class _MobileMemberLayout extends StatelessWidget {
         const SizedBox(height: AppDimensions.md),
         _SocietyActivityCards(stats: stats),
       ],
+    );
+  }
+}
+
+// ─── Gate approval banner ─────────────────────────────────────────────────────
+
+class _GateApprovalBanner extends StatelessWidget {
+  final AsyncValue<List<dynamic>> pendingApprovals;
+  const _GateApprovalBanner({required this.pendingApprovals});
+
+  @override
+  Widget build(BuildContext context) {
+    final count = pendingApprovals.when(
+      data: (list) => list.length,
+      loading: () => 0,
+      error: (_, _) => 0,
+    );
+    if (count == 0) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppDimensions.md),
+      child: GestureDetector(
+        onTap: () => context.go('/visitors/pending-approvals'),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppDimensions.lg, vertical: AppDimensions.md),
+          decoration: BoxDecoration(
+            color: AppColors.dangerSurface,
+            borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+            border: Border.all(color: AppColors.danger.withValues(alpha: 0.5)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.danger.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                ),
+                child: const Icon(Icons.person_pin_circle_rounded,
+                    color: AppColors.danger, size: 22),
+              ),
+              const SizedBox(width: AppDimensions.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      count == 1
+                          ? '1 visitor waiting at gate!'
+                          : '$count visitors waiting at gate!',
+                      style: AppTextStyles.labelLarge
+                          .copyWith(color: AppColors.dangerText),
+                    ),
+                    Text(
+                      'Tap to Allow or Deny entry',
+                      style: AppTextStyles.bodySmall
+                          .copyWith(color: AppColors.dangerText.withValues(alpha: 0.8)),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.danger,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                ),
+                child: Text('Review',
+                    style: AppTextStyles.labelSmall.copyWith(color: Colors.white)),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -735,6 +836,8 @@ class _MemberQuickActions extends StatelessWidget {
     (Icons.report_problem_rounded, 'Complaints', '/complaints'),
     (Icons.person_add_rounded, 'Visitor', '/visitors'),
     (Icons.campaign_rounded, 'Notices', '/notices'),
+    (Icons.how_to_vote_rounded, 'Polls', '/polls'),
+    (Icons.event_rounded, 'Events', '/events'),
     (Icons.local_shipping_rounded, 'Deliveries', '/deliveries'),
   ];
 

@@ -7,11 +7,14 @@ async function main() {
   const hash = await bcrypt.hash('Admin@123', 10);
 
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@society.com' },
-    update: {},
-    create: { name: 'Super Admin', phone: '9999999999', email: 'admin@society.com', passwordHash: hash, role: 'SUPER_ADMIN' },
+    where: { email: 'admin@societymanager.in' },
+    update: {
+      phone: '9999999999',
+      passwordHash: hash,
+    },
+    create: { name: 'Super Admin', phone: '9999999999', email: 'admin@societymanager.in', passwordHash: hash, role: 'SUPER_ADMIN' },
   });
-  console.log('super_admin:', admin.email, admin.phone);
+  console.log('super_admin:', admin.email, admin.phone, 'password: Admin@123');
 
   let plan = await prisma.plan.findFirst();
   if (!plan) {
