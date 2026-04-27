@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
@@ -13,6 +12,7 @@ import '../../../core/theme/app_dimensions.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
+import '../../../shared/widgets/app_success_dialog.dart';
 import '../../settings/providers/payment_settings_provider.dart';
 import '../providers/donation_provider.dart';
 import '../../bills/screens/razorpay_web_stub.dart' if (dart.library.html) '../../bills/screens/razorpay_web.dart';
@@ -52,6 +52,14 @@ class _DonateSheetState extends ConsumerState<_DonateSheet> {
   Razorpay? _razorpay;
 
   static const _adminManualMethods = ['CASH', 'BANK_TRANSFER', 'CHEQUE', 'OTHER'];
+
+  @override
+  void initState() {
+    super.initState();
+    // Refresh latest payment settings whenever the sheet opens
+    Future.microtask(
+        () => ref.read(paymentSettingsProvider.notifier).fetch(showLoading: false));
+  }
 
   @override
   void dispose() {
@@ -264,36 +272,11 @@ class _DonateSheetState extends ConsumerState<_DonateSheet> {
     showDialog(
       context: nav.context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusLg)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 64, height: 64,
-              decoration: const BoxDecoration(color: AppColors.successSurface, shape: BoxShape.circle),
-              child: const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 36),
-            ),
-            const SizedBox(height: AppDimensions.md),
-            Text('Donation Recorded!', style: AppTextStyles.h2),
-            const SizedBox(height: AppDimensions.xs),
-            Text('₹${NumberFormat('#,##0').format(amount)}', style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
-            if (reference.isNotEmpty) ...[
-              const SizedBox(height: AppDimensions.md),
-              Text(reference, style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary)),
-            ],
-          ],
-        ),
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () => Navigator.pop(ctx),
-              style: FilledButton.styleFrom(backgroundColor: AppColors.success),
-              child: const Text('Done'),
-            ),
-          ),
-        ],
+      builder: (ctx) => AppSuccessDialog(
+        title: 'Donation Recorded!',
+        subtitle: '₹${NumberFormat('#,##0').format(amount)}',
+        referenceText: reference,
+        doneLabel: 'Done',
       ),
     );
   }

@@ -23,6 +23,18 @@ class GatePassScreen extends ConsumerStatefulWidget {
 }
 
 class _GatePassScreenState extends ConsumerState<GatePassScreen> {
+  String _formatDateTime(String? iso) {
+    if (iso == null || iso.isEmpty) return '-';
+    try {
+      final dt = DateTime.parse(iso).toLocal();
+      final h = dt.hour.toString().padLeft(2, '0');
+      final m = dt.minute.toString().padLeft(2, '0');
+      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} $h:$m';
+    } catch (_) {
+      return iso;
+    }
+  }
+
   // ── QR Scan dialog ──────────────────────────────────────────────────────────
   void _showScanDialog(BuildContext context) {
     final codeCtrl = TextEditingController();
@@ -77,34 +89,57 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
                 SizedBox(
                   width: double.infinity,
                   height: 50,
-                  child: FilledButton(
-                    onPressed: scanning ? null : () async {
-                      final code = codeCtrl.text.trim();
-                      if (code.isEmpty) return;
-                      setDlgState(() {
-                        scanning = true;
-                        scanError = null;
-                      });
-                      try {
-                        final dio = ref.read(dioProvider);
-                        await dio.post('gatepasses/scan', data: {'passCode': code});
-                        if (ctx.mounted) {
-                          Navigator.pop(ctx);
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Pass scanned successfully', style: AppTextStyles.bodyMedium), backgroundColor: AppColors.success));
-                          ref.read(gatePassProvider.notifier).loadPasses();
-                        }
-                      } catch (e) {
-                         if (ctx.mounted) {
-                           setDlgState(() {
-                             scanning = false;
-                             scanError = e.toString();
-                           });
-                         }
-                      }
-                    },
-                    child: scanning
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Text('Scan Pass'),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: scanning
+                              ? null
+                              : () async {
+                                  await _submitScanDecision(
+                                    context: context,
+                                    sheetContext: ctx,
+                                    setDlgState: setDlgState,
+                                    codeCtrl: codeCtrl,
+                                    decision: 'APPROVED',
+                                    onError: (msg) => setDlgState(() => scanError = msg),
+                                    onScanning: (v) => setDlgState(() => scanning = v),
+                                  );
+                                },
+                          child: scanning
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Colors.white),
+                                )
+                              : const Text('Approve'),
+                        ),
+                      ),
+                      const SizedBox(width: AppDimensions.sm),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: scanning
+                              ? null
+                              : () async {
+                                  await _submitScanDecision(
+                                    context: context,
+                                    sheetContext: ctx,
+                                    setDlgState: setDlgState,
+                                    codeCtrl: codeCtrl,
+                                    decision: 'REJECTED',
+                                    onError: (msg) => setDlgState(() => scanError = msg),
+                                    onScanning: (v) => setDlgState(() => scanning = v),
+                                  );
+                                },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.danger,
+                            side: const BorderSide(color: AppColors.danger),
+                          ),
+                          child: const Text('Reject'),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -113,6 +148,39 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
         );
       },
     );
+  }
+
+  Future<void> _submitScanDecision({
+    required BuildContext context,
+    required BuildContext sheetContext,
+    required void Function(void Function()) setDlgState,
+    required TextEditingController codeCtrl,
+    required String decision,
+    required void Function(String msg) onError,
+    required void Function(bool v) onScanning,
+  }) async {
+    final code = codeCtrl.text.trim();
+    if (code.isEmpty) return;
+    onScanning(true);
+    onError('');
+    try {
+      final dio = ref.read(dioProvider);
+      await dio.post('gatepasses/scan',
+          data: {'passCode': code, 'decision': decision});
+      if (sheetContext.mounted) {
+        Navigator.pop(sheetContext);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Gate pass $decision', style: AppTextStyles.bodyMedium),
+            backgroundColor:
+                decision == 'APPROVED' ? AppColors.success : AppColors.danger));
+        ref.read(gatePassProvider.notifier).loadPasses();
+      }
+    } catch (e) {
+      if (sheetContext.mounted) {
+        onScanning(false);
+        onError(e.toString());
+      }
+    }
   }
 
   // ── Generate Pass bottom sheet ──────────────────────────────────────────────
@@ -126,6 +194,7 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
     DateTime? validFrom;
     DateTime? validTo;
     bool submitting = false;
+    String? sheetError;
 
     showModalBottomSheet(
       context: context,
@@ -137,7 +206,6 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
       ),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
-          String? sheetError;
           Future<void> pickRange() async {
             final now = DateTime.now();
             final picked = await pickDateRange(
@@ -212,7 +280,7 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
                         borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
                       ),
                       child: Text(
-                        sheetError!,
+                        sheetError ?? '',
                         style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText),
                       ),
                     ),
@@ -392,6 +460,9 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
             final validTo = _formatDate(p['validTo'] as String?);
             final id = p['id'] as String? ?? '';
             final isActive = status == 'active';
+            final decision = (p['decision'] as String?)?.toUpperCase();
+            final scannedAt = p['scannedAt'] as String?;
+            final scannedBy = (p['scannedBy'] as Map<String, dynamic>?)?['name'] as String?;
 
             return AppCard(
               padding: const EdgeInsets.all(AppDimensions.md),
@@ -435,24 +506,26 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
                             style: AppTextStyles.bodySmall
                                 .copyWith(color: AppColors.textMuted)),
                       ),
-                      if (isActive)
-                        InkWell(
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => GatePassQrScreen(pass: p),
-                            ),
-                          ),
-                          borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: AppColors.primarySurface,
-                              borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
-                            ),
-                            child: const Icon(Icons.qr_code_rounded,
-                                color: AppColors.primary, size: 20),
+                      InkWell(
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => GatePassQrScreen(pass: p),
                           ),
                         ),
+                        borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: AppColors.primarySurface,
+                            borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                          ),
+                          child: Icon(
+                            isActive ? Icons.qr_code_rounded : Icons.history_rounded,
+                            color: AppColors.primary,
+                            size: 20,
+                          ),
+                        ),
+                      ),
                       if (isActive && canCancel) ...[
                         const SizedBox(width: AppDimensions.sm),
                         IconButton(
@@ -487,6 +560,34 @@ class _GatePassScreenState extends ConsumerState<GatePassScreen> {
                       ],
                     ],
                   ),
+                  if (!isActive && decision != null) ...[
+                    const SizedBox(height: AppDimensions.sm),
+                    Row(
+                      children: [
+                        Icon(
+                          decision == 'APPROVED'
+                              ? Icons.check_circle_rounded
+                              : Icons.cancel_rounded,
+                          size: 16,
+                          color: decision == 'APPROVED'
+                              ? AppColors.success
+                              : AppColors.danger,
+                        ),
+                        const SizedBox(width: AppDimensions.xs),
+                        Expanded(
+                          child: Text(
+                            '$decision'
+                            '${scannedBy != null ? ' · by $scannedBy' : ''}'
+                            '${scannedAt != null ? ' · ${_formatDateTime(scannedAt)}' : ''}',
+                            style: AppTextStyles.bodySmall.copyWith(
+                              color: AppColors.textMuted,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             );

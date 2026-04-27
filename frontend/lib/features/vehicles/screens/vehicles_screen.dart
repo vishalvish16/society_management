@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimensions.dart';
@@ -42,6 +44,23 @@ class _VehiclesScreenState extends ConsumerState<VehiclesScreen> {
     }
   }
 
+  String _initialPlateQuery(BuildContext context) {
+    try {
+      return (GoRouterState.of(context).uri.queryParameters['plate'] ?? '').trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String _formatAuditTime(dynamic value) {
+    if (value == null) return '-';
+    try {
+      return DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.parse(value.toString()));
+    } catch (_) {
+      return value.toString();
+    }
+  }
+
   // ── Shared form bottom sheet ────────────────────────────────────────────────
   void _showVehicleSheet(
     BuildContext context, {
@@ -64,6 +83,7 @@ class _VehiclesScreenState extends ConsumerState<VehiclesScreen> {
         (existing?['type'] as String? ?? 'CAR').toUpperCase();
     if (!_types.contains(selectedType)) selectedType = 'CAR';
     bool submitting = false;
+    String? sheetError;
 
     showModalBottomSheet(
       context: context,
@@ -75,7 +95,6 @@ class _VehiclesScreenState extends ConsumerState<VehiclesScreen> {
       ),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
-          String? sheetError;
           return Padding(
             padding: EdgeInsets.fromLTRB(
               AppDimensions.screenPadding,
@@ -163,7 +182,7 @@ class _VehiclesScreenState extends ConsumerState<VehiclesScreen> {
                         borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
                       ),
                       child: Text(
-                        sheetError!,
+                        sheetError ?? '',
                         style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText),
                       ),
                     ),
@@ -289,8 +308,20 @@ class _VehiclesScreenState extends ConsumerState<VehiclesScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(vehiclesProvider);
-    final role = ref.watch(authProvider).user?.role ?? '';
-    final canDelete = ['PRAMUKH', 'SECRETARY'].contains(role);
+    final user = ref.watch(authProvider).user;
+    final roleUpper = (user?.role ?? '').toUpperCase();
+    final myUnitId = user?.unitId;
+    final isCommittee = ['PRAMUKH', 'CHAIRMAN', 'SECRETARY'].contains(roleUpper);
+    final isResidentOrMember = ['RESIDENT', 'MEMBER'].contains(roleUpper);
+
+    final plateParam = _initialPlateQuery(context);
+    final filter = plateParam.isNotEmpty ? plateParam.toUpperCase() : '';
+    final vehicles = filter.isEmpty
+        ? state.vehicles
+        : state.vehicles.where((v) {
+            final plate = (v['numberPlate'] as String? ?? '').toUpperCase();
+            return plate.contains(filter);
+          }).toList();
 
     Widget body;
     if (state.isLoading && state.vehicles.isEmpty) {
@@ -313,26 +344,41 @@ class _VehiclesScreenState extends ConsumerState<VehiclesScreen> {
         title: 'No Vehicles',
         subtitle: 'No vehicles have been registered.',
       );
+    } else if (vehicles.isEmpty) {
+      body = AppEmptyState(
+        emoji: '🚗',
+        title: 'No matching vehicles',
+        subtitle: 'No vehicles found for “$filter”.',
+      );
     } else {
       body = RefreshIndicator(
         onRefresh: () => ref.read(vehiclesProvider.notifier).loadVehicles(),
         child: ListView.separated(
           padding: const EdgeInsets.all(AppDimensions.screenPadding),
-          itemCount: state.vehicles.length,
+          itemCount: vehicles.length,
           separatorBuilder: (_, i) => const SizedBox(height: AppDimensions.sm),
           itemBuilder: (_, i) {
-            final v = state.vehicles[i];
+            final v = vehicles[i];
             final type = (v['type'] as String? ?? '').toUpperCase();
             final plate = v['numberPlate'] as String? ?? '-';
             final brand = v['brand'] as String? ?? '';
             final model = v['model'] as String? ?? '';
             final colour = v['colour'] as String? ?? '';
+            final vehicleUnitId = v['unitId'] as String?;
+            final isOwnUnit = myUnitId != null && vehicleUnitId == myUnitId;
             final unitCode =
                 (v['unit'] as Map<String, dynamic>?)?['fullCode'] as String? ??
                     '-';
-            final ownerName =
-                (v['owner'] as Map<String, dynamic>?)?['name'] as String? ?? '-';
+            final ownerName = ((v['registeredBy'] as Map<String, dynamic>?)?['name'] as String?) ??
+                ((v['owner'] as Map<String, dynamic>?)?['name'] as String?) ??
+                '-';
+            final createdAt = _formatAuditTime(v['createdAt']);
+            final updatedByName = (v['updatedBy'] as Map<String, dynamic>?)?['name'] as String?;
+            final updatedAt = _formatAuditTime(v['updatedAt']);
             final id = v['id'] as String? ?? '';
+
+            final canEditRow = isCommittee || (isResidentOrMember && isOwnUnit);
+            final canDeleteRow = isCommittee || (isResidentOrMember && isOwnUnit);
 
             return AppCard(
               padding: const EdgeInsets.all(AppDimensions.md),
@@ -378,19 +424,28 @@ class _VehiclesScreenState extends ConsumerState<VehiclesScreen> {
                             Text(ownerName, style: AppTextStyles.caption),
                           ],
                         ),
+                        const SizedBox(height: AppDimensions.xs),
+                        Text(
+                          updatedByName == null
+                              ? 'Created by $ownerName • $createdAt'
+                              : 'Created by $ownerName • $createdAt\nEdited by $updatedByName • $updatedAt',
+                          style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                        ),
                       ],
                     ),
                   ),
                   // Edit button
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined,
-                        color: AppColors.primary, size: 20),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    onPressed: () => _showVehicleSheet(context, existing: v),
-                  ),
-                  // Delete button — only for PRAMUKH / SECRETARY
-                  if (canDelete) ...[
+                  if (canEditRow) ...[
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined,
+                          color: AppColors.primary, size: 20),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: () => _showVehicleSheet(context, existing: v),
+                    ),
+                  ],
+                  // Delete button — committee can delete any; residents/members only for own unit
+                  if (canDeleteRow) ...[
                     const SizedBox(width: AppDimensions.sm),
                     IconButton(
                       icon: const Icon(Icons.delete_outline_rounded,

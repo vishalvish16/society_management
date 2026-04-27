@@ -73,6 +73,44 @@ exports.search = async (req, res) => {
       }
     }
 
+    // ── Vehicles ──────────────────────────────────────────────────────
+    // WATCHMAN: should also be able to lookup vehicles at gate (route empty)
+    if (role !== 'SUPER_ADMIN') {
+      const vehicles = await prisma.vehicle.findMany({
+        where: {
+          societyId,
+          isActive: true,
+          OR: [
+            ...containsWhere(['numberPlate', 'brand', 'model', 'colour'], q),
+            { unit: { fullCode: { contains: q, mode: 'insensitive' } } },
+          ],
+        },
+        select: {
+          id: true,
+          numberPlate: true,
+          type: true,
+          brand: true,
+          model: true,
+          colour: true,
+          unit: { select: { fullCode: true } },
+        },
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      });
+
+      for (const v of vehicles) {
+        const unitCode = v.unit?.fullCode || '';
+        const meta = [v.type, unitCode].filter(Boolean).join(' · ');
+        results.push({
+          type: 'vehicle',
+          id: v.id,
+          title: v.numberPlate || 'Vehicle',
+          subtitle: `${meta}${meta && (v.brand || v.model || v.colour) ? ' · ' : ''}${[v.brand, v.model, v.colour].filter(Boolean).join(' ')}`.trim(),
+          route: isWatchman ? '' : `/vehicles?plate=${encodeURIComponent(v.numberPlate || '')}`,
+        });
+      }
+    }
+
     // ── Units ─────────────────────────────────────────────────────────
     if (role !== 'SUPER_ADMIN' && !isWatchman) {
       const units = await prisma.unit.findMany({
@@ -98,6 +136,180 @@ exports.search = async (req, res) => {
           title: u.fullCode || 'Unit',
           subtitle: `${u.status || ''}${u.wing ? ` · Wing ${u.wing}` : ''}${u.floor != null ? ` · Floor ${u.floor}` : ''}`.trim(),
           route: `/units?focusId=${encodeURIComponent(u.id)}`,
+        });
+      }
+    }
+
+    // ── Visitors ──────────────────────────────────────────────────────
+    // WATCHMAN: allowed (gate verification); other roles also allowed.
+    if (role !== 'SUPER_ADMIN') {
+      const visitors = await prisma.visitor.findMany({
+        where: {
+          societyId,
+          OR: [
+            ...containsWhere(['visitorName', 'visitorPhone', 'visitorEmail', 'description'], q),
+            { unit: { fullCode: { contains: q, mode: 'insensitive' } } },
+          ],
+        },
+        select: {
+          id: true,
+          visitorName: true,
+          visitorPhone: true,
+          status: true,
+          unit: { select: { fullCode: true } },
+          createdAt: true,
+        },
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      });
+
+      for (const v of visitors) {
+        const unitCode = v.unit?.fullCode || '';
+        results.push({
+          type: 'visitor',
+          id: v.id,
+          title: v.visitorName || 'Visitor',
+          subtitle: `${unitCode ? `Unit ${unitCode}` : ''}${v.visitorPhone ? `${unitCode ? ' · ' : ''}${v.visitorPhone}` : ''}${v.status ? ` · ${v.status}` : ''}`.trim(),
+          route: isWatchman ? '' : '/visitors',
+        });
+      }
+    }
+
+    // ── Deliveries ────────────────────────────────────────────────────
+    if (role !== 'SUPER_ADMIN' && !isWatchman) {
+      const deliveries = await prisma.delivery.findMany({
+        where: {
+          societyId,
+          OR: [
+            ...containsWhere(['agentName', 'company', 'description'], q),
+            { unit: { fullCode: { contains: q, mode: 'insensitive' } } },
+          ],
+        },
+        select: {
+          id: true,
+          agentName: true,
+          company: true,
+          status: true,
+          unit: { select: { fullCode: true } },
+          createdAt: true,
+        },
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      });
+
+      for (const d of deliveries) {
+        const unitCode = d.unit?.fullCode || '';
+        results.push({
+          type: 'delivery',
+          id: d.id,
+          title: d.company ? `${d.company}` : (d.agentName || 'Delivery'),
+          subtitle: `${unitCode ? `Unit ${unitCode}` : ''}${d.status ? `${unitCode ? ' · ' : ''}${d.status}` : ''}${d.agentName ? ` · ${d.agentName}` : ''}`.trim(),
+          route: '/deliveries',
+        });
+      }
+    }
+
+    // ── Domestic Help ────────────────────────────────────────────────
+    if (role !== 'SUPER_ADMIN' && !isWatchman) {
+      const helps = await prisma.domesticHelp.findMany({
+        where: {
+          societyId,
+          OR: [
+            ...containsWhere(['name', 'phone', 'notes', 'entryCode'], q),
+            { unit: { fullCode: { contains: q, mode: 'insensitive' } } },
+          ],
+        },
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          type: true,
+          status: true,
+          unit: { select: { fullCode: true } },
+          createdAt: true,
+        },
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      });
+
+      for (const h of helps) {
+        const unitCode = h.unit?.fullCode || '';
+        results.push({
+          type: 'domestic_help',
+          id: h.id,
+          title: h.name || 'Domestic Help',
+          subtitle: `${h.type || ''}${unitCode ? ` · ${unitCode}` : ''}${h.phone ? ` · ${h.phone}` : ''}${h.status ? ` · ${h.status}` : ''}`.trim(),
+          route: '/domestichelp',
+        });
+      }
+    }
+
+    // ── Staff ─────────────────────────────────────────────────────────
+    if (role !== 'SUPER_ADMIN' && !isWatchman) {
+      const staff = await prisma.staff.findMany({
+        where: {
+          societyId,
+          isActive: true,
+          OR: [
+            ...containsWhere(['name', 'role', 'phone'], q),
+          ],
+        },
+        select: {
+          id: true,
+          name: true,
+          role: true,
+          phone: true,
+          shift: true,
+          gate: { select: { name: true } },
+          createdAt: true,
+        },
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      });
+
+      for (const s of staff) {
+        const gateName = s.gate?.name || '';
+        results.push({
+          type: 'staff',
+          id: s.id,
+          title: s.name || 'Staff',
+          subtitle: `${s.role || ''}${gateName ? ` · ${gateName}` : ''}${s.shift ? ` · ${s.shift}` : ''}${s.phone ? ` · ${s.phone}` : ''}`.trim(),
+          route: '/staff',
+        });
+      }
+    }
+
+    // ── Assets ────────────────────────────────────────────────────────
+    if (role !== 'SUPER_ADMIN' && !isWatchman) {
+      const assets = await prisma.asset.findMany({
+        where: {
+          societyId,
+          OR: [
+            ...containsWhere(['name', 'category', 'assetTag', 'description', 'location', 'vendor', 'serialNumber'], q),
+            { unit: { fullCode: { contains: q, mode: 'insensitive' } } },
+          ],
+        },
+        select: {
+          id: true,
+          name: true,
+          category: true,
+          assetTag: true,
+          status: true,
+          unit: { select: { fullCode: true } },
+          createdAt: true,
+        },
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      });
+
+      for (const a of assets) {
+        const unitCode = a.unit?.fullCode || '';
+        results.push({
+          type: 'asset',
+          id: a.id,
+          title: a.name || 'Asset',
+          subtitle: `${a.category || ''}${a.assetTag ? ` · ${a.assetTag}` : ''}${unitCode ? ` · ${unitCode}` : ''}${a.status ? ` · ${a.status}` : ''}`.trim(),
+          route: '/assets',
         });
       }
     }

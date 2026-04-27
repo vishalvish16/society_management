@@ -307,7 +307,7 @@ async function voteOnPoll(req, res) {
 
 async function getPollResults(req, res) {
   try {
-    const { societyId, id: userId } = req.user;
+    const { societyId, id: userId, role } = req.user;
     const { id } = req.params;
 
     const poll = await prisma.poll.findUnique({
@@ -326,7 +326,8 @@ async function getPollResults(req, res) {
       },
     });
     if (!poll || poll.societyId !== societyId) return sendError(res, 'Poll not found', 404);
-    if (poll.createdById !== userId) return sendError(res, 'Only creator can view results', 403);
+    const canViewResults = poll.createdById === userId || isSocietyAdminRole(role);
+    if (!canViewResults) return sendError(res, 'Only creator can view results', 403);
 
     const counts = {};
     for (const opt of poll.options) counts[opt.id] = 0;

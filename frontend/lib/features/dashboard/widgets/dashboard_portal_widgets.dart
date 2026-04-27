@@ -369,6 +369,18 @@ class DashboardSearchResultTile extends StatelessWidget {
         return Icons.receipt_long_rounded;
       case 'complaint':
         return Icons.report_problem_rounded;
+      case 'vehicle':
+        return Icons.directions_car_rounded;
+      case 'visitor':
+        return Icons.badge_rounded;
+      case 'delivery':
+        return Icons.local_shipping_rounded;
+      case 'domestic_help':
+        return Icons.cleaning_services_rounded;
+      case 'staff':
+        return Icons.security_rounded;
+      case 'asset':
+        return Icons.inventory_2_rounded;
       default:
         return Icons.search_rounded;
     }

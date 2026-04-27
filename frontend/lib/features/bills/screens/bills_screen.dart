@@ -73,7 +73,7 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
 
     final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: isWide
           ? AppBar(
               backgroundColor: AppColors.primary,
@@ -190,7 +190,7 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
       body: Column(
         children: [
           Container(
-            color: AppColors.surface,
+            color: Theme.of(context).colorScheme.surface,
             padding: const EdgeInsets.symmetric(
               horizontal: AppDimensions.screenPadding,
               vertical: AppDimensions.sm,

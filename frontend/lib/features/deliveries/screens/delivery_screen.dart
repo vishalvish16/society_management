@@ -181,6 +181,8 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
                     final description = d['description'] as String?;
                     final loggedAt = _formatDate(d['loggedAt'] as String?);
                     final id = d['id'] as String? ?? '';
+                    final photoUrl = d['photoUrl'] as String?;
+                    final hasDropPhoto = photoUrl != null && photoUrl.trim().isNotEmpty;
 
                     return AppCard(
                       leftBorderColor: _borderColor(status),
@@ -296,27 +298,30 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
                                 const Icon(Icons.info_outline_rounded, size: 14, color: AppColors.info),
                                 const SizedBox(width: AppDimensions.sm),
                                 Expanded(child: Text(
-                                  'Resident chose "Drop at Gate" — photograph the parcel.',
+                                  hasDropPhoto
+                                      ? 'Parcel photo uploaded.'
+                                      : 'Resident chose "Drop at Gate" — photograph the parcel.',
                                   style: AppTextStyles.caption.copyWith(color: AppColors.info),
                                 )),
                               ]),
                             ),
                             const SizedBox(height: AppDimensions.sm),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                onPressed: () => _showDropPhotoSheet(context, id),
-                                icon: const Icon(Icons.camera_alt_rounded, size: 16),
-                                label: const Text('Take Parcel Photo'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.info,
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
-                                  padding: const EdgeInsets.symmetric(vertical: AppDimensions.sm),
+                            if (!hasDropPhoto)
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: () => _showDropPhotoSheet(context, id),
+                                  icon: const Icon(Icons.camera_alt_rounded, size: 16),
+                                  label: const Text('Take Parcel Photo'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.info,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
+                                    padding: const EdgeInsets.symmetric(vertical: AppDimensions.sm),
+                                  ),
                                 ),
                               ),
-                            ),
                           ],
                           // ── Staff: Mark Collected on PENDING or ALLOWED ─
                           if (isStaff && (status == 'pending' || status == 'allowed') && id.isNotEmpty) ...[

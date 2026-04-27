@@ -144,9 +144,19 @@ class _TaskFormSheetState extends ConsumerState<TaskFormSheet> {
                               _sectionLabel('Category *'),
                               DropdownButtonFormField<String>(
                                 value: _category,
+                                isExpanded: true,
                                 decoration: _inputDecor('Select category', Icons.category_rounded),
                                 items: categories.entries
-                                    .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value.label)))
+                                    .map(
+                                      (e) => DropdownMenuItem(
+                                        value: e.key,
+                                        child: Text(
+                                          e.value.label,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    )
                                     .toList(),
                                 onChanged: (v) => setState(() {
                                   _category = v;
@@ -165,9 +175,19 @@ class _TaskFormSheetState extends ConsumerState<TaskFormSheet> {
                               _sectionLabel('Sub-Category'),
                               DropdownButtonFormField<String>(
                                 value: _subCategory,
+                                isExpanded: true,
                                 decoration: _inputDecor('Select sub-category', Icons.subdirectory_arrow_right_rounded),
                                 items: subCategories
-                                    .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                                    .map(
+                                      (s) => DropdownMenuItem(
+                                        value: s,
+                                        child: Text(
+                                          s,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    )
                                     .toList(),
                                 onChanged: (v) => setState(() => _subCategory = v),
                               ),

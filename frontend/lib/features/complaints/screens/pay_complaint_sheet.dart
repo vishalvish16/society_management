@@ -12,6 +12,7 @@ import '../../../core/theme/app_dimensions.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
+import '../../../shared/widgets/app_success_dialog.dart';
 import '../../settings/providers/payment_settings_provider.dart';
 import '../providers/complaints_provider.dart';
 import '../../bills/screens/razorpay_web_stub.dart' if (dart.library.html) '../../bills/screens/razorpay_web.dart';
@@ -55,6 +56,9 @@ class _PayComplaintSheetState extends ConsumerState<_PayComplaintSheet> {
   void initState() {
     super.initState();
     _manualAmountCtrl.text = _remainingAmount.toStringAsFixed(0);
+    // Refresh latest payment settings whenever the sheet opens
+    Future.microtask(
+        () => ref.read(paymentSettingsProvider.notifier).fetch(showLoading: false));
   }
 
   @override
@@ -258,36 +262,11 @@ class _PayComplaintSheetState extends ConsumerState<_PayComplaintSheet> {
     showDialog(
       context: nav.context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusLg)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 64, height: 64,
-              decoration: const BoxDecoration(color: AppColors.successSurface, shape: BoxShape.circle),
-              child: const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 36),
-            ),
-            const SizedBox(height: AppDimensions.md),
-            Text('Payment Recorded!', style: AppTextStyles.h2),
-            const SizedBox(height: AppDimensions.xs),
-            Text('₹${NumberFormat('#,##0').format(amount)}', style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
-            if (reference.isNotEmpty) ...[
-              const SizedBox(height: AppDimensions.md),
-              Text(reference, style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary)),
-            ],
-          ],
-        ),
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () => Navigator.pop(ctx),
-              style: FilledButton.styleFrom(backgroundColor: AppColors.success),
-              child: const Text('Done'),
-            ),
-          ),
-        ],
+      builder: (ctx) => AppSuccessDialog(
+        title: 'Payment Recorded!',
+        subtitle: '₹${NumberFormat('#,##0').format(amount)}',
+        referenceText: reference,
+        doneLabel: 'Done',
       ),
     );
   }

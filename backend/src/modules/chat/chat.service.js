@@ -21,6 +21,50 @@ async function getOrCreateGroupRoom(societyId) {
   return room;
 }
 
+// ── members (for starting DMs) ─────────────────────────────────────────────
+
+async function getChatMembers(societyId, requesterId, { q, limit } = {}) {
+  const take = Number.isFinite(limit) && limit > 0 ? Math.min(limit, 1000) : 500;
+  const search = q ? String(q).trim() : '';
+
+  const where = {
+    societyId,
+    isActive: true,
+    deletedAt: null,
+    role: { not: 'SUPER_ADMIN' },
+    id: { not: requesterId },
+    ...(search
+      ? {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            {
+              unitResidents: {
+                some: {
+                  unit: { fullCode: { contains: search, mode: 'insensitive' } },
+                },
+              },
+            },
+          ],
+        }
+      : {}),
+  };
+
+  return prisma.user.findMany({
+    where,
+    take,
+    orderBy: { name: 'asc' },
+    select: {
+      id: true,
+      name: true,
+      role: true,
+      profilePhotoUrl: true,
+      unitResidents: {
+        select: { unit: { select: { id: true, fullCode: true } }, isOwner: true },
+      },
+    },
+  });
+}
+
 async function getOrCreateDMRoom(societyId, userAId, userBId) {
   const key = dmKey(userAId, userBId);
   let room = await prisma.chatRoom.findUnique({ where: { dmKey: key } });
@@ -287,6 +331,7 @@ async function notifyNewMessage(room, message, senderName) {
 }
 
 module.exports = {
+  getChatMembers,
   getOrCreateGroupRoom,
   getOrCreateDMRoom,
   getRoomForUser,

@@ -234,177 +234,204 @@ class BillScheduleScreen extends ConsumerWidget {
     DateTime scheduledFor = initialScheduledFor;
     DateTime dueDate = initialDueDate;
     bool isActive = initialActive;
+    bool isSaving = false;
 
     await showAppSheet(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => Padding(
-          padding: EdgeInsets.fromLTRB(
-            AppDimensions.screenPadding,
-            AppDimensions.lg,
-            AppDimensions.screenPadding,
-            MediaQuery.of(ctx).viewInsets.bottom + AppDimensions.xxxl,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+        builder: (ctx, setState) => LayoutBuilder(
+          builder: (ctx, constraints) => AnimatedPadding(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            padding: EdgeInsets.fromLTRB(
+              AppDimensions.screenPadding,
+              AppDimensions.lg,
+              AppDimensions.screenPadding,
+              MediaQuery.of(ctx).viewInsets.bottom + AppDimensions.lg,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: constraints.maxHeight,
               ),
-              const SizedBox(height: AppDimensions.lg),
-              Text(
-                initial == null ? 'Set Bill Schedule' : 'Edit Bill Schedule',
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: AppDimensions.xs),
-              Text(
-                'Bills will be generated automatically for all occupied units.',
-                style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
-              ),
-              const SizedBox(height: AppDimensions.lg),
-              AppDateField(
-                label: 'Billing Month',
-                value: billingMonth,
-                onTap: () async {
-                  final picked = await pickSingleDate(
-                    ctx,
-                    initial: billingMonth,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime(2100),
-                  );
-                  if (picked != null) {
-                    setState(() {
-                      billingMonth = DateTime(picked.year, picked.month, 1);
-                    });
-                  }
-                },
-              ),
-              const SizedBox(height: AppDimensions.md),
-              AppDateField(
-                label: 'Schedule Date',
-                value: scheduledFor,
-                onTap: () async {
-                  final picked = await pickSingleDate(
-                    ctx,
-                    initial: scheduledFor,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime(2100),
-                  );
-                  if (picked != null) {
-                    setState(() {
-                      scheduledFor = DateTime(
-                        picked.year,
-                        picked.month,
-                        picked.day,
-                        scheduledFor.hour,
-                        scheduledFor.minute,
-                      );
-                    });
-                  }
-                },
-              ),
-              const SizedBox(height: AppDimensions.sm),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () async {
-                        final picked = await showTimePicker(
-                          context: ctx,
-                          initialTime: TimeOfDay.fromDateTime(scheduledFor),
-                        );
-                        if (picked == null) return;
-                        setState(() {
-                          scheduledFor = DateTime(
-                            scheduledFor.year,
-                            scheduledFor.month,
-                            scheduledFor.day,
-                            picked.hour,
-                            picked.minute,
-                          );
-                        });
-                      },
-                      icon: const Icon(Icons.access_time_rounded, size: 18),
-                      label: Text(DateFormat('hh:mm a').format(scheduledFor)),
-                    ),
-                  ),
-                  const SizedBox(width: AppDimensions.md),
-                  Expanded(
-                    child: SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Active'),
-                      value: isActive,
-                      onChanged: (v) => setState(() => isActive = v),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppDimensions.md),
-              TextField(
-                controller: amountController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Default Amount',
-                  prefixText: '₹',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppDimensions.md),
-              AppDateField(
-                label: 'Due Date',
-                value: dueDate,
-                onTap: () async {
-                  final picked = await pickSingleDate(
-                    ctx,
-                    initial: dueDate,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime(2100),
-                  );
-                  if (picked != null) setState(() => dueDate = picked);
-                },
-              ),
-              const SizedBox(height: AppDimensions.lg),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () async {
-                    final amount = double.tryParse(amountController.text) ?? 0;
-                    if (amount <= 0) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please enter a valid amount')),
-                      );
-                      return;
-                    }
-                    Navigator.pop(ctx);
-                    final error = await ref.read(billSchedulesProvider.notifier).upsertSchedule(
-                          billingMonth: billingMonth,
-                          scheduledFor: scheduledFor,
-                          defaultAmount: amount,
-                          dueDate: dueDate,
-                          isActive: isActive,
-                        );
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(error ?? 'Schedule saved successfully'),
-                        backgroundColor: error == null ? AppColors.success : AppColors.danger,
+              child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppColors.border,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
-                    );
-                  },
-                  child: const Text('Save Schedule'),
+                    ),
+                    const SizedBox(height: AppDimensions.lg),
+                    Text(
+                      initial == null ? 'Set Bill Schedule' : 'Edit Bill Schedule',
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: AppDimensions.xs),
+                    Text(
+                      'Bills will be generated automatically for all occupied units.',
+                      style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                    ),
+                    const SizedBox(height: AppDimensions.lg),
+                    AppDateField(
+                      label: 'Billing Month',
+                      value: billingMonth,
+                      onTap: () async {
+                        final picked = await pickSingleDate(
+                          ctx,
+                          initial: billingMonth,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2100),
+                        );
+                        if (picked != null) {
+                          setState(() {
+                            billingMonth = DateTime(picked.year, picked.month, 1);
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: AppDimensions.md),
+                    AppDateField(
+                      label: 'Schedule Date',
+                      value: scheduledFor,
+                      onTap: () async {
+                        final picked = await pickSingleDate(
+                          ctx,
+                          initial: scheduledFor,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2100),
+                        );
+                        if (picked != null) {
+                          setState(() {
+                            scheduledFor = DateTime(
+                              picked.year,
+                              picked.month,
+                              picked.day,
+                              scheduledFor.hour,
+                              scheduledFor.minute,
+                            );
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: AppDimensions.sm),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              final picked = await showTimePicker(
+                                context: ctx,
+                                initialTime: TimeOfDay.fromDateTime(scheduledFor),
+                              );
+                              if (picked == null) return;
+                              setState(() {
+                                scheduledFor = DateTime(
+                                  scheduledFor.year,
+                                  scheduledFor.month,
+                                  scheduledFor.day,
+                                  picked.hour,
+                                  picked.minute,
+                                );
+                              });
+                            },
+                            icon: const Icon(Icons.access_time_rounded, size: 18),
+                            label: Text(DateFormat('hh:mm a').format(scheduledFor)),
+                          ),
+                        ),
+                        const SizedBox(width: AppDimensions.md),
+                        Expanded(
+                          child: SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Active'),
+                            value: isActive,
+                            onChanged: (v) => setState(() => isActive = v),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppDimensions.md),
+                    TextField(
+                      controller: amountController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: 'Default Amount',
+                        prefixText: '₹',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppDimensions.md),
+                    AppDateField(
+                      label: 'Due Date',
+                      value: dueDate,
+                      onTap: () async {
+                        final picked = await pickSingleDate(
+                          ctx,
+                          initial: dueDate,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2100),
+                        );
+                        if (picked != null) setState(() => dueDate = picked);
+                      },
+                    ),
+                    const SizedBox(height: AppDimensions.lg),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () async {
+                          if (isSaving) return;
+                          final amount = double.tryParse(amountController.text) ?? 0;
+                          if (amount <= 0) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Please enter a valid amount')),
+                            );
+                            return;
+                          }
+                          setState(() => isSaving = true);
+                          final error = await ref.read(billSchedulesProvider.notifier).upsertSchedule(
+                                billingMonth: billingMonth,
+                                scheduledFor: scheduledFor,
+                                defaultAmount: amount,
+                                dueDate: dueDate,
+                                isActive: isActive,
+                              );
+                          if (ctx.mounted) {
+                            setState(() => isSaving = false);
+                          }
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(error ?? 'Schedule saved successfully'),
+                              backgroundColor: error == null ? AppColors.success : AppColors.danger,
+                            ),
+                          );
+                          if (error == null && ctx.mounted) {
+                            Navigator.pop(ctx);
+                          }
+                        },
+                        child: isSaving
+                            ? const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text('Save Schedule'),
+                      ),
+                    ),
+                    SizedBox(height: MediaQuery.of(ctx).padding.bottom),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),

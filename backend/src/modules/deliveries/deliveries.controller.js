@@ -189,10 +189,20 @@ exports.respondToDelivery = async (req, res) => {
       data: { status: ActionUpper, respondedAt: new Date(), respondedBy },
     });
 
-    // Notify watchman via socket when resident chooses LEFT_AT_GATE
-    if (ActionUpper === 'LEFT_AT_GATE') {
-      const io = req.app.get('io');
-      if (io) {
+    // Notify watchman via socket + push for all resident responses
+    const io = req.app.get('io');
+    if (io) {
+      // General response event (clients can optionally subscribe)
+      io.to(`society_${societyId}_watchman`).emit('delivery_response', {
+        deliveryId: id,
+        agentName: delivery.agentName,
+        unitCode: delivery.unit?.fullCode,
+        action: ActionUpper,
+        respondedBy,
+      });
+
+      // Legacy/specific event used by some clients for "Drop at Gate"
+      if (ActionUpper === 'LEFT_AT_GATE') {
         io.to(`society_${societyId}_watchman`).emit('delivery_drop_at_gate', {
           deliveryId: id,
           agentName: delivery.agentName,
@@ -200,16 +210,33 @@ exports.respondToDelivery = async (req, res) => {
           message: 'Resident chose "Drop at Gate" — please take a photo of the parcel.',
         });
       }
+    }
 
-      setImmediate(() => notificationsService.sendNotification(respondedBy, societyId, {
+    // Push to watchman role (so they get notified even if app isn't open)
+    const pushTitle =
+      ActionUpper === 'ALLOWED'
+        ? '✅ Delivery Allowed'
+        : ActionUpper === 'DENIED'
+          ? '❌ Delivery Denied'
+          : '📦 Drop at Gate';
+    const pushBody =
+      ActionUpper === 'ALLOWED'
+        ? `${delivery.agentName} delivery for ${delivery.unit?.fullCode} has been allowed. Please send it in.`
+        : ActionUpper === 'DENIED'
+          ? `${delivery.agentName} delivery for ${delivery.unit?.fullCode} has been denied. Please return it.`
+          : `${delivery.agentName} delivery for ${delivery.unit?.fullCode} — resident chose Drop at Gate. Please photograph the parcel.`;
+
+    setImmediate(() =>
+      notificationsService.sendNotification(respondedBy, societyId, {
         targetType: 'role',
         targetId: 'WATCHMAN',
-        title: '📦 Drop at Gate',
-        body: `${delivery.agentName} delivery for ${delivery.unit?.fullCode} — resident chose Drop at Gate. Please photograph the parcel.`,
+        title: pushTitle,
+        body: pushBody,
         type: 'DELIVERY',
         route: '/deliveries',
-      }));
-    }
+        pushData: { deliveryId: id, action: ActionUpper },
+      })
+    );
 
     return sendSuccess(res, updated, `Delivery ${action}`);
   } catch (error) {
@@ -220,7 +247,7 @@ exports.respondToDelivery = async (req, res) => {
 // PATCH /api/deliveries/:id/collect  (Watchman marks collected)
 exports.markCollected = async (req, res) => {
   try {
-    const { societyId } = req.user;
+    const { societyId, id: collectedBy } = req.user;
     const { id } = req.params;
 
     const delivery = await prisma.delivery.findUnique({ where: { id } });
@@ -233,10 +260,53 @@ exports.markCollected = async (req, res) => {
 
     const updated = await prisma.delivery.update({
       where: { id },
-      data: { status: 'COLLECTED', collectedAt: new Date() },
+      data: { status: 'COLLECTED', collectedAt: new Date(), collectedBy },
     });
 
     return sendSuccess(res, updated, 'Delivery marked as collected');
+  } catch (error) {
+    return sendError(res, error.message, 500);
+  }
+};
+
+// PATCH /api/deliveries/:id/received  (Resident confirms they received from watchman; optional proof photo)
+exports.markReceivedByResident = async (req, res) => {
+  try {
+    const { societyId, id: receivedBy, role } = req.user;
+    const { id } = req.params;
+
+    const delivery = await prisma.delivery.findUnique({ where: { id } });
+    if (!delivery || delivery.societyId !== societyId) {
+      return sendError(res, 'Delivery not found', 404);
+    }
+
+    if (isResidentLikeRole(role)) {
+      const allowed = await userHasUnit(receivedBy, societyId, delivery.unitId);
+      if (!allowed) {
+        return sendError(res, 'You can only confirm deliveries for your own unit', 403);
+      }
+    }
+
+    // Allow resident confirmation once parcel is at/through gate (LEFT_AT_GATE / COLLECTED / ALLOWED)
+    if (!['LEFT_AT_GATE', 'COLLECTED', 'ALLOWED'].includes(delivery.status)) {
+      return sendError(res, `Cannot confirm receipt for delivery in status ${delivery.status}`, 400);
+    }
+    if (delivery.receivedAt) {
+      return sendError(res, 'Delivery already confirmed as received', 400);
+    }
+
+    const receivedPhotoUrl = req.file ? `/uploads/deliveries/${req.file.filename}` : null;
+    const updated = await prisma.delivery.update({
+      where: { id },
+      data: {
+        receivedAt: new Date(),
+        receivedBy,
+        receivedPhotoUrl,
+        // Keep status as-is; status is operational, receipt is an audit proof.
+      },
+    });
+
+    return sendSuccess(res, updated, 'Delivery marked as received');
   } catch (error) {
     return sendError(res, error.message, 500);
   }

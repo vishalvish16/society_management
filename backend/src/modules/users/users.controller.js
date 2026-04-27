@@ -1,6 +1,7 @@
 const usersService = require('./users.service');
 const { sendSuccess, sendError } = require('../../utils/response');
 const { validatePassword } = require('../../utils/password');
+const prisma = require('../../config/db');
 
 /** Parse optional profile fields from JSON or multipart string values. */
 function parseProfileFields(body) {
@@ -158,6 +159,25 @@ async function updateUser(req, res) {
 
     if (!isSelf && !isSecretary && !isChairman && !isSuperAdmin) {
       return sendError(res, 'You can only update your own profile', 403);
+    }
+
+    // Secretary can only manage MEMBER/RESIDENT users (or self). Never PRAMUKH/CHAIRMAN/etc.
+    if (isSecretary && !isSelf) {
+      const target = await prisma.user.findUnique({
+        where: { id },
+        select: { id: true, role: true, societyId: true, deletedAt: true },
+      });
+      if (!target || target.deletedAt) return sendError(res, 'User not found', 404);
+      if (target.societyId !== req.user.societyId) {
+        return sendError(res, 'Cannot modify users outside your society', 403);
+      }
+      if (!['MEMBER', 'RESIDENT'].includes(target.role)) {
+        return sendError(res, `Secretary cannot modify ${target.role} accounts`, 403);
+      }
+      // Also block secretary from toggling activation in this module (keep de/activation to Chairman flow)
+      if (req.body?.isActive !== undefined) {
+        return sendError(res, 'Secretary cannot change account status', 403);
+      }
     }
 
     // Self-updates are limited to name, email, phone, fcmToken

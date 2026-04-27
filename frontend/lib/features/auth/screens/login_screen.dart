@@ -168,7 +168,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: SafeArea(
           child: isWide ? _buildWeb() : _buildMobile(),
         ),

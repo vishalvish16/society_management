@@ -1,6 +1,7 @@
 const prisma = require('../../config/db');
 const { sendSuccess, sendError } = require('../../utils/response');
 const crypto = require('crypto');
+const notificationsService = require('../notifications/notifications.service');
 
 function generatePassCode() {
   return crypto.randomBytes(4).toString('hex').toUpperCase(); // 8-char hex
@@ -62,8 +63,16 @@ async function listGatePasses(req, res, next) {
         where,
         select: {
           id: true, passCode: true, itemDescription: true, reason: true,
-          validFrom: true, validTo: true, status: true, scannedAt: true, createdAt: true,
+          validFrom: true,
+          validTo: true,
+          status: true,
+          scannedAt: true,
+          decision: true,
+          decisionNote: true,
+          createdAt: true,
           unit: { select: { id: true, fullCode: true } },
+          createdBy: { select: { id: true, name: true } },
+          scannedBy: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (parseInt(page) - 1) * parseInt(limit),
@@ -92,11 +101,15 @@ async function verifyGatePass(req, res, next) {
         id: true,
         societyId: true,
         status: true,
+        decision: true,
+        scannedAt: true,
         validFrom: true,
         validTo: true,
         itemDescription: true,
         reason: true,
         unit: { select: { id: true, fullCode: true } },
+        createdBy: { select: { id: true, name: true } },
+        scannedBy: { select: { id: true, name: true } },
       },
     });
 
@@ -113,29 +126,137 @@ async function verifyGatePass(req, res, next) {
 
 async function scanGatePass(req, res, next) {
   try {
-    const { passCode } = req.body;
+    const { passCode, decision, note } = req.body;
     if (!passCode) return sendError(res, 'passCode is required', 400);
+    const normalizedDecision = (decision || '').toString().trim().toUpperCase();
+    if (!['APPROVED', 'REJECTED'].includes(normalizedDecision)) {
+      return sendError(res, 'decision must be APPROVED or REJECTED', 400);
+    }
 
+    const normalizedCode = passCode.toString().trim().toUpperCase();
     const gatePass = await prisma.gatePass.findUnique({
-      where: { passCode },
-      select: { id: true, societyId: true, status: true, validFrom: true, validTo: true, itemDescription: true },
+      where: { passCode: normalizedCode },
+      select: {
+        id: true,
+        societyId: true,
+        unit: { select: { id: true, fullCode: true } },
+        createdById: true,
+        createdBy: { select: { id: true, name: true } },
+        status: true,
+        decision: true,
+        scannedAt: true,
+        scannedBy: { select: { id: true, name: true } },
+        validFrom: true,
+        validTo: true,
+        itemDescription: true,
+      },
     });
 
     if (!gatePass) return sendError(res, 'Invalid pass code', 404);
     if (gatePass.societyId !== req.user.societyId) return sendError(res, 'Pass not for this society', 403);
 
     const now = new Date();
-    if (gatePass.status !== 'ACTIVE') return sendError(res, `Gate pass is ${gatePass.status}`, 400);
-    if (now < new Date(gatePass.validFrom)) return sendError(res, 'Gate pass is not yet valid', 400);
-    if (now > new Date(gatePass.validTo))   return sendError(res, 'Gate pass has expired', 400);
+    const withinWindow = now >= new Date(gatePass.validFrom) && now <= new Date(gatePass.validTo);
 
-    const updated = await prisma.gatePass.update({
-      where: { id: gatePass.id },
-      data: { status: 'USED', scannedById: req.user.id, scannedAt: now },
-      select: { id: true, passCode: true, status: true, scannedAt: true, itemDescription: true },
+    // Always log scan attempts for traceability (watchman + creator visibility).
+    const logAttempt = async (result, extra = {}) => {
+      await prisma.gatePassLog.create({
+        data: {
+          gatePassId: gatePass.id,
+          scannedById: req.user.id,
+          result,
+          decision: extra.decision || null,
+          note: extra.note || null,
+          scannedAt: now,
+        },
+      });
+    };
+
+    if (gatePass.status !== 'ACTIVE') {
+      await logAttempt('USED', { decision: gatePass.decision || null });
+      return sendError(
+        res,
+        `Gate pass already scanned (${gatePass.status})`,
+        400,
+        {
+          result: 'used',
+          status: gatePass.status,
+          scannedAt: gatePass.scannedAt,
+          scannedBy: gatePass.scannedBy?.name || null,
+          decision: gatePass.decision || null,
+        },
+      );
+    }
+
+    if (!withinWindow) {
+      if (now < new Date(gatePass.validFrom)) {
+        await logAttempt('NOT_YET_VALID');
+        return sendError(res, 'Gate pass is not yet valid', 400, { result: 'not_yet_valid' });
+      }
+      await logAttempt('EXPIRED');
+      return sendError(res, 'Gate pass has expired', 400, { result: 'expired' });
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const u = await tx.gatePass.update({
+        where: { id: gatePass.id },
+        data: {
+          status: 'USED',
+          scannedById: req.user.id,
+          scannedAt: now,
+          decision: normalizedDecision,
+          decisionNote: note ? note.toString() : null,
+        },
+        select: {
+          id: true,
+          passCode: true,
+          status: true,
+          scannedAt: true,
+          decision: true,
+          decisionNote: true,
+          itemDescription: true,
+          unit: { select: { id: true, fullCode: true } },
+          createdBy: { select: { id: true, name: true } },
+          scannedBy: { select: { id: true, name: true } },
+        },
+      });
+
+      await tx.gatePassLog.create({
+        data: {
+          gatePassId: gatePass.id,
+          scannedById: req.user.id,
+          result: 'VALID',
+          decision: normalizedDecision,
+          note: note ? note.toString() : null,
+          scannedAt: now,
+        },
+      });
+
+      return u;
     });
 
-    return sendSuccess(res, updated, 'Gate pass scanned successfully');
+    // Notify creator (FCM + in-app) that pass was approved/rejected.
+    try {
+      const title =
+        normalizedDecision === 'APPROVED' ? 'Gate Pass Approved' : 'Gate Pass Rejected';
+      const body = `${updated.itemDescription} (${updated.passCode}) · Unit ${updated.unit.fullCode}`;
+      await notificationsService.sendNotification(req.user.id, req.user.societyId, {
+        targetType: 'user',
+        targetId: updated.createdBy.id,
+        title,
+        body,
+        type: 'GATE_PASS',
+        pushData: {
+          gatePassId: updated.id,
+          passCode: updated.passCode,
+          decision: updated.decision,
+        },
+      });
+    } catch (_) {
+      // Non-blocking: pass scan should succeed even if push fails.
+    }
+
+    return sendSuccess(res, updated, `Gate pass ${normalizedDecision.toLowerCase()} successfully`);
   } catch (err) {
     next(err);
   }
@@ -171,8 +292,15 @@ async function listMyGatePasses(req, res, next) {
         where,
         select: {
           id: true, passCode: true, itemDescription: true, reason: true,
-          validFrom: true, validTo: true, status: true, scannedAt: true, createdAt: true,
+          validFrom: true,
+          validTo: true,
+          status: true,
+          scannedAt: true,
+          decision: true,
+          decisionNote: true,
+          createdAt: true,
           unit: { select: { id: true, fullCode: true } },
+          scannedBy: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (parseInt(page) - 1) * parseInt(limit),
@@ -187,6 +315,64 @@ async function listMyGatePasses(req, res, next) {
   }
 }
 
+/**
+ * GET /api/gatepasses/:id/logs — scan/audit history for a gate pass.
+ *
+ * Access:
+ * - WATCHMAN/committee roles: any gate pass in their society
+ * - RESIDENT/MEMBER: only gate passes created by them
+ */
+async function listGatePassLogs(req, res, next) {
+  try {
+    const { id } = req.params;
+    const societyId = req.user.societyId;
+
+    const gatePass = await prisma.gatePass.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        societyId: true,
+        createdById: true,
+        passCode: true,
+        itemDescription: true,
+        status: true,
+        decision: true,
+        scannedAt: true,
+        unit: { select: { id: true, fullCode: true } },
+      },
+    });
+
+    if (!gatePass) return sendError(res, 'Gate pass not found', 404);
+    if (gatePass.societyId !== societyId) return sendError(res, 'Pass not for this society', 403);
+
+    const isStaff = ['WATCHMAN', 'PRAMUKH', 'CHAIRMAN', 'SECRETARY'].includes(req.user.role);
+    if (!isStaff && gatePass.createdById !== req.user.id) {
+      return sendError(res, 'Not allowed to view logs for this gate pass', 403);
+    }
+
+    const logs = await prisma.gatePassLog.findMany({
+      where: { gatePassId: id },
+      select: {
+        id: true,
+        result: true,
+        decision: true,
+        note: true,
+        scannedAt: true,
+        scannedBy: { select: { id: true, name: true } },
+      },
+      orderBy: { scannedAt: 'desc' },
+    });
+
+    return sendSuccess(
+      res,
+      { gatePass, logs },
+      'Gate pass logs retrieved',
+    );
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   createGatePass,
   listGatePasses,
@@ -194,4 +380,5 @@ module.exports = {
   verifyGatePass,
   scanGatePass,
   cancelGatePass,
+  listGatePassLogs,
 };

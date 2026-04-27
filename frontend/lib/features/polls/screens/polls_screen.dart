@@ -34,7 +34,7 @@ class PollsScreen extends ConsumerWidget {
     return DefaultTabController(
       length: tabs.length,
       child: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: isWide
             ? AppBar(
                 backgroundColor: AppColors.primary,

@@ -2,6 +2,7 @@ const { Router } = require('express');
 const expensesController = require('./expenses.controller');
 const authMiddleware = require('../../middleware/auth');
 const roleGuard = require('../../middleware/roleGuard');
+const permissionGuard = require('../../middleware/permissionGuard');
 const checkPlanLimit = require('../../middleware/checkPlanLimit');
 
 const router = Router();
@@ -20,8 +21,8 @@ router.put('/:id', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'WATCHMAN']), 
 router.post('/:id/convert-to-bill', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), checkPlanLimit('expenses'), expensesController.convertToBill);
 
 // Approval workflow — requires expense_approval feature (Standard+)
-router.patch('/:id/approve', roleGuard(['PRAMUKH', 'CHAIRMAN']), checkPlanLimit('expense_approval'), expensesController.approveExpense);
-router.patch('/:id/reject', roleGuard(['PRAMUKH', 'CHAIRMAN']), checkPlanLimit('expense_approval'), expensesController.rejectExpense);
-router.patch('/:id/review', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), checkPlanLimit('expense_approval'), expensesController.reviewExpense);
+router.patch('/:id/approve', permissionGuard('expense_approval'), checkPlanLimit('expense_approval'), expensesController.approveExpense);
+router.patch('/:id/reject', permissionGuard('expense_approval'), checkPlanLimit('expense_approval'), expensesController.rejectExpense);
+router.patch('/:id/review', permissionGuard('expense_approval'), checkPlanLimit('expense_approval'), expensesController.reviewExpense);
 
 module.exports = router;

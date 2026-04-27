@@ -5,6 +5,8 @@ class UserModel {
   final String phone;
   final String role;
   final String? societyId;
+  final String? societyName;
+  final String? societyLogoUrl;
   final bool isActive;
   final String? unitId;
   final String? unitCode;
@@ -28,6 +30,8 @@ class UserModel {
     required this.phone,
     required this.role,
     this.societyId,
+    this.societyName,
+    this.societyLogoUrl,
     this.isActive = true,
     this.unitId,
     this.unitCode,
@@ -76,6 +80,8 @@ class UserModel {
       if (f is Map) features = Map<String, dynamic>.from(f);
     }
 
+    final society = json['society'] as Map<String, dynamic>?;
+
     return UserModel(
       id: json['id'] ?? '',
       name: json['name'] ?? '',
@@ -83,6 +89,8 @@ class UserModel {
       phone: json['phone'] ?? '',
       role: json['role'] ?? '',
       societyId: json['societyId'],
+      societyName: society?['name'] as String?,
+      societyLogoUrl: society?['logoUrl'] as String?,
       isActive: json['isActive'] ?? true,
       unitId: resolvedUnit?['id'] as String?,
       unitCode: resolvedUnit?['fullCode'] as String?,

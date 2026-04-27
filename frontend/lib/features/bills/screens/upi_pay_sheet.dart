@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
+import 'package:upi_india/upi_india.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/dio_provider.dart';
@@ -12,6 +13,7 @@ import '../../../core/theme/app_dimensions.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
+import '../../../shared/widgets/app_success_dialog.dart';
 import '../../settings/providers/payment_settings_provider.dart';
 import '../providers/my_pending_bills_provider.dart';
 import '../providers/bill_provider.dart';
@@ -56,6 +58,9 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
   bool _isSubmitting = false;
 
   Razorpay? _razorpay;
+  final _upiIndia = UpiIndia();
+  List<UpiApp>? _upiApps;
+  bool _loadingUpiApps = false;
 
   static const _adminManualMethods = ['CASH', 'BANK_TRANSFER', 'CHEQUE', 'OTHER'];
 
@@ -63,6 +68,10 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
   void initState() {
     super.initState();
     _amountCtrl.text = _remaining.toStringAsFixed(0);
+    _loadUpiApps();
+    // Refresh latest payment settings whenever the sheet opens
+    Future.microtask(
+        () => ref.read(paymentSettingsProvider.notifier).fetch(showLoading: false));
   }
 
   @override
@@ -112,7 +121,26 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
 
   bool get _isAdmin {
     final role = ref.read(authProvider).user?.role.toUpperCase() ?? '';
-    return role == 'PRAMUKH' || role == 'CHAIRMAN';
+    return role == 'PRAMUKH' || role == 'CHAIRMAN' || role == 'SECRETARY';
+  }
+
+  Future<void> _loadUpiApps() async {
+    if (kIsWeb) return;
+    setState(() => _loadingUpiApps = true);
+    try {
+      final apps = await _upiIndia.getAllUpiApps(mandatoryTransactionId: false);
+      if (!mounted) return;
+      setState(() {
+        _upiApps = apps;
+        _loadingUpiApps = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _upiApps = const [];
+        _loadingUpiApps = false;
+      });
+    }
   }
 
   // ── Razorpay ─────────────────────────────────────────────────────────────
@@ -259,7 +287,7 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
         },
       );
 
-  Future<void> _launchUpi(PaymentSettings ps) async {
+  Future<void> _launchUpiFallbackDeepLink(PaymentSettings ps) async {
     final amount = double.tryParse(_amountCtrl.text.trim()) ?? _remaining;
     if (amount <= 0) { _showSnack('Enter a valid amount first'); return; }
     final uri = _buildUpiUri(ps, amount);
@@ -270,6 +298,75 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
     }
     setState(() => _step = _Step.upiLaunched);
     await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _launchUpiIntent(PaymentSettings ps, {UpiApp? app}) async {
+    if (kIsWeb) {
+      await _launchUpiFallbackDeepLink(ps);
+      return;
+    }
+
+    final amount = double.tryParse(_amountCtrl.text.trim()) ?? _remaining;
+    if (amount <= 0) {
+      _showSnack('Enter a valid amount first');
+      return;
+    }
+
+    final upiId = ps.upiId;
+    if (upiId == null || upiId.trim().isEmpty) {
+      _showSnack('UPI ID not configured', isError: true);
+      return;
+    }
+
+    final safeId = (widget.bill['id'] as String?) ?? '';
+    final compactId = safeId.replaceAll('-', '');
+    final shortId = compactId.length >= 12 ? compactId.substring(0, 12) : compactId;
+    final txnRef = 'BILL-$shortId';
+
+    final selectedApp = app ?? (_upiApps?.isNotEmpty == true ? _upiApps!.first : null);
+    if (selectedApp == null) {
+      _showSnack('No UPI app found. Install GPay, PhonePe, or Paytm.', isError: true);
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    try {
+      final resp = await _upiIndia.startTransaction(
+        app: selectedApp,
+        receiverUpiId: upiId,
+        receiverName: ps.upiName?.isNotEmpty == true ? ps.upiName! : 'Society',
+        transactionRefId: txnRef,
+        transactionNote: '$_title $_subTitle - $_unitCode',
+        amount: amount,
+      );
+
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+
+      final status = (resp.status ?? '').toUpperCase();
+      if (status == UpiPaymentStatus.SUCCESS) {
+        final ref = [
+          if ((resp.transactionId ?? '').isNotEmpty) 'txnId=${resp.transactionId}',
+          if ((resp.responseCode ?? '').isNotEmpty) 'code=${resp.responseCode}',
+          if ((resp.approvalRefNo ?? '').isNotEmpty) 'apr=${resp.approvalRefNo}',
+          'ref=$txnRef',
+        ].join(' | ');
+        await _recordPayment(amount, 'UPI', 'UPI Intent | $ref');
+        return;
+      }
+
+      if (status == UpiPaymentStatus.SUBMITTED) {
+        setState(() => _step = _Step.upiLaunched);
+        _showSnack('Payment is pending/processing in bank. If amount is debited, enter UTR to confirm.');
+        return;
+      }
+
+      _showSnack('UPI payment failed or cancelled', isError: true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      _showSnack('Could not start UPI payment: $e', isError: true);
+    }
   }
 
   Future<void> _submitUpi() async {
@@ -332,86 +429,11 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
     showDialog(
       context: nav.context,
       barrierDismissible: false,
-      builder: (ctx) => Dialog(
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
-          child: AlertDialog(
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppDimensions.radiusLg)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: const BoxDecoration(
-                  color: AppColors.successSurface, shape: BoxShape.circle),
-              child: const Icon(Icons.check_circle_rounded,
-                  color: AppColors.success, size: 36),
-            ),
-            const SizedBox(height: AppDimensions.md),
-            Text('Payment Recorded!', style: AppTextStyles.h2),
-            const SizedBox(height: AppDimensions.xs),
-            Text(
-              '₹${fmt.format(amount)} · $_unitCode · $_subTitle',
-              style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
-              textAlign: TextAlign.center,
-            ),
-            if (reference.isNotEmpty) ...[
-              const SizedBox(height: AppDimensions.md),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(AppDimensions.sm),
-                decoration: BoxDecoration(
-                  color: AppColors.background,
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.receipt_outlined,
-                        size: 14, color: AppColors.textMuted),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(reference,
-                          style: AppTextStyles.bodySmall
-                              .copyWith(color: AppColors.textSecondary)),
-                    ),
-                    IconButton(
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      icon: const Icon(Icons.copy_rounded,
-                          size: 14, color: AppColors.textMuted),
-                      onPressed: () {
-                        Clipboard.setData(ClipboardData(text: reference));
-                        messenger.showSnackBar(
-                          const SnackBar(
-                              content: Text('Reference copied'),
-                              duration: Duration(seconds: 1)),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () => Navigator.pop(ctx),
-              style: FilledButton.styleFrom(backgroundColor: AppColors.success),
-              child: const Text('Done'),
-            ),
-          ),
-        ],
-          ),
-        ),
+      builder: (ctx) => AppSuccessDialog(
+        title: 'Payment Recorded!',
+        subtitle: '₹${fmt.format(amount)} · $_unitCode · $_subTitle',
+        referenceText: reference,
+        doneLabel: 'Done',
       ),
     );
   }
@@ -546,36 +568,49 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
                             style: AppTextStyles.caption
                                 .copyWith(color: AppColors.textMuted)),
                         const SizedBox(height: AppDimensions.sm),
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              _UpiAppChip(
+                        if (_loadingUpiApps)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: AppDimensions.sm),
+                            child: Center(child: CircularProgressIndicator()),
+                          )
+                        else if ((_upiApps ?? const []).isEmpty)
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _UpiAppChip(
                                   label: 'Any UPI App',
                                   icon: Icons.account_balance_wallet_rounded,
                                   color: AppColors.primary,
-                                  onTap: () => _launchUpi(ps)),
-                              const SizedBox(width: AppDimensions.sm),
-                              _UpiAppChip(
-                                  label: 'GPay',
-                                  icon: Icons.payment_rounded,
-                                  color: const Color(0xFF1A73E8),
-                                  onTap: () => _launchUpi(ps)),
-                              const SizedBox(width: AppDimensions.sm),
-                              _UpiAppChip(
-                                  label: 'PhonePe',
-                                  icon: Icons.phone_android_rounded,
-                                  color: const Color(0xFF6739B7),
-                                  onTap: () => _launchUpi(ps)),
-                              const SizedBox(width: AppDimensions.sm),
-                              _UpiAppChip(
-                                  label: 'Paytm',
-                                  icon: Icons.payments_rounded,
-                                  color: const Color(0xFF00BAF2),
-                                  onTap: () => _launchUpi(ps)),
-                            ],
+                                  onTap: _isSubmitting ? () {} : () => _launchUpiFallbackDeepLink(ps),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _UpiAppChip(
+                                  label: 'Any UPI App',
+                                  icon: Icons.account_balance_wallet_rounded,
+                                  color: AppColors.primary,
+                                  onTap: _isSubmitting ? () {} : () => _launchUpiIntent(ps),
+                                ),
+                                const SizedBox(width: AppDimensions.sm),
+                                ...(_upiApps ?? const []).take(6).expand((a) sync* {
+                                  yield _UpiAppChip(
+                                    label: a.name,
+                                    icon: Icons.payment_rounded,
+                                    color: AppColors.textSecondary,
+                                    onTap: _isSubmitting ? () {} : () => _launchUpiIntent(ps, app: a),
+                                  );
+                                  yield const SizedBox(width: AppDimensions.sm);
+                                }),
+                              ],
+                            ),
                           ),
-                        ),
                         const SizedBox(height: AppDimensions.lg),
                       ],
 

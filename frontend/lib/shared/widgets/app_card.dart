@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
 
 class AppCard extends StatelessWidget {
@@ -23,6 +22,11 @@ class AppCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget content;
+    final theme = Theme.of(context);
+    final surface = backgroundColor ??
+        theme.cardTheme.color ??
+        theme.colorScheme.surface;
+    final borderColor = theme.dividerColor;
 
     if (leftBorderColor != null) {
       // Use ClipRRect + Row to avoid Flutter's restriction on borderRadius with non-uniform border colors
@@ -31,8 +35,8 @@ class AppCard extends StatelessWidget {
         clipBehavior: clipBehavior ?? Clip.none,
         child: Container(
           decoration: BoxDecoration(
-            color: backgroundColor ?? AppColors.surface,
-            border: Border.all(color: AppColors.border),
+            color: surface,
+            border: Border.all(color: borderColor),
             borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
           ),
           child: IntrinsicHeight(
@@ -54,9 +58,9 @@ class AppCard extends StatelessWidget {
     } else {
       content = Container(
         decoration: BoxDecoration(
-          color: backgroundColor ?? AppColors.surface,
+          color: surface,
           borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: borderColor),
         ),
         clipBehavior: clipBehavior ?? Clip.none,
         child: Padding(

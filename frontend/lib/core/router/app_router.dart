@@ -35,6 +35,7 @@ import '../../features/subscriptions/screens/subscription_report_screen.dart';
 import '../../features/settings/screens/settings_screen.dart';
 import '../../features/settings/screens/permissions_screen.dart';
 import '../../features/donations/screens/donations_screen.dart';
+import '../../features/donations/screens/donation_receipt_screen.dart';
 import '../../features/reports/screens/balance_report_screen.dart';
 import '../../features/chat/screens/chat_list_screen.dart';
 import '../../features/chat/screens/chat_room_screen.dart';
@@ -227,6 +228,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/rentals',       builder: (c, s) => const RentalsScreen()),
           GoRoute(path: '/subscriptions', builder: (c, s) => SubscriptionsScreen()),
           GoRoute(path: '/donations',        builder: (c, s) => DonationsScreen()),
+          GoRoute(
+            path: '/donations/receipt',
+            builder: (c, s) => DonationReceiptScreen(
+              donation: (s.extra as Map?)?.cast<String, dynamic>() ?? const {},
+            ),
+          ),
           GoRoute(path: '/reports/balance', builder: (c, s) => const BalanceReportScreen()),
           GoRoute(path: '/reports/dues',    builder: (c, s) => const DuesReportScreen()),
           GoRoute(path: '/settings',        builder: (c, s) => SettingsScreen()),

@@ -35,7 +35,7 @@ class SettingsScreen extends ConsumerWidget {
     final isMobile = !kIsWeb;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: null, // Shells (SAShell/SMShell) provide the header
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppDimensions.screenPadding),

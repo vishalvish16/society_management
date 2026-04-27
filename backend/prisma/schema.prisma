@@ -274,6 +274,11 @@ enum GatePassStatus {
   CANCELLED
 }
 
+enum GatePassDecision {
+  APPROVED
+  REJECTED
+}
+
 enum MoveRequestType {
   MOVE_IN
   MOVE_OUT
@@ -481,6 +486,10 @@ model Delivery {
   respondedAt DateTime?
   respondedBy String?
   collectedAt DateTime?
+  collectedBy String?
+  receivedAt  DateTime?
+  receivedBy  String?
+  receivedPhotoUrl String?
   returnedAt  DateTime?
   photoUrl    String?
   droppedAt   DateTime?
@@ -499,21 +508,47 @@ model Vehicle {
   unitId         String
   unit           Unit        @relation(fields: [unitId], references: [id])
   registeredById String
+  registeredBy   User        @relation("RegisteredVehicles", fields: [registeredById], references: [id])
+  updatedById    String?
+  updatedBy      User?       @relation("UpdatedVehicles", fields: [updatedById], references: [id], onDelete: SetNull)
   type           VehicleType
   numberPlate    String
   brand          String?
   model          String?
   colour         String?
   isActive       Boolean     @default(true)
+  removedAt      DateTime?
+  removedById    String?
+  removedBy      User?       @relation("RemovedVehicles", fields: [removedById], references: [id], onDelete: SetNull)
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
   allotments ParkingAllotment[]
   sessions   ParkingSession[]
+  auditLogs  VehicleAuditLog[]
 
   @@unique([societyId, numberPlate])
   @@index([societyId])
   @@map("vehicles")
+}
+
+model VehicleAuditLog {
+  id        String   @id @default(uuid())
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id])
+  societyId String
+  unitId    String
+  actorId   String?
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action    String
+  note      String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([vehicleId])
+  @@index([societyId])
+  @@index([unitId])
+  @@map("vehicle_audit_logs")
 }
 
 model ParkingSlot {
@@ -737,6 +772,7 @@ model GatePass {
   unitId          String
   unit            Unit           @relation(fields: [unitId], references: [id])
   createdById     String
+  createdBy       User           @relation("CreatedGatePasses", fields: [createdById], references: [id])
   passCode        String         @unique // 8-char readable alphanumeric
   itemDescription String
   reason          String?
@@ -744,13 +780,33 @@ model GatePass {
   validTo         DateTime
   status          GatePassStatus @default(ACTIVE)
   scannedById     String?
+  scannedBy       User?          @relation("ScannedGatePasses", fields: [scannedById], references: [id], onDelete: SetNull)
   scannedAt       DateTime?
+  decision        GatePassDecision?
+  decisionNote    String?
   notes           String?
   createdAt       DateTime       @default(now())
+  logs            GatePassLog[]
 
   @@index([societyId])
   @@index([passCode])
   @@map("gate_passes")
+}
+
+model GatePassLog {
+  id         String           @id @default(uuid())
+  gatePassId String
+  gatePass   GatePass         @relation(fields: [gatePassId], references: [id], onDelete: Cascade)
+  scannedById String?
+  scannedBy  User?            @relation(fields: [scannedById], references: [id], onDelete: SetNull)
+  result     String           // VALID | EXPIRED | USED | CANCELLED | NOT_YET_VALID | INVALID
+  decision   GatePassDecision?
+  note       String?
+  scannedAt  DateTime         @default(now())
+
+  @@index([gatePassId])
+  @@index([scannedById])
+  @@map("gate_pass_logs")
 }
 
 model User {
@@ -792,6 +848,9 @@ model User {
   approvedExpenses     Expense[]                 @relation("ApprovedExpenses")
   invitedVisitors      Visitor[]                 @relation("InvitedVisitors")
   scannedLogs          VisitorLog[]              @relation("scannedLogs")
+  createdGatePasses    GatePass[]                @relation("CreatedGatePasses")
+  scannedGatePasses    GatePass[]                @relation("ScannedGatePasses")
+  gatePassLogs         GatePassLog[]
   sentNotifications    Notification[]            @relation("sentNotifications")
   createdNotices       Notice[]                  @relation("createdNotices")
   staffProfile         Staff?
@@ -815,6 +874,11 @@ model User {
   createdAssets        Asset[]                   @relation("CreatedAssets")
   assetMaintenanceLogs AssetMaintenanceLog[]     @relation("AssetMaintenanceLogs")
   householdMembers     HouseholdMember[]
+
+  registeredVehicles Vehicle[] @relation("RegisteredVehicles")
+  updatedVehicles    Vehicle[] @relation("UpdatedVehicles")
+  removedVehicles    Vehicle[] @relation("RemovedVehicles")
+  vehicleAuditLogs   VehicleAuditLog[]
 
   @@map("users")
 }

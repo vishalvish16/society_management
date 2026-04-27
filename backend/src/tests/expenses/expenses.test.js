@@ -5,6 +5,9 @@ const { createMockUser, createMockExpense, createMockToken } = require('../helpe
 
 // Mock external dependencies
 jest.mock('../../config/db', () => ({
+  society: {
+    findUnique: jest.fn(),
+  },
   expense: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
@@ -42,6 +45,10 @@ describe('Expenses Module', () => {
   const watchmanUser = createMockUser({ role: 'WATCHMAN', id: 'watch-1' });
   const watchmanToken = createMockToken(watchmanUser.id, watchmanUser.role);
   const mockExpense = createMockExpense();
+
+  beforeEach(() => {
+    prisma.society.findUnique.mockResolvedValue({ settings: {} });
+  });
 
   describe('GET /api/v1/expenses', () => {
     it('should return expenses for the society', async () => {
@@ -105,6 +112,21 @@ describe('Expenses Module', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.data.status).toBe('REJECTED');
+    });
+  });
+
+  describe('PATCH /api/v1/expenses/:id/approve', () => {
+    it('should allow secretary to approve via /approve when expense_approval is enabled by default', async () => {
+      prisma.expense.findUnique.mockResolvedValue(mockExpense);
+      prisma.expense.update.mockResolvedValue({ ...mockExpense, status: 'APPROVED' });
+
+      const res = await request(app)
+        .patch(`/api/v1/expenses/${mockExpense.id}/approve`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ paymentMethod: 'CASH' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.status).toBe('APPROVED');
     });
   });
 

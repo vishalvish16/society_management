@@ -4,6 +4,23 @@ const bcrypt = require('bcrypt');
 const { SALT_ROUNDS } = require('../../config/constants');
 
 const UNIT_LOCKED_ROLES = new Set(['MEMBER', 'RESIDENT', 'VICE_CHAIRMAN', 'ASSISTANT_SECRETARY', 'TREASURER', 'ASSISTANT_TREASURER']);
+const SECRETARY_MANAGEABLE_TARGET_ROLES = new Set(['MEMBER', 'RESIDENT']);
+
+function ensureSecretaryCanManageTarget(req, res, targetUser, actionLabel) {
+  if (req.user?.role !== 'SECRETARY') return { ok: true };
+  if (!targetUser) return { ok: false, res: sendError(res, 'Member not found', 404) };
+
+  const isSelf = String(targetUser.id) === String(req.user.id);
+  if (isSelf) return { ok: true };
+
+  if (!SECRETARY_MANAGEABLE_TARGET_ROLES.has(targetUser.role)) {
+    return {
+      ok: false,
+      res: sendError(res, `Secretary cannot ${actionLabel} ${targetUser.role} accounts`, 403),
+    };
+  }
+  return { ok: true };
+}
 
 const getMembers = async (req, res) => {
   try {
@@ -61,6 +78,14 @@ const createMember = async (req, res) => {
     let { name, phone, email, password, role = 'RESIDENT', unitId, householdMembers } = req.body;
 
     if (!name || !phone || !password) return sendError(res, 'name, phone and password are required', 400);
+
+    // Secretary can only create MEMBER/RESIDENT accounts (not office-bearers/admin-like roles)
+    if (requesterRole === 'SECRETARY') {
+      const allowedRoles = ['MEMBER', 'RESIDENT'];
+      if (!allowedRoles.includes(role)) {
+        return sendError(res, 'Secretary can only create MEMBER or RESIDENT users', 403);
+      }
+    }
 
     // Unit-locked roles can only add MEMBER or RESIDENT to their own unit
     if (UNIT_LOCKED_ROLES.has(requesterRole)) {
@@ -149,11 +174,15 @@ const updateMember = async (req, res) => {
     const member = await prisma.user.findUnique({ where: { id } });
     if (!member || member.societyId !== societyId) return sendError(res, 'Member not found', 404);
 
+    const secCheck = ensureSecretaryCanManageTarget(req, res, member, 'modify');
+    if (!secCheck.ok) return secCheck.res;
+
     const updateData = {};
     if (name) updateData.name = name;
     if (email !== undefined) updateData.email = email;
     if (phone) updateData.phone = phone;
-    if (role) updateData.role = role;
+    // Secretary cannot promote/demote roles; only PRAMUKH/CHAIRMAN/etc should do that.
+    if (role && req.user.role !== 'SECRETARY') updateData.role = role;
     if (isActive !== undefined) updateData.isActive = isActive;
 
     let householdList = null;
@@ -220,6 +249,9 @@ const deleteMember = async (req, res) => {
     const member = await prisma.user.findUnique({ where: { id } });
     if (!member || member.societyId !== societyId) return sendError(res, 'Member not found', 404);
 
+    const secCheck = ensureSecretaryCanManageTarget(req, res, member, 'deactivate');
+    if (!secCheck.ok) return secCheck.res;
+
     await prisma.user.update({
       where: { id },
       data: { isActive: false, deletedAt: new Date() },
@@ -244,6 +276,9 @@ const resetPassword = async (req, res) => {
     if (!member || member.societyId !== societyId) {
       return sendError(res, 'Member not found', 404);
     }
+
+    const secCheck = ensureSecretaryCanManageTarget(req, res, member, 'reset password for');
+    if (!secCheck.ok) return secCheck.res;
 
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
     await prisma.user.update({

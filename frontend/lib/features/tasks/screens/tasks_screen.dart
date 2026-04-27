@@ -20,6 +20,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> with SingleTickerProv
   late TabController _tabController;
   String? _filterCategory;
   String? _filterPriority;
+  final List<String> _tabs = const ['all', 'active', 'on_hold', 'completed'];
 
   @override
   void initState() {
@@ -62,23 +63,38 @@ class _TasksScreenState extends ConsumerState<TasksScreen> with SingleTickerProv
   Widget build(BuildContext context) {
     final state = ref.watch(tasksProvider);
     final authState = ref.watch(authProvider);
-    final isAdmin = ['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'MANAGER']
-        .contains(authState.user?.role?.toUpperCase());
+    final user = authState.user;
+    final roleUpper = user == null ? null : user.role.toUpperCase();
+    final isAdmin = ['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'MANAGER'].contains(roleUpper);
+    final name = (user?.name ?? '').trim();
+    final avatarLetter = name.isNotEmpty ? name[0].toUpperCase() : 'U';
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Tasks'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: CircleAvatar(
+              radius: 16,
+              backgroundColor: Colors.white.withValues(alpha: 0.18),
+              foregroundColor: Colors.white,
+              child: Text(
+                avatarLetter,
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              ),
+            ),
+          ),
+        ],
+      ),
       body: Column(
         children: [
-          _buildHeader(state, isAdmin),
-          _buildFilterChips(state),
-          _buildTabBar(),
+          _buildHeaderCard(state),
           Expanded(
             child: state.isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : RefreshIndicator(
-                    onRefresh: () => ref.read(tasksProvider.notifier).loadTasks(),
-                    child: _buildTabContent(state),
-                  ),
+                : _buildTabContent(state),
           ),
         ],
       ),
@@ -94,95 +110,129 @@ class _TasksScreenState extends ConsumerState<TasksScreen> with SingleTickerProv
     );
   }
 
-  Widget _buildHeader(TasksState state, bool isAdmin) {
+  Widget _buildHeaderCard(TasksState state) {
     final tasks = state.tasks;
     final active = tasks.where((t) => t.status == 'OPEN' || t.status == 'IN_PROGRESS').length;
     final overdue = tasks.where((t) => t.isOverdue).length;
     final completed = tasks.where((t) => t.status == 'COMPLETED').length;
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.task_alt_rounded, color: AppColors.primary, size: 28),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text('Tasks', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _statChip('Active', active, AppColors.primary, AppColors.primarySurface),
-              const SizedBox(width: 8),
-              _statChip('Overdue', overdue, AppColors.danger, AppColors.dangerSurface),
-              const SizedBox(width: 8),
-              _statChip('Done', completed, AppColors.success, AppColors.successSurface),
+              const Row(
+                children: [
+                  Icon(Icons.task_alt_rounded, color: AppColors.primary, size: 28),
+                  SizedBox(width: 10),
+                  Text(
+                    'Tasks',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 14,
+                runSpacing: 8,
+                children: [
+                  _statInline('Active', active, AppColors.primary),
+                  _statInline('Overdue', overdue, AppColors.danger),
+                  _statInline('Done', completed, AppColors.success),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _filterDropdown(
+                      label: 'Category',
+                      value: _filterCategory,
+                      items: state.categories.entries
+                          .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value.label)))
+                          .toList(),
+                      onChanged: (v) => setState(() => _filterCategory = v),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _filterDropdown(
+                      label: 'Priority',
+                      value: _filterPriority,
+                      items: const [
+                        DropdownMenuItem(value: 'URGENT', child: Text('Urgent')),
+                        DropdownMenuItem(value: 'HIGH', child: Text('High')),
+                        DropdownMenuItem(value: 'MEDIUM', child: Text('Medium')),
+                        DropdownMenuItem(value: 'LOW', child: Text('Low')),
+                      ],
+                      onChanged: (v) => setState(() => _filterPriority = v),
+                    ),
+                  ),
+                  if (_filterCategory != null || _filterPriority != null) ...[
+                    const SizedBox(width: 10),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () => setState(() {
+                        _filterCategory = null;
+                        _filterPriority = null;
+                      }),
+                      child: Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceVariant,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: const Icon(Icons.close_rounded, size: 18, color: AppColors.textSecondary),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 12),
+              _buildTabBar(inCard: true),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _statChip(String label, int count, Color color, Color bg) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('$count', style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14)),
-          const SizedBox(width: 4),
-          Text(label, style: TextStyle(color: color, fontSize: 12)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterChips(TasksState state) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: [
-          _filterDropdown(
-            label: 'Category',
-            value: _filterCategory,
-            items: state.categories.entries
-                .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value.label)))
-                .toList(),
-            onChanged: (v) => setState(() => _filterCategory = v),
-          ),
-          const SizedBox(width: 8),
-          _filterDropdown(
-            label: 'Priority',
-            value: _filterPriority,
-            items: const [
-              DropdownMenuItem(value: 'URGENT', child: Text('Urgent')),
-              DropdownMenuItem(value: 'HIGH', child: Text('High')),
-              DropdownMenuItem(value: 'MEDIUM', child: Text('Medium')),
-              DropdownMenuItem(value: 'LOW', child: Text('Low')),
-            ],
-            onChanged: (v) => setState(() => _filterPriority = v),
-          ),
-          if (_filterCategory != null || _filterPriority != null) ...[
-            const SizedBox(width: 8),
-            ActionChip(
-              label: const Text('Clear'),
-              avatar: const Icon(Icons.clear, size: 16),
-              onPressed: () => setState(() {
-                _filterCategory = null;
-                _filterPriority = null;
-              }),
-            ),
-          ],
-        ],
-      ),
+  static Widget _statInline(String label, int count, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '$count',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: color),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+        ),
+      ],
     );
   }
 
@@ -193,11 +243,12 @@ class _TasksScreenState extends ConsumerState<TasksScreen> with SingleTickerProv
     required ValueChanged<String?> onChanged,
   }) {
     return Container(
+      height: 42,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(8),
-        color: value != null ? AppColors.primarySurface : AppColors.surface,
+        borderRadius: BorderRadius.circular(10),
+        color: AppColors.surface,
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
@@ -206,15 +257,16 @@ class _TasksScreenState extends ConsumerState<TasksScreen> with SingleTickerProv
           items: items,
           onChanged: onChanged,
           isDense: true,
+          isExpanded: true,
           style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
         ),
       ),
     );
   }
 
-  Widget _buildTabBar() {
+  Widget _buildTabBar({bool inCard = false}) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+      margin: inCard ? EdgeInsets.zero : const EdgeInsets.fromLTRB(20, 12, 20, 0),
       decoration: BoxDecoration(
         color: AppColors.surfaceVariant,
         borderRadius: BorderRadius.circular(10),
@@ -242,31 +294,39 @@ class _TasksScreenState extends ConsumerState<TasksScreen> with SingleTickerProv
   }
 
   Widget _buildTabContent(TasksState state) {
-    final tabs = ['all', 'active', 'on_hold', 'completed'];
     return TabBarView(
       controller: _tabController,
-      children: tabs.map((tab) {
+      children: _tabs.map((tab) {
         final filtered = _filterTasks(state.tasks, tab);
-        if (filtered.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.task_outlined, size: 56, color: AppColors.textMuted.withValues(alpha: 0.5)),
-                const SizedBox(height: 12),
-                Text('No tasks found', style: TextStyle(color: AppColors.textMuted, fontSize: 15)),
-              ],
-            ),
-          );
-        }
-        return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 80),
-          itemCount: filtered.length,
-          itemBuilder: (ctx, i) => _TaskCard(
-            task: filtered[i],
-            categories: state.categories,
-            onTap: () => _openTaskDetail(filtered[i]),
-          ),
+        return RefreshIndicator(
+          onRefresh: () => ref.read(tasksProvider.notifier).loadTasks(),
+          child: filtered.isEmpty
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 48, 16, 80),
+                  children: [
+                    Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.task_outlined, size: 56, color: AppColors.textMuted.withValues(alpha: 0.5)),
+                          const SizedBox(height: 12),
+                          Text('No tasks found', style: TextStyle(color: AppColors.textMuted, fontSize: 15)),
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+              : ListView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 80),
+                  itemCount: filtered.length,
+                  itemBuilder: (ctx, i) => _TaskCard(
+                    task: filtered[i],
+                    categories: state.categories,
+                    onTap: () => _openTaskDetail(filtered[i]),
+                  ),
+                ),
         );
       }).toList(),
     );

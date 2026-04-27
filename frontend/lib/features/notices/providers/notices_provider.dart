@@ -15,10 +15,19 @@ class NoticesNotifier extends StateNotifier<NoticesState> {
   NoticesNotifier() : super(const NoticesState()) { loadNotices(); }
   final _client = DioClient();
 
+  Map<String, dynamic> _normalizeNoticePayload(Map<String, dynamic> data) {
+    // Backend expects `pinned`, while UI uses `isPinned`.
+    if (!data.containsKey('isPinned')) return data;
+    final normalized = Map<String, dynamic>.from(data);
+    normalized['pinned'] = normalized.remove('isPinned');
+    return normalized;
+  }
+
   Future<void> loadNotices() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final res = await _client.dio.get('/notices');
+      // NOTE: no leading slash, otherwise Dio drops `/api/` from baseUrl.
+      final res = await _client.dio.get('notices');
       final data = res.data['data'];
       state = state.copyWith(isLoading: false, notices: List<Map<String, dynamic>>.from(data['notices'] ?? []));
     } catch (e) {
@@ -28,7 +37,7 @@ class NoticesNotifier extends StateNotifier<NoticesState> {
 
   Future<String?> createNotice(Map<String, dynamic> data) async {
     try {
-      final res = await _client.dio.post('/notices', data: data);
+      final res = await _client.dio.post('notices', data: _normalizeNoticePayload(data));
       if (res.data['success'] == true) {
         await loadNotices();
         return null;
@@ -43,7 +52,7 @@ class NoticesNotifier extends StateNotifier<NoticesState> {
 
   Future<String?> updateNotice(String id, Map<String, dynamic> data) async {
     try {
-      final res = await _client.dio.patch('/notices/$id', data: data);
+      final res = await _client.dio.patch('notices/$id', data: _normalizeNoticePayload(data));
       if (res.data['success'] == true) {
         await loadNotices();
         return null;
@@ -58,7 +67,7 @@ class NoticesNotifier extends StateNotifier<NoticesState> {
 
   Future<String?> deleteNotice(String id) async {
     try {
-      final res = await _client.dio.delete('/notices/$id');
+      final res = await _client.dio.delete('notices/$id');
       if (res.data['success'] == true) {
         await loadNotices();
         return null;

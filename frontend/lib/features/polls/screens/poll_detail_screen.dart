@@ -131,6 +131,11 @@ class _PollDetailScreenState extends ConsumerState<PollDetailScreen> {
             )
           : AppBar(
               backgroundColor: AppColors.primary,
+              leading: IconButton(
+                tooltip: 'Back',
+                onPressed: goBack,
+                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+              ),
               title: Text(title, style: const TextStyle(color: Colors.white)),
             ),
       body: _loading

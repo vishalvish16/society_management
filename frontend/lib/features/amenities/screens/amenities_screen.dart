@@ -293,6 +293,7 @@ class _AmenitiesTabBody extends ConsumerWidget {
 
     final isWide = MediaQuery.of(context).size.width >= 1000;
     final crossAxisCount = isWide ? 4 : (MediaQuery.of(context).size.width >= 600 ? 3 : 2);
+    final cardAspectRatio = crossAxisCount <= 2 ? 0.78 : (crossAxisCount == 3 ? 0.92 : 1.08);
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -309,7 +310,7 @@ class _AmenitiesTabBody extends ConsumerWidget {
                 crossAxisCount: crossAxisCount,
                 crossAxisSpacing: AppDimensions.md,
                 mainAxisSpacing: AppDimensions.md,
-                childAspectRatio: 1.08, // shorter, denser cards
+                childAspectRatio: cardAspectRatio,
               ),
               delegate: SliverChildBuilderDelegate(
                 (_, i) {

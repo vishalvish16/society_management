@@ -9,6 +9,7 @@ const upload = createUploader();
 router.use(authenticate);
 
 router.get('/rooms',                          ctrl.listRooms);
+router.get('/members',                        ctrl.listMembers);
 router.get('/group',                          ctrl.getGroupRoom);
 router.post('/dm/:userId',                    ctrl.getOrCreateDM);
 router.get('/rooms/:roomId/messages',         ctrl.getMessages);

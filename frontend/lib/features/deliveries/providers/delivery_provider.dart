@@ -131,6 +131,27 @@ class DeliveryNotifier extends StateNotifier<DeliveryState> {
       return e.toString();
     }
   }
+
+  /// Resident confirms they received the parcel from watchman (optional proof photo).
+  Future<String?> markReceived(String id, {File? photo}) async {
+    try {
+      final data = photo == null
+          ? null
+          : FormData.fromMap({
+              'photo': await MultipartFile.fromFile(photo.path, filename: 'received.jpg'),
+            });
+      final res = await _client.dio.patch('/deliveries/$id/received', data: data);
+      if (res.data['success'] == true) {
+        await loadDeliveries();
+        return null;
+      }
+      return res.data['message'] ?? 'Failed to mark as received';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to mark as received';
+    } catch (e) {
+      return e.toString();
+    }
+  }
 }
 
 final deliveryProvider =

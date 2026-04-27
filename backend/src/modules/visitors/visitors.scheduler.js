@@ -39,6 +39,8 @@ async function processAwaitingApprovals() {
           data: {
             approvalStatus: 'DENIED',
             autoDeniedAt: now,
+            // Keep primary visitor status consistent with a resolved denial
+            status: 'EXPIRED',
           },
         });
 

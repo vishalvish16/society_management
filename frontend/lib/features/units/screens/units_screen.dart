@@ -546,17 +546,26 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
               );
             }
 
-            return Padding(
-              padding: EdgeInsets.fromLTRB(
-                AppDimensions.screenPadding,
-                AppDimensions.lg,
-                AppDimensions.screenPadding,
-                MediaQuery.of(ctx).viewInsets.bottom + AppDimensions.lg,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+            final viewInsets = MediaQuery.of(ctx).viewInsets;
+            final sheetHeight = MediaQuery.of(ctx).size.height * 0.78;
+
+            return AnimatedPadding(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+              padding: EdgeInsets.only(bottom: viewInsets.bottom),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppDimensions.screenPadding,
+                  AppDimensions.lg,
+                  AppDimensions.screenPadding,
+                  AppDimensions.lg,
+                ),
+                child: SizedBox(
+                  height: sheetHeight,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.max,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                   Center(
                     child: Container(
                       width: 36,
@@ -599,12 +608,12 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
                     indicatorColor: AppColors.primary,
                   ),
                   const SizedBox(height: AppDimensions.md),
-                  SizedBox(
-                    height: 380,
+                  Expanded(
                     child: TabBarView(
                       children: [
                         // ── Edit Tab ──
                         SingleChildScrollView(
+                          padding: const EdgeInsets.only(bottom: AppDimensions.lg),
                           child: Column(
                             children: [
                               AppTextField(label: 'Wing', controller: wingCtrl),
@@ -655,6 +664,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
 
                         // ── Who Stays Here Tab ──
                         SingleChildScrollView(
+                          padding: const EdgeInsets.only(bottom: AppDimensions.lg),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -866,7 +876,9 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
                       ],
                     ),
                   ),
-                ],
+                    ],
+                  ),
+                ),
               ),
             );
               },

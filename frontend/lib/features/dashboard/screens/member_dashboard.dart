@@ -207,34 +207,56 @@ class _MobileMemberLayout extends StatelessWidget {
     final name = (user?.name?.toString().trim().isNotEmpty ?? false)
         ? user.name.toString().trim()
         : 'Member';
-    final unitCode = user?.unitCode?.toString().trim();
-    final subtitle = (unitCode != null && unitCode.isNotEmpty)
-        ? 'Unit $unitCode · ${dashboardRoleSubtitle('MEMBER')}'
-        : dashboardRoleSubtitle('MEMBER');
+    final unitCode = user?.unitCode?.toString().trim() ?? '';
     final hasTrends = dashboardStatsHasTrends(stats);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        DashboardGreetingHeader(
-          title: 'Dashboard',
-          greeting: dashboardGreetingForNow(),
+        // ── Gradient header ──────────────────────────────────────────────────
+        _MobileMemberHeader(
           name: name,
-          subtitle: subtitle,
-          compact: true,
+          unitCode: unitCode,
+          stats: stats,
           onNotifications: () => context.go('/notifications'),
         ),
         const SizedBox(height: AppDimensions.md),
+
+        // ── Urgent alerts ────────────────────────────────────────────────────
         _GateApprovalBanner(pendingApprovals: pendingApprovals),
-        if (user?.unitCode != null) ...[
-          _MyUnitCard(unitCode: user!.unitCode!),
-          const SizedBox(height: AppDimensions.md),
-        ],
         _PendingBillsBanner(pendingBills: pendingBills),
         _CampaignBanner(stats: stats),
         const SizedBox(height: AppDimensions.md),
+
+        // ── Quick Actions (icon grid) ─────────────────────────────────────────
+        _SectionLabel(title: 'Quick Actions'),
+        const SizedBox(height: AppDimensions.md),
+        _MemberQuickActionsGrid(),
+        const SizedBox(height: AppDimensions.lg),
+
+        // ── Overview KPIs ────────────────────────────────────────────────────
+        _SectionLabel(
+          title: 'Overview',
+          actionLabel: 'Balance',
+          onAction: () => context.go('/reports/balance'),
+        ),
+        const SizedBox(height: AppDimensions.md),
+        _MemberKpiRow(stats: stats, crossAxisCount: 2),
+        const SizedBox(height: AppDimensions.lg),
+
+        // ── Society Activity ─────────────────────────────────────────────────
+        _SectionLabel(
+          title: 'Society Activity',
+          actionLabel: 'Visitors',
+          onAction: () => context.go('/visitors'),
+        ),
+        const SizedBox(height: AppDimensions.md),
+        _SocietyActivityCards(stats: stats),
+        const SizedBox(height: AppDimensions.lg),
+
+        // ── Insights ─────────────────────────────────────────────────────────
         if (hasTrends) ...[
-          DashboardSectionHeaderRow(
+          _SectionLabel(
             title: 'Insights',
             actionLabel: 'Reports',
             onAction: () => context.go('/reports/balance'),
@@ -255,28 +277,272 @@ class _MobileMemberLayout extends StatelessWidget {
           ),
           const SizedBox(height: AppDimensions.lg),
         ],
-        DashboardSectionHeaderRow(
-          title: 'Overview',
-          actionLabel: 'Balance',
-          onAction: () => context.go('/reports/balance'),
-        ),
-        const SizedBox(height: AppDimensions.md),
-        _MemberKpiRow(stats: stats, crossAxisCount: 2),
-        const SizedBox(height: AppDimensions.lg),
-
-        DashboardSectionHeaderRow(title: 'Quick Actions'),
-        const SizedBox(height: AppDimensions.md),
-        _MemberQuickActions(isWeb: false),
-        const SizedBox(height: AppDimensions.lg),
-
-        DashboardSectionHeaderRow(
-          title: 'Society Activity',
-          actionLabel: 'Visitors',
-          onAction: () => context.go('/visitors'),
-        ),
-        const SizedBox(height: AppDimensions.md),
-        _SocietyActivityCards(stats: stats),
       ],
+    );
+  }
+}
+
+// ─── Shared section label ─────────────────────────────────────────────────────
+
+class _SectionLabel extends StatelessWidget {
+  final String title;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  const _SectionLabel({required this.title, this.actionLabel, this.onAction});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(title, style: AppTextStyles.h2),
+        if (actionLabel != null && onAction != null)
+          GestureDetector(
+            onTap: onAction,
+            child: Text(
+              actionLabel!,
+              style: AppTextStyles.labelMedium.copyWith(color: AppColors.primary),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ─── Member mobile header ─────────────────────────────────────────────────────
+
+class _MobileMemberHeader extends StatelessWidget {
+  final String name;
+  final String unitCode;
+  final Map<String, dynamic> stats;
+  final VoidCallback onNotifications;
+  const _MobileMemberHeader({
+    required this.name,
+    required this.unitCode,
+    required this.stats,
+    required this.onNotifications,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final totalUnits = stats['units']?['total'] ?? 0;
+    final openComplaints = stats['complaints']?['open'] ?? 0;
+    final visitorsToday = stats['visitors']?['today'] ?? 0;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1E40AF), Color(0xFF2563EB), Color(0xFF3B82F6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusXl),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppDimensions.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        dashboardGreetingForNow(),
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: Colors.white.withValues(alpha: 0.75),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        name,
+                        style: AppTextStyles.h1.copyWith(color: Colors.white),
+                      ),
+                      if (unitCode.isNotEmpty)
+                        Container(
+                          margin: const EdgeInsets.only(top: AppDimensions.xs),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: AppDimensions.sm, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius:
+                                BorderRadius.circular(AppDimensions.radiusSm),
+                          ),
+                          child: Text(
+                            'Unit $unitCode · Member',
+                            style: AppTextStyles.caption
+                                .copyWith(color: Colors.white),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                GestureDetector(
+                  onTap: onNotifications,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius:
+                          BorderRadius.circular(AppDimensions.radiusMd),
+                    ),
+                    child: const Icon(Icons.notifications_outlined,
+                        color: Colors.white, size: 22),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppDimensions.md),
+            // Stat pills row
+            Row(
+              children: [
+                _MiniPill(Icons.apartment_rounded, '$totalUnits Units', AppColors.primaryLight),
+                const SizedBox(width: AppDimensions.sm),
+                _MiniPill(Icons.report_problem_rounded, '$openComplaints Complaints', AppColors.warning),
+                const SizedBox(width: AppDimensions.sm),
+                _MiniPill(Icons.person_pin_circle_rounded, '$visitorsToday Today', Colors.teal),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  const _MiniPill(this.icon, this.label, this.color);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppDimensions.sm, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 12),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: AppTextStyles.caption
+                .copyWith(color: Colors.white.withValues(alpha: 0.9)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Member Quick Actions icon grid ──────────────────────────────────────────
+
+class _MemberQuickActionsGrid extends StatelessWidget {
+  const _MemberQuickActionsGrid();
+
+  static const _primary = [
+    (Icons.receipt_long_rounded, 'Bills', '/bills', Color(0xFF2563EB)),
+    (Icons.person_add_rounded, 'Visitor', '/visitors', Color(0xFF10B981)),
+    (Icons.report_problem_rounded, 'Complaints', '/complaints', Color(0xFFF59E0B)),
+    (Icons.local_shipping_rounded, 'Deliveries', '/deliveries', Color(0xFF8B5CF6)),
+  ];
+
+  static const _secondary = [
+    (Icons.campaign_rounded, 'Notices', '/notices', Color(0xFF0EA5E9)),
+    (Icons.how_to_vote_rounded, 'Polls', '/polls', Color(0xFFEC4899)),
+    (Icons.event_rounded, 'Events', '/events', Color(0xFF14B8A6)),
+    (Icons.bar_chart_rounded, 'Reports', '/reports/balance', Color(0xFFEF4444)),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GridView.count(
+          crossAxisCount: 4,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: AppDimensions.sm,
+          mainAxisSpacing: AppDimensions.sm,
+          childAspectRatio: 0.85,
+          children: _primary
+              .map((a) => _ActionTile(icon: a.$1, label: a.$2, route: a.$3, color: a.$4, large: true))
+              .toList(),
+        ),
+        const SizedBox(height: AppDimensions.md),
+        Text('More', style: AppTextStyles.labelSmall.copyWith(color: AppColors.textMuted)),
+        const SizedBox(height: AppDimensions.sm),
+        GridView.count(
+          crossAxisCount: 4,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: AppDimensions.sm,
+          mainAxisSpacing: AppDimensions.sm,
+          childAspectRatio: 0.85,
+          children: _secondary
+              .map((a) => _ActionTile(icon: a.$1, label: a.$2, route: a.$3, color: a.$4, large: false))
+              .toList(),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActionTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String route;
+  final Color color;
+  final bool large;
+  const _ActionTile({
+    required this.icon,
+    required this.label,
+    required this.route,
+    required this.color,
+    required this.large,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final boxSize = large ? 52.0 : 44.0;
+    final iconSize = large ? 26.0 : 22.0;
+    return GestureDetector(
+      onTap: () => context.go(route),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: boxSize,
+            height: boxSize,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+              border: Border.all(color: color.withValues(alpha: 0.2)),
+            ),
+            child: Icon(icon, color: color, size: iconSize),
+          ),
+          const SizedBox(height: AppDimensions.xs),
+          Text(
+            label,
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -490,7 +756,6 @@ class _PendingBillsBanner extends StatelessWidget {
                 ),
               );
             }),
-            const SizedBox(height: AppDimensions.sm),
           ],
         );
       },

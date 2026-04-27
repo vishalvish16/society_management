@@ -21,6 +21,13 @@ router.post(
 );
 router.patch('/:id/respond', roleGuard(['RESIDENT', 'MEMBER', 'PRAMUKH', 'CHAIRMAN', 'SECRETARY']), checkPlanLimit('delivery_tracking'), c.respondToDelivery);
 router.patch('/:id/collect', roleGuard(['WATCHMAN', 'PRAMUKH', 'CHAIRMAN', 'SECRETARY']), checkPlanLimit('delivery_tracking'), c.markCollected);
+router.patch(
+  '/:id/received',
+  roleGuard(['RESIDENT', 'MEMBER', 'PRAMUKH', 'CHAIRMAN', 'SECRETARY']),
+  checkPlanLimit('delivery_tracking'),
+  upload.single('photo'),
+  c.markReceivedByResident
+);
 router.patch('/:id/return', roleGuard(['WATCHMAN', 'PRAMUKH', 'CHAIRMAN', 'SECRETARY']), checkPlanLimit('delivery_tracking'), c.markReturned);
 router.patch('/:id/drop-photo', roleGuard(['WATCHMAN', 'PRAMUKH', 'CHAIRMAN', 'SECRETARY']), checkPlanLimit('delivery_tracking'), upload.single('photo'), c.uploadDropPhoto);
 

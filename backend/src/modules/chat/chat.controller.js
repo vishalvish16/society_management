@@ -10,6 +10,20 @@ async function listRooms(req, res, next) {
   }
 }
 
+// GET /api/chat/members
+async function listMembers(req, res, next) {
+  try {
+    const { q, limit } = req.query;
+    const members = await chatService.getChatMembers(req.user.societyId, req.user.id, {
+      q: typeof q === 'string' ? q : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
+    res.json({ success: true, members });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // GET /api/chat/group
 async function getGroupRoom(req, res, next) {
   try {
@@ -131,4 +145,4 @@ async function getMuteStatus(req, res, next) {
   }
 }
 
-module.exports = { listRooms, getGroupRoom, getOrCreateDM, getMessages, sendMessage, deleteMessage, markRead, setMute, getMuteStatus };
+module.exports = { listRooms, listMembers, getGroupRoom, getOrCreateDM, getMessages, sendMessage, deleteMessage, markRead, setMute, getMuteStatus };

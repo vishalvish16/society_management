@@ -2,6 +2,16 @@ const prisma = require('../../config/db');
 const { sendSuccess, sendError } = require('../../utils/response');
 const { userHasUnit } = require('../../utils/unitResident');
 
+function buildVehicleAuditMetadata(before, after) {
+  const changed = {};
+  for (const key of Object.keys(after || {})) {
+    if (before?.[key] !== after?.[key]) {
+      changed[key] = { from: before?.[key] ?? null, to: after?.[key] ?? null };
+    }
+  }
+  return Object.keys(changed).length ? { changed } : null;
+}
+
 // GET /api/vehicles
 exports.getAllVehicles = async (req, res) => {
   try {
@@ -20,7 +30,12 @@ exports.getAllVehicles = async (req, res) => {
         where,
         skip,
         take: parseInt(limit),
-        include: { unit: { select: { fullCode: true } } },
+        include: {
+          unit: { select: { fullCode: true } },
+          registeredBy: { select: { id: true, name: true, role: true } },
+          updatedBy: { select: { id: true, name: true, role: true } },
+          removedBy: { select: { id: true, name: true, role: true } },
+        },
         orderBy: { createdAt: 'desc' },
       }),
       prisma.vehicle.count({ where }),
@@ -63,8 +78,31 @@ exports.createVehicle = async (req, res) => {
       if (!allowed) return sendError(res, 'You can only add vehicles for your own unit', 403);
     }
 
-    const vehicle = await prisma.vehicle.create({
-      data: { societyId, unitId: finalUnitId, registeredById, type, numberPlate, brand, model, colour },
+    const vehicle = await prisma.$transaction(async (tx) => {
+      const created = await tx.vehicle.create({
+        data: { societyId, unitId: finalUnitId, registeredById, type, numberPlate, brand, model, colour },
+      });
+
+      await tx.vehicleAuditLog.create({
+        data: {
+          vehicleId: created.id,
+          societyId,
+          unitId: finalUnitId,
+          actorId: registeredById,
+          action: 'CREATED',
+          metadata: { numberPlate, type, brand, model, colour },
+        },
+      });
+
+      return tx.vehicle.findUnique({
+        where: { id: created.id },
+        include: {
+          unit: { select: { fullCode: true } },
+          registeredBy: { select: { id: true, name: true, role: true } },
+          updatedBy: { select: { id: true, name: true, role: true } },
+          removedBy: { select: { id: true, name: true, role: true } },
+        },
+      });
     });
 
     return sendSuccess(res, vehicle, 'Vehicle registered', 201);
@@ -103,7 +141,35 @@ exports.updateVehicle = async (req, res) => {
     if (colour !== undefined) updateData.colour = colour;
     if (isActive !== undefined) updateData.isActive = Boolean(isActive);
 
-    const updated = await prisma.vehicle.update({ where: { id }, data: updateData });
+    const updated = await prisma.$transaction(async (tx) => {
+      const before = await tx.vehicle.findUnique({ where: { id } });
+      const next = await tx.vehicle.update({
+        where: { id },
+        data: { ...updateData, updatedById: userId },
+      });
+
+      const metadata = buildVehicleAuditMetadata(before, next);
+      await tx.vehicleAuditLog.create({
+        data: {
+          vehicleId: id,
+          societyId,
+          unitId: vehicle.unitId,
+          actorId: userId,
+          action: 'UPDATED',
+          metadata,
+        },
+      });
+
+      return tx.vehicle.findUnique({
+        where: { id },
+        include: {
+          unit: { select: { fullCode: true } },
+          registeredBy: { select: { id: true, name: true, role: true } },
+          updatedBy: { select: { id: true, name: true, role: true } },
+          removedBy: { select: { id: true, name: true, role: true } },
+        },
+      });
+    });
     return sendSuccess(res, updated, 'Vehicle updated');
   } catch (error) {
     return sendError(res, error.message, 500);
@@ -127,7 +193,12 @@ exports.getMyVehicles = async (req, res) => {
 
     const vehicles = await prisma.vehicle.findMany({
       where: { societyId, unitId: { in: unitIds }, isActive: true },
-      include: { unit: { select: { fullCode: true } } },
+      include: {
+        unit: { select: { fullCode: true } },
+        registeredBy: { select: { id: true, name: true, role: true } },
+        updatedBy: { select: { id: true, name: true, role: true } },
+        removedBy: { select: { id: true, name: true, role: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
     return sendSuccess(res, vehicles, 'Your vehicles retrieved');
@@ -143,7 +214,12 @@ exports.lookupByPlate = async (req, res) => {
     const { plate } = req.params;
     const vehicle = await prisma.vehicle.findFirst({
       where: { societyId, numberPlate: { equals: plate, mode: 'insensitive' }, isActive: true },
-      include: { unit: { select: { fullCode: true, wing: true, unitNumber: true } } },
+      include: {
+        unit: { select: { fullCode: true, wing: true, unitNumber: true } },
+        registeredBy: { select: { id: true, name: true, role: true } },
+        updatedBy: { select: { id: true, name: true, role: true } },
+        removedBy: { select: { id: true, name: true, role: true } },
+      },
     });
     if (!vehicle) return sendError(res, 'Vehicle not found', 404);
     return sendSuccess(res, vehicle, 'Vehicle found');
@@ -173,8 +249,99 @@ exports.deleteVehicle = async (req, res) => {
       if (!allowed) return sendError(res, 'You can only remove vehicles for your own unit', 403);
     }
 
-    await prisma.vehicle.update({ where: { id }, data: { isActive: false } });
+    await prisma.$transaction(async (tx) => {
+      await tx.vehicle.update({
+        where: { id },
+        data: { isActive: false, removedAt: new Date(), removedById: userId },
+      });
+      await tx.vehicleAuditLog.create({
+        data: {
+          vehicleId: id,
+          societyId,
+          unitId: vehicle.unitId,
+          actorId: userId,
+          action: 'DELETED',
+        },
+      });
+    });
     return sendSuccess(res, null, 'Vehicle removed');
+  } catch (error) {
+    return sendError(res, error.message, 500);
+  }
+};
+
+// GET /api/vehicles/:id/audit-logs
+exports.getVehicleAuditLogs = async (req, res) => {
+  try {
+    const { societyId } = req.user;
+    const { id: vehicleId } = req.params;
+
+    const vehicle = await prisma.vehicle.findUnique({
+      where: { id: vehicleId },
+      select: { id: true, societyId: true },
+    });
+    if (!vehicle || vehicle.societyId !== societyId) return sendError(res, 'Vehicle not found', 404);
+
+    const logs = await prisma.vehicleAuditLog.findMany({
+      where: { vehicleId, societyId },
+      include: {
+        actor: { select: { id: true, name: true, role: true } },
+        vehicle: {
+          select: {
+            id: true,
+            numberPlate: true,
+            unit: { select: { id: true, fullCode: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return sendSuccess(res, logs, 'Vehicle audit logs retrieved');
+  } catch (error) {
+    return sendError(res, error.message, 500);
+  }
+};
+
+// GET /api/vehicles/audit-logs
+exports.getAllVehicleAuditLogs = async (req, res) => {
+  try {
+    const { societyId } = req.user;
+    const { page = 1, limit = 20, unitId, action, vehicleId } = req.query;
+    const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+
+    const where = { societyId };
+    if (unitId) where.unitId = unitId;
+    if (vehicleId) where.vehicleId = vehicleId;
+    if (action) where.action = String(action).toUpperCase();
+
+    const [logs, total] = await Promise.all([
+      prisma.vehicleAuditLog.findMany({
+        where,
+        include: {
+          actor: { select: { id: true, name: true, role: true } },
+          vehicle: {
+            select: {
+              id: true,
+              numberPlate: true,
+              isActive: true,
+              removedAt: true,
+              unit: { select: { id: true, fullCode: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: parseInt(limit, 10),
+      }),
+      prisma.vehicleAuditLog.count({ where }),
+    ]);
+
+    return sendSuccess(
+      res,
+      { logs, total, page: parseInt(page, 10), limit: parseInt(limit, 10) },
+      'Vehicle audit logs retrieved'
+    );
   } catch (error) {
     return sendError(res, error.message, 500);
   }

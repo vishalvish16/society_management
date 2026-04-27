@@ -8,6 +8,9 @@ buildscript {
     }
 }
 
+import com.android.build.gradle.LibraryExtension
+import org.gradle.kotlin.dsl.configure
+
 allprojects {
     repositories {
         google()
@@ -27,6 +30,17 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+}
+
+subprojects {
+    if (name == "upi_india") {
+        plugins.withId("com.android.library") {
+            // Required by AGP 8+: https://d.android.com/r/tools/upgrade-assistant/set-namespace
+            extensions.configure<LibraryExtension>("android") {
+                if (namespace == null) namespace = "com.az.upi_india"
+            }
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {

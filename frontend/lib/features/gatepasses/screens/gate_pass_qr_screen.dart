@@ -4,14 +4,26 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:qr_flutter/qr_flutter.dart';
 import 'dart:ui' as ui;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/providers/dio_provider.dart';
+import 'package:dio/dio.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_dimensions.dart';
 
-class GatePassQrScreen extends StatelessWidget {
+class GatePassQrScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> pass;
 
   const GatePassQrScreen({super.key, required this.pass});
+
+  @override
+  ConsumerState<GatePassQrScreen> createState() => _GatePassQrScreenState();
+}
+
+class _GatePassQrScreenState extends ConsumerState<GatePassQrScreen> {
+  bool _loadingLogs = false;
+  String? _logsError;
+  List<Map<String, dynamic>> _logs = const [];
 
   String _fmt(String? iso) {
     if (iso == null || iso.isEmpty) return '-';
@@ -24,13 +36,60 @@ class GatePassQrScreen extends StatelessWidget {
     }
   }
 
+  String _fmtDateTime(String? iso) {
+    if (iso == null || iso.isEmpty) return '-';
+    try {
+      final dt = DateTime.parse(iso).toLocal();
+      final h = dt.hour.toString().padLeft(2, '0');
+      final m = dt.minute.toString().padLeft(2, '0');
+      return '${dt.day.toString().padLeft(2, '0')}-'
+          '${dt.month.toString().padLeft(2, '0')}-'
+          '${dt.year} $h:$m';
+    } catch (_) {
+      return iso;
+    }
+  }
+
+  Future<void> _loadLogs() async {
+    final id = (widget.pass['id'] as String?)?.trim();
+    if (id == null || id.isEmpty) return;
+
+    setState(() {
+      _loadingLogs = true;
+      _logsError = null;
+    });
+
+    try {
+      final dio = ref.read(dioProvider);
+      final res = await dio.get('gatepasses/$id/logs');
+      final data = res.data['data'] as Map<String, dynamic>? ?? {};
+      final logs = data['logs'] as List<dynamic>? ?? [];
+      setState(() {
+        _logs = logs.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        _loadingLogs = false;
+      });
+    } on DioException catch (e) {
+      setState(() {
+        _logsError = e.response?.data is Map
+            ? (e.response?.data['message']?.toString() ?? e.message)
+            : e.message;
+        _loadingLogs = false;
+      });
+    } catch (e) {
+      setState(() {
+        _logsError = e.toString();
+        _loadingLogs = false;
+      });
+    }
+  }
+
   Future<void> _downloadPdf(BuildContext context) async {
-    final passCode = pass['passCode'] as String? ?? '';
-    final desc     = pass['itemDescription'] as String? ?? '-';
-    final unit     = pass['unit'] is Map ? pass['unit']['fullCode'] : (pass['unit'] ?? '-');
-    final reason   = pass['reason'] as String?;
-    final from     = _fmt(pass['validFrom'] as String?);
-    final to       = _fmt(pass['validTo'] as String?);
+    final passCode = widget.pass['passCode'] as String? ?? '';
+    final desc     = widget.pass['itemDescription'] as String? ?? '-';
+    final unit     = widget.pass['unit'] is Map ? widget.pass['unit']['fullCode'] : (widget.pass['unit'] ?? '-');
+    final reason   = widget.pass['reason'] as String?;
+    final from     = _fmt(widget.pass['validFrom'] as String?);
+    final to       = _fmt(widget.pass['validTo'] as String?);
 
     final qrImage = await QrPainter(
       data: passCode,
@@ -170,12 +229,17 @@ class GatePassQrScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final passCode = pass['passCode'] as String? ?? '';
-    final desc     = pass['itemDescription'] as String? ?? '-';
-    final unit     = pass['unit'] is Map ? pass['unit']['fullCode'] : (pass['unit'] ?? '-');
-    final reason   = pass['reason'] as String?;
-    final from     = _fmt(pass['validFrom'] as String?);
-    final to       = _fmt(pass['validTo'] as String?);
+    final passCode = widget.pass['passCode'] as String? ?? '';
+    final desc     = widget.pass['itemDescription'] as String? ?? '-';
+    final unit     = widget.pass['unit'] is Map ? widget.pass['unit']['fullCode'] : (widget.pass['unit'] ?? '-');
+    final reason   = widget.pass['reason'] as String?;
+    final from     = _fmt(widget.pass['validFrom'] as String?);
+    final to       = _fmt(widget.pass['validTo'] as String?);
+    final decision = (widget.pass['decision'] as String?)?.toUpperCase();
+    final scannedAt = widget.pass['scannedAt'] as String?;
+    final scannedBy = (widget.pass['scannedBy'] is Map)
+        ? (widget.pass['scannedBy']['name']?.toString())
+        : null;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -245,6 +309,12 @@ class GatePassQrScreen extends StatelessWidget {
                           _infoRow('Reason', reason),
                         _infoRow('Valid From', from),
                         _infoRow('Valid To', to),
+                        if (decision != null) ...[
+                          _infoRow('Decision', decision),
+                          if (scannedAt != null) _infoRow('Scanned at', _fmtDateTime(scannedAt)),
+                          if (scannedBy != null && scannedBy.isNotEmpty)
+                            _infoRow('Scanned by', scannedBy),
+                        ],
 
                         const SizedBox(height: 24),
 
@@ -314,6 +384,126 @@ class GatePassQrScreen extends StatelessWidget {
                             ),
                           ),
                         ),
+
+                        const SizedBox(height: 16),
+
+                        // ── Scan History ─────────────────────────────────
+                        Row(
+                          children: [
+                            Text('Scan History', style: AppTextStyles.h3),
+                            const Spacer(),
+                            IconButton(
+                              tooltip: 'Refresh',
+                              onPressed: _loadingLogs ? null : _loadLogs,
+                              icon: const Icon(Icons.refresh_rounded),
+                            ),
+                          ],
+                        ),
+                        if (_logsError != null) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.dangerSurface,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              _logsError ?? 'Failed to load logs',
+                              style: AppTextStyles.bodySmall.copyWith(
+                                  color: AppColors.dangerText),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                        if (_loadingLogs)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Row(
+                              children: [
+                                const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                                const SizedBox(width: 10),
+                                Text('Loading logs…',
+                                    style: AppTextStyles.bodySmall.copyWith(
+                                        color: AppColors.textMuted)),
+                              ],
+                            ),
+                          )
+                        else if (_logs.isEmpty)
+                          Text(
+                            'No scan logs yet.',
+                            style: AppTextStyles.bodySmall
+                                .copyWith(color: AppColors.textMuted),
+                          )
+                        else
+                          Column(
+                            children: _logs.map((l) {
+                              final decision = (l['decision'] as String?)?.toUpperCase();
+                              final result = (l['result'] as String?)?.toUpperCase() ?? '-';
+                              final scannedAt = l['scannedAt'] as String?;
+                              final by = (l['scannedBy'] is Map)
+                                  ? (l['scannedBy']['name']?.toString())
+                                  : null;
+                              final note = l['note']?.toString();
+                              final isOk = decision == 'APPROVED';
+                              final icon = decision == null
+                                  ? Icons.info_outline_rounded
+                                  : (isOk
+                                      ? Icons.check_circle_rounded
+                                      : Icons.cancel_rounded);
+                              final iconColor = decision == null
+                                  ? AppColors.textMuted
+                                  : (isOk ? AppColors.success : AppColors.danger);
+
+                              return Container(
+                                width: double.infinity,
+                                margin: const EdgeInsets.only(bottom: 10),
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: AppColors.background,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: AppColors.border),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(icon, color: iconColor, size: 18),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            decision != null
+                                                ? 'Decision: $decision'
+                                                : 'Result: $result',
+                                            style: AppTextStyles.bodyMedium.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            '${_fmtDateTime(scannedAt)}'
+                                            '${by != null ? ' · by $by' : ''}',
+                                            style: AppTextStyles.bodySmall.copyWith(
+                                                color: AppColors.textMuted),
+                                          ),
+                                          if (note != null && note.isNotEmpty) ...[
+                                            const SizedBox(height: 6),
+                                            Text(note,
+                                                style: AppTextStyles.bodySmall),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ),
                       ],
                     ),
                   ),

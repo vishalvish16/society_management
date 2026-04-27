@@ -32,8 +32,7 @@ class _DuesReportScreenState extends ConsumerState<DuesReportScreen> {
 
   bool _loading = false;
   String? _error;
-  List<Map<String, dynamic>> _dues = [];
-  Map<String, dynamic> _summary = {};
+  List<Map<String, dynamic>> _allDues = [];
   String _filterStatus = 'ALL';
   String _searchQuery = '';
   final _searchCtrl = TextEditingController();
@@ -53,14 +52,10 @@ class _DuesReportScreenState extends ConsumerState<DuesReportScreen> {
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final query = <String, dynamic>{};
-      if (_filterStatus != 'ALL') query['status'] = _filterStatus;
-
-      final res = await _client.dio.get('reports/dues', queryParameters: query);
+      final res = await _client.dio.get('reports/dues');
       final data = res.data['data'] as Map<String, dynamic>? ?? {};
       setState(() {
-        _dues = List<Map<String, dynamic>>.from(data['dues'] ?? []);
-        _summary = data['summary'] as Map<String, dynamic>? ?? {};
+        _allDues = List<Map<String, dynamic>>.from(data['dues'] ?? []);
         _loading = false;
       });
     } catch (e) {
@@ -69,15 +64,37 @@ class _DuesReportScreenState extends ConsumerState<DuesReportScreen> {
   }
 
   List<Map<String, dynamic>> get _filteredDues {
-    if (_searchQuery.isEmpty) return _dues;
-    final q = _searchQuery.toLowerCase();
-    return _dues.where((d) {
+    Iterable<Map<String, dynamic>> dues = _allDues;
+
+    if (_filterStatus != 'ALL') {
+      dues = dues.where((d) => (d['status'] ?? '').toString().toUpperCase() == _filterStatus);
+    }
+
+    if (_searchQuery.trim().isEmpty) return dues.toList();
+    final q = _searchQuery.trim().toLowerCase();
+    return dues.where((d) {
       final unit = (d['unitCode'] ?? '').toString().toLowerCase();
       final residents = (d['residents'] as List?) ?? [];
       final nameMatch = residents.any((r) => (r['name'] ?? '').toString().toLowerCase().contains(q));
       final phoneMatch = residents.any((r) => (r['phone'] ?? '').toString().contains(q));
       return unit.contains(q) || nameMatch || phoneMatch;
     }).toList();
+  }
+
+  Map<String, dynamic> get _computedSummary {
+    final dues = _filteredDues;
+    final totalRemaining = dues.fold<double>(0, (s, d) => s + ((d['remaining'] as num?)?.toDouble() ?? 0));
+    final statusCounts = <String, int>{};
+    for (final d in dues) {
+      final s = (d['status'] ?? '').toString().toUpperCase();
+      if (s.isEmpty) continue;
+      statusCounts[s] = (statusCounts[s] ?? 0) + 1;
+    }
+    return {
+      'totalRemaining': totalRemaining,
+      'totalBills': dues.length,
+      'statusCounts': statusCounts,
+    };
   }
 
   Future<void> _sendReminder(Map<String, dynamic> due) async {
@@ -101,11 +118,12 @@ class _DuesReportScreenState extends ConsumerState<DuesReportScreen> {
   }
 
   Future<void> _sendRemindAll() async {
+    final duesCount = _filteredDues.length;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Send Reminders to All?'),
-        content: Text('This will send payment reminders to all ${_dues.length} units with pending dues.'),
+        content: Text('This will send payment reminders to all $duesCount units with pending dues.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           FilledButton(
@@ -226,9 +244,10 @@ class _DuesReportScreenState extends ConsumerState<DuesReportScreen> {
     final isWide = MediaQuery.of(context).size.width >= 768;
     final dues = _filteredDues;
 
-    final totalRemaining = _summary['totalDueAmount'] ?? 0;
-    final totalBills = _summary['totalBills'] ?? 0;
-    final statusCounts = _summary['statusCounts'] as Map<String, dynamic>? ?? {};
+    final summary = _computedSummary;
+    final totalRemaining = summary['totalRemaining'] ?? 0;
+    final totalBills = summary['totalBills'] ?? 0;
+    final statusCounts = summary['statusCounts'] as Map<String, dynamic>? ?? {};
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -239,13 +258,13 @@ class _DuesReportScreenState extends ConsumerState<DuesReportScreen> {
           IconButton(
             icon: const Icon(Icons.picture_as_pdf_rounded, color: Colors.white),
             tooltip: 'Download PDF',
-            onPressed: _dues.isEmpty ? null : _exportPdf,
+            onPressed: _allDues.isEmpty ? null : _exportPdf,
           ),
           if (_isAdmin)
             IconButton(
               icon: const Icon(Icons.notifications_active_rounded, color: Colors.white),
               tooltip: 'Remind All',
-              onPressed: _dues.isEmpty ? null : _sendRemindAll,
+              onPressed: _allDues.isEmpty ? null : _sendRemindAll,
             ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded, color: Colors.white),
@@ -309,7 +328,6 @@ class _DuesReportScreenState extends ConsumerState<DuesReportScreen> {
                                           selected: isActive,
                                           onSelected: (_) {
                                             setState(() => _filterStatus = s);
-                                            _load();
                                           },
                                           selectedColor: AppColors.primarySurface,
                                           checkmarkColor: AppColors.primary,

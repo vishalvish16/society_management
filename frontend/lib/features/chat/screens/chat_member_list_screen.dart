@@ -8,17 +8,9 @@ import '../models/chat_models.dart';
 import '../providers/chat_provider.dart';
 
 final _membersProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final res = await DioClient().dio.get('/members', queryParameters: {'limit': 200});
-  // API returns { success, data: { members: [...] } } via sendSuccess
+  final res = await DioClient().dio.get('/chat/members', queryParameters: {'limit': 1000});
   final body = res.data;
-  List<dynamic> list = [];
-  if (body['data'] is Map && body['data']['members'] is List) {
-    list = body['data']['members'] as List;
-  } else if (body['members'] is List) {
-    list = body['members'] as List;
-  } else if (body['data'] is List) {
-    list = body['data'] as List;
-  }
+  final list = (body is Map && body['members'] is List) ? (body['members'] as List) : const [];
   return list.cast<Map<String, dynamic>>();
 });
 

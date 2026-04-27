@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../shared/widgets/app_date_picker.dart';
 import '../../../core/providers/auth_provider.dart';
@@ -300,21 +301,27 @@ class _DonationsList extends ConsumerWidget {
               final date = d['paidAt'] != null
                   ? DateFormat('dd MMM yyyy').format(DateTime.parse(d['paidAt']))
                   : '';
-              return AppCard(
-                child: Row(children: [
-                  CircleAvatar(
-                    backgroundColor: AppColors.primarySurface,
-                    child: Icon(Icons.volunteer_activism, color: AppColors.primary, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(donor?['name'] ?? 'Unknown', style: AppTextStyles.labelMedium),
-                    if (campaign != null)
-                      Text(campaign['title'], style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
-                    Text(date, style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
-                  ])),
-                  Text(fmt(d['amount']), style: AppTextStyles.labelLarge.copyWith(color: AppColors.success)),
-                ]),
+              return InkWell(
+                borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+                onTap: () => context.push('/donations/receipt', extra: d),
+                child: AppCard(
+                  child: Row(children: [
+                    CircleAvatar(
+                      backgroundColor: AppColors.primarySurface,
+                      child: Icon(Icons.volunteer_activism, color: AppColors.primary, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(donor?['name'] ?? 'Unknown', style: AppTextStyles.labelMedium),
+                      if (campaign != null)
+                        Text(campaign['title'], style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
+                      Text(date, style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
+                    ])),
+                    Text(fmt(d['amount']), style: AppTextStyles.labelLarge.copyWith(color: AppColors.success)),
+                    const SizedBox(width: 6),
+                    const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+                  ]),
+                ),
               );
             },
           ),

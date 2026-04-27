@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimensions.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/providers/auth_provider.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../providers/permissions_provider.dart';
 
@@ -20,8 +21,7 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
   bool _dirty = false;
 
   static const _roleLabels = {
-    'PRAMUKH': 'Pramukh',
-    'CHAIRMAN': 'Chairman',
+    'PRAMUKH': 'Chairman',
     'SECRETARY': 'Secretary',
     'MANAGER': 'Manager',
     'VICE_CHAIRMAN': 'Vice Chairman',
@@ -34,8 +34,7 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
   };
 
   static const _roleIcons = {
-    'PRAMUKH': Icons.star_rounded,
-    'CHAIRMAN': Icons.workspace_premium_rounded,
+    'PRAMUKH': Icons.workspace_premium_rounded,
     'SECRETARY': Icons.verified_rounded,
     'MANAGER': Icons.manage_accounts_rounded,
     'VICE_CHAIRMAN': Icons.account_balance_rounded,
@@ -69,6 +68,7 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
     'members': Icons.people_rounded,
     'bills': Icons.receipt_long_rounded,
     'expenses': Icons.account_balance_wallet_rounded,
+    'expense_approval': Icons.verified_rounded,
     'donations': Icons.volunteer_activism_rounded,
     'balance_report': Icons.balance_rounded,
     'pending_dues': Icons.assignment_late_rounded,
@@ -274,6 +274,9 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
 
   Widget _buildRoleContent(RolePermissionsData data, String role) {
     final perms = data.rolePermissions[role] ?? {};
+    final user = ref.watch(authProvider).user;
+    final currentRole = user?.role.toUpperCase() ?? '';
+    final canEdit = !(currentRole == 'SECRETARY' && role == 'PRAMUKH');
     final grouped = <String, List<FeatureInfo>>{};
     for (final f in data.features) {
       grouped.putIfAbsent(f.group, () => []).add(f);
@@ -287,6 +290,18 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (!canEdit)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppDimensions.md),
+              child: AppCard(
+                backgroundColor: AppColors.warningSurface,
+                child: Text(
+                  'Only Pramukh/Chairman can change these permissions.',
+                  style: AppTextStyles.bodySmall
+                      .copyWith(color: AppColors.warningText),
+                ),
+              ),
+            ),
           // Role header card
           AppCard(
             padding: const EdgeInsets.all(AppDimensions.lg),
@@ -322,7 +337,8 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
                 ),
                 // Toggle all
                 TextButton.icon(
-                  onPressed: () {
+                  onPressed: canEdit
+                      ? () {
                     final allOn = enabledCount == totalCount;
                     for (final f in data.features) {
                       ref
@@ -330,7 +346,8 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
                           .toggle(role, f.key, !allOn);
                     }
                     setState(() => _dirty = true);
-                  },
+                  }
+                      : null,
                   icon: Icon(
                     enabledCount == totalCount
                         ? Icons.toggle_on_rounded
@@ -423,12 +440,14 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
                               title: Text(feature.label,
                                   style: AppTextStyles.bodyMedium),
                               value: enabled,
-                              onChanged: (val) {
-                                ref
-                                    .read(rolePermissionsProvider.notifier)
-                                    .toggle(role, feature.key, val);
-                                setState(() => _dirty = true);
-                              },
+                              onChanged: canEdit
+                                  ? (val) {
+                                      ref
+                                          .read(rolePermissionsProvider.notifier)
+                                          .toggle(role, feature.key, val);
+                                      setState(() => _dirty = true);
+                                    }
+                                  : null,
                               activeColor: groupColor,
                             ),
                           ],

@@ -104,7 +104,10 @@ class AppTheme {
           thickness: 1,
           space: 1,
         ),
-        textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme),
+        textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme).apply(
+          bodyColor: AppColors.textPrimary,
+          displayColor: AppColors.textPrimary,
+        ),
       );
 
   static ThemeData get dark => ThemeData(
@@ -118,6 +121,34 @@ class AppTheme {
           onPrimary: AppColors.textOnPrimary,
           surface: const Color(0xFF1E293B),
           error: AppColors.danger,
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: const Color(0xFF1E293B),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+            borderSide: const BorderSide(color: Color(0xFF334155)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+            borderSide: const BorderSide(color: Color(0xFF334155)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+            borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+            borderSide: const BorderSide(color: AppColors.danger),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+            borderSide: const BorderSide(color: AppColors.danger, width: 1.5),
+          ),
+          labelStyle: const TextStyle(color: Color(0xFFCBD5E1)),
+          hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),
         appBarTheme: AppBarTheme(
           backgroundColor: AppColors.primary,
@@ -170,6 +201,9 @@ class AppTheme {
         ),
         dividerColor: const Color(0xFF334155),
         dividerTheme: const DividerThemeData(color: Color(0xFF334155), thickness: 1, space: 1),
-        textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
+        textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme).apply(
+          bodyColor: const Color(0xFFE2E8F0),
+          displayColor: const Color(0xFFE2E8F0),
+        ),
       );
 }

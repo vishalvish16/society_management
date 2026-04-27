@@ -191,35 +191,43 @@ class _MobileResidentLayout extends StatelessWidget {
         : 'Resident';
     final unit = stats['unit'] as Map<String, dynamic>?;
     final unitCode = unit?['fullCode'] as String? ?? user?.unitCode?.toString().trim() ?? '';
-    final subtitle = unitCode.isNotEmpty
-        ? 'Unit $unitCode · ${dashboardRoleSubtitle('RESIDENT')}'
-        : dashboardRoleSubtitle('RESIDENT');
     final hasTrends = dashboardStatsHasTrends(stats);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        DashboardGreetingHeader(
-          title: 'Home',
-          greeting: dashboardGreetingForNow(),
+        // ── Gradient header ──────────────────────────────────────────────────
+        _MobileHomeHeader(
           name: name,
-          subtitle: subtitle,
-          compact: true,
+          unitCode: unitCode,
+          stats: stats,
           onNotifications: () => context.go('/notifications'),
         ),
         const SizedBox(height: AppDimensions.md),
+
+        // ── Urgent alerts ────────────────────────────────────────────────────
         _GateApprovalBanner(pendingApprovals: pendingApprovals),
-        _UnitBalanceHero(stats: stats),
+        _PendingBillsSection(stats: stats),
         const SizedBox(height: AppDimensions.md),
-        _CampaignBanner(stats: stats),
+
+        // ── Quick Actions (icon grid) ─────────────────────────────────────────
+        _SectionTitle(title: 'Quick Actions'),
+        const SizedBox(height: AppDimensions.md),
+        _ResidentQuickActionsGrid(),
         const SizedBox(height: AppDimensions.lg),
 
+        // ── My Activity (dashboard) ────────────────────────────────────────
+        _SectionTitle(title: 'My Activity', actionLabel: 'Visitors', onAction: () => context.go('/visitors')),
+        const SizedBox(height: AppDimensions.md),
+        _ResidentActivityCards(stats: stats),
+        const SizedBox(height: AppDimensions.lg),
+
+        // ── Campaigns ────────────────────────────────────────────────────────
+        _DonationCampaignsSection(stats: stats),
+
+        // ── Insights ─────────────────────────────────────────────────────────
         if (hasTrends) ...[
-          DashboardSectionHeaderRow(
-            title: 'Insights',
-            actionLabel: 'Bills',
-            onAction: () => context.go('/bills'),
-          ),
+          _SectionTitle(title: 'Insights', actionLabel: 'Bills', onAction: () => context.go('/bills')),
           const SizedBox(height: AppDimensions.md),
           DashboardTrendPanel(
             title: 'Collection trend',
@@ -236,27 +244,334 @@ class _MobileResidentLayout extends StatelessWidget {
           ),
           const SizedBox(height: AppDimensions.lg),
         ],
+      ],
+    );
+  }
+}
 
-        DashboardSectionHeaderRow(title: 'Pending Bills'),
-        const SizedBox(height: AppDimensions.md),
-        _PendingBillsSection(stats: stats),
-        const SizedBox(height: AppDimensions.lg),
+// ─── Shared section title ─────────────────────────────────────────────────────
 
-        _DonationCampaignsSection(stats: stats),
+class _SectionTitle extends StatelessWidget {
+  final String title;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  const _SectionTitle({required this.title, this.actionLabel, this.onAction});
 
-        DashboardSectionHeaderRow(title: 'Quick Actions'),
-        const SizedBox(height: AppDimensions.md),
-        _ResidentQuickActions(isWeb: false),
-        const SizedBox(height: AppDimensions.lg),
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(title, style: AppTextStyles.h2),
+        if (actionLabel != null && onAction != null)
+          GestureDetector(
+            onTap: onAction,
+            child: Text(
+              actionLabel!,
+              style: AppTextStyles.labelMedium.copyWith(color: AppColors.primary),
+            ),
+          ),
+      ],
+    );
+  }
+}
 
-        DashboardSectionHeaderRow(
-          title: 'My Activity',
-          actionLabel: 'Visitors',
-          onAction: () => context.go('/visitors'),
+// ─── Mobile home header ───────────────────────────────────────────────────────
+
+class _MobileHomeHeader extends StatelessWidget {
+  final String name;
+  final String unitCode;
+  final Map<String, dynamic> stats;
+  final VoidCallback onNotifications;
+  const _MobileHomeHeader({
+    required this.name,
+    required this.unitCode,
+    required this.stats,
+    required this.onNotifications,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final outstanding = stats['outstandingBalance'] ?? 0;
+    final hasBalance = (outstanding is num ? outstanding : 0) > 0;
+    final fmt = NumberFormat('#,##0');
+    final activeComplaints = stats['activeComplaints'] ?? 0;
+    final pendingVisitors = stats['pendingVisitors'] ?? 0;
+    final pendingDeliveries = stats['pendingDeliveries'] ?? 0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppDimensions.xs),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1E40AF), Color(0xFF2563EB), Color(0xFF3B82F6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusXl),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppDimensions.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Greeting row
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        dashboardGreetingForNow(),
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: Colors.white.withValues(alpha: 0.75),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        name,
+                        style: AppTextStyles.h1.copyWith(color: Colors.white),
+                      ),
+                      if (unitCode.isNotEmpty)
+                        Container(
+                          margin: const EdgeInsets.only(top: AppDimensions.xs),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: AppDimensions.sm, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                          ),
+                          child: Text(
+                            'Unit $unitCode',
+                            style: AppTextStyles.caption
+                                .copyWith(color: Colors.white),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                GestureDetector(
+                  onTap: onNotifications,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                    ),
+                    child: const Icon(Icons.notifications_outlined,
+                        color: Colors.white, size: 22),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppDimensions.lg),
+            // Balance chip
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppDimensions.md, vertical: AppDimensions.sm),
+              decoration: BoxDecoration(
+                color: hasBalance
+                    ? Colors.red.withValues(alpha: 0.25)
+                    : Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                border: Border.all(
+                  color: hasBalance
+                      ? Colors.red.withValues(alpha: 0.5)
+                      : Colors.white.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    hasBalance ? Icons.warning_amber_rounded : Icons.check_circle_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                  const SizedBox(width: AppDimensions.xs),
+                  Text(
+                    hasBalance
+                        ? 'Due: ₹${fmt.format(outstanding)}'
+                        : 'No dues — all clear!',
+                    style: AppTextStyles.labelMedium.copyWith(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppDimensions.md),
+            // Mini stat pills
+            Row(
+              children: [
+                _StatPill(
+                  icon: Icons.report_problem_rounded,
+                  label: '$activeComplaints Complaints',
+                  color: AppColors.warning,
+                ),
+                const SizedBox(width: AppDimensions.sm),
+                _StatPill(
+                  icon: Icons.local_shipping_rounded,
+                  label: '$pendingDeliveries Deliveries',
+                  color: AppColors.info,
+                ),
+                const SizedBox(width: AppDimensions.sm),
+                _StatPill(
+                  icon: Icons.person_pin_circle_rounded,
+                  label: '$pendingVisitors Visitors',
+                  color: Colors.teal,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  const _StatPill({required this.icon, required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppDimensions.sm, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 12),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: AppTextStyles.caption.copyWith(
+              color: Colors.white.withValues(alpha: 0.9),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Resident Quick Actions icon grid ─────────────────────────────────────────
+
+class _ResidentQuickActionsGrid extends StatelessWidget {
+  const _ResidentQuickActionsGrid();
+
+  static const _primary = [
+    (Icons.receipt_long_rounded, 'My Bills', '/bills', Color(0xFF2563EB)),
+    (Icons.person_add_rounded, 'Visitor', '/visitors', Color(0xFF10B981)),
+    (Icons.report_problem_rounded, 'Complaint', '/complaints', Color(0xFFF59E0B)),
+    (Icons.local_shipping_rounded, 'Delivery', '/deliveries', Color(0xFF8B5CF6)),
+  ];
+
+  static const _secondary = [
+    (Icons.campaign_rounded, 'Notices', '/notices', Color(0xFF0EA5E9)),
+    (Icons.how_to_vote_rounded, 'Polls', '/polls', Color(0xFFEC4899)),
+    (Icons.event_rounded, 'Events', '/events', Color(0xFF14B8A6)),
+    (Icons.volunteer_activism_rounded, 'Donations', '/donations', Color(0xFFEF4444)),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Primary 4-grid
+        GridView.count(
+          crossAxisCount: 4,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: AppDimensions.sm,
+          mainAxisSpacing: AppDimensions.sm,
+          childAspectRatio: 0.85,
+          children: _primary.map((a) => _QuickActionTile(
+            icon: a.$1, label: a.$2, route: a.$3, color: a.$4,
+            large: true,
+          )).toList(),
         ),
         const SizedBox(height: AppDimensions.md),
-        _ResidentActivityCards(stats: stats),
+        // Secondary section title
+        Text(
+          'More',
+          style: AppTextStyles.labelSmall.copyWith(color: AppColors.textMuted),
+        ),
+        const SizedBox(height: AppDimensions.sm),
+        // Secondary 4-grid
+        GridView.count(
+          crossAxisCount: 4,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: AppDimensions.sm,
+          mainAxisSpacing: AppDimensions.sm,
+          childAspectRatio: 0.85,
+          children: _secondary.map((a) => _QuickActionTile(
+            icon: a.$1, label: a.$2, route: a.$3, color: a.$4,
+            large: false,
+          )).toList(),
+        ),
       ],
+    );
+  }
+}
+
+class _QuickActionTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String route;
+  final Color color;
+  final bool large;
+  const _QuickActionTile({
+    required this.icon,
+    required this.label,
+    required this.route,
+    required this.color,
+    required this.large,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final iconBoxSize = large ? 52.0 : 44.0;
+    final iconSize = large ? 26.0 : 22.0;
+
+    return GestureDetector(
+      onTap: () => context.go(route),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: iconBoxSize,
+            height: iconBoxSize,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+              border: Border.all(
+                color: color.withValues(alpha: 0.2),
+                width: 1,
+              ),
+            ),
+            child: Icon(icon, color: color, size: iconSize),
+          ),
+          const SizedBox(height: AppDimensions.xs),
+          Text(
+            label,
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
   }
 }

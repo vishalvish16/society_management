@@ -5,6 +5,7 @@ import '../models/user_model.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_colors.dart';
 import '../../shared/widgets/confirm_logout.dart';
+import '../../shared/widgets/app_pull_to_refresh.dart';
 import '../../features/settings/providers/permissions_provider.dart';
 
 class SMShell extends ConsumerStatefulWidget {
@@ -195,6 +196,7 @@ class _SMShellState extends ConsumerState<SMShell> {
     final authState = ref.watch(authProvider);
     final role = authState.user?.role ?? '';
     final isUnitLocked = authState.user?.isUnitLocked ?? false;
+    final location = GoRouterState.of(context).uri.toString();
 
     final permsAsync = ref.watch(rolePermissionsProvider);
     final roleKey = role.toUpperCase();
@@ -205,6 +207,34 @@ class _SMShellState extends ConsumerState<SMShell> {
     final safeIndex = navItems.isEmpty ? 0 : _selectedIndex.clamp(0, navItems.length - 1);
     final isWide = MediaQuery.of(context).size.width >= 900;
 
+    _NavItem? currentModuleItem() {
+      if (navItems.isEmpty) return null;
+      final current = navItems[safeIndex];
+      // Keep "More" fallback resilient if selection lags route updates.
+      final byPrefix = navItems.firstWhere(
+        (n) =>
+            location == n.path ||
+            (location.startsWith(n.path) && n.path != '/'),
+        orElse: () => current,
+      );
+      return byPrefix;
+    }
+
+    final moduleItem = currentModuleItem();
+    final moduleRoot = moduleItem?.path;
+    final isSubPage = moduleRoot != null &&
+        moduleRoot != '/' &&
+        location != moduleRoot &&
+        location.startsWith(moduleRoot);
+
+    Future<void> doRefresh() async {
+      // Replacing the current location rebuilds the screen, which is the closest
+      // "refresh" behavior that works consistently for all pages.
+      context.replace(location);
+      // Let the navigation rebuild occur before finishing the indicator.
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
+
     if (navItems.isEmpty) {
       // This should only happen briefly while role permissions are loading.
       // Still render the current route content.
@@ -213,7 +243,12 @@ class _SMShellState extends ConsumerState<SMShell> {
         body: Row(
           children: [
             if (isWide) const SizedBox.shrink(),
-            Expanded(child: widget.child),
+            Expanded(
+              child: AppPullToRefresh(
+                onRefresh: doRefresh,
+                child: widget.child,
+              ),
+            ),
           ],
         ),
       );
@@ -230,8 +265,14 @@ class _SMShellState extends ConsumerState<SMShell> {
               foregroundColor: Colors.white,
               elevation: 0,
               leading: IconButton(
-                icon: const Icon(Icons.menu_rounded),
-                onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                icon: Icon(isSubPage ? Icons.arrow_back_rounded : Icons.menu_rounded),
+                onPressed: () {
+                  if (isSubPage) {
+                    context.go(moduleRoot);
+                    return;
+                  }
+                  _scaffoldKey.currentState?.openDrawer();
+                },
               ),
               title: Row(
                 children: [
@@ -281,7 +322,12 @@ class _SMShellState extends ConsumerState<SMShell> {
       body: Row(
         children: [
           if (isWide) _buildSidebar(authState, navItems, isUnitLocked),
-          Expanded(child: widget.child),
+          Expanded(
+            child: AppPullToRefresh(
+              onRefresh: doRefresh,
+              child: widget.child,
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: isWide

@@ -17,6 +17,7 @@ class QrScanResult {
   final String subtitle;
   final Map<String, String> details;
   final String? rawCode;
+  final bool canDecide; // watchman can approve/reject (gatepass only)
 
   const QrScanResult({
     required this.isValid,
@@ -25,6 +26,7 @@ class QrScanResult {
     required this.subtitle,
     required this.details,
     this.rawCode,
+    this.canDecide = false,
   });
 }
 
@@ -126,6 +128,10 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen>
             final unit = pass['unit'] is Map
                 ? pass['unit']['fullCode']
                 : (pass['unit'] ?? '-');
+            final creator = pass['createdBy'] is Map ? pass['createdBy']['name'] : null;
+            final scannedBy = pass['scannedBy'] is Map ? pass['scannedBy']['name'] : null;
+            final scannedAtStr = pass['scannedAt'] as String?;
+            final decision = pass['decision'] as String?;
             final validToStr = pass['validTo'] as String?;
             final validFromStr = pass['validFrom'] as String?;
             final validTo = _fmtDate(validToStr);
@@ -153,6 +159,9 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen>
             } else if (status == 'active' && vf != null && now.isBefore(vf)) {
               title = 'Gate Pass Not Yet Valid';
               subtitle = 'This pass is not active yet.';
+            } else if (status == 'used') {
+              title = 'Gate Pass Already Used';
+              subtitle = 'This pass has already been scanned.';
             } else {
               title = 'Gate Pass Invalid';
               subtitle = pass['itemDescription'] as String? ?? 'Gate Pass';
@@ -166,9 +175,14 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen>
                 'Unit': 'Unit $unit',
                 'Valid Until': validTo,
                 'Status': (pass['status'] as String? ?? '-').toUpperCase(),
+                if (creator != null) 'Created by': creator.toString(),
+                if (decision != null) 'Decision': decision.toString(),
+                if (scannedAtStr != null) 'Scanned at': _fmtDateTime(scannedAtStr),
+                if (scannedBy != null) 'Scanned by': scannedBy.toString(),
                 if (pass['reason'] != null) 'Reason': pass['reason'] as String,
               },
               rawCode: normalized,
+              canDecide: isValid,
             );
           }
         } on DioException catch (_) {
@@ -627,20 +641,22 @@ class _ProcessingOverlay extends StatelessWidget {
 
 // ── Full-screen result overlay ─────────────────────────────────────────────────
 
-class _ResultOverlay extends StatefulWidget {
+class _ResultOverlay extends ConsumerStatefulWidget {
   final QrScanResult result;
   final VoidCallback onRescan;
   const _ResultOverlay({required this.result, required this.onRescan});
 
   @override
-  State<_ResultOverlay> createState() => _ResultOverlayState();
+  ConsumerState<_ResultOverlay> createState() => _ResultOverlayState();
 }
 
-class _ResultOverlayState extends State<_ResultOverlay>
+class _ResultOverlayState extends ConsumerState<_ResultOverlay>
     with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
   late Animation<double> _scaleAnim;
   late Animation<double> _fadeAnim;
+  bool _submittingDecision = false;
+  QrScanResult? _overrideResult;
 
   @override
   void initState() {
@@ -660,11 +676,13 @@ class _ResultOverlayState extends State<_ResultOverlay>
 
   @override
   Widget build(BuildContext context) {
-    final isValid = widget.result.isValid;
+    final r = _overrideResult ?? widget.result;
+    final isValid = r.isValid;
     final color = isValid ? AppColors.success : AppColors.danger;
     final bgColor = isValid ? const Color(0xFF052E16) : const Color(0xFF450A0A);
     final icon = isValid ? Icons.check_circle_rounded : Icons.cancel_rounded;
-    final typeIcon = _typeIcon(widget.result.type);
+    final typeIcon = _typeIcon(r.type);
+    final isGatePass = r.type == 'gatepass';
 
     return FadeTransition(
       opacity: _fadeAnim,
@@ -703,7 +721,7 @@ class _ResultOverlayState extends State<_ResultOverlay>
                           Icon(typeIcon, size: 13, color: Colors.white70),
                           const SizedBox(width: 5),
                           Text(
-                            _typeLabel(widget.result.type),
+                            _typeLabel(r.type),
                             style: AppTextStyles.labelSmall
                                 .copyWith(color: Colors.white70),
                           ),
@@ -734,7 +752,7 @@ class _ResultOverlayState extends State<_ResultOverlay>
                     ),
                     const SizedBox(height: 24),
                     Text(
-                      widget.result.title,
+                      r.title,
                       style: AppTextStyles.displayMedium
                           .copyWith(color: Colors.white, fontSize: 26),
                       textAlign: TextAlign.center,
@@ -743,7 +761,7 @@ class _ResultOverlayState extends State<_ResultOverlay>
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 40),
                       child: Text(
-                        widget.result.subtitle,
+                        r.subtitle,
                         style: AppTextStyles.bodyMedium
                             .copyWith(color: Colors.white70),
                         textAlign: TextAlign.center,
@@ -765,7 +783,7 @@ class _ResultOverlayState extends State<_ResultOverlay>
                 ),
                 child: Column(
                   children: [
-                    ...widget.result.details.entries.map((e) => Padding(
+                    ...r.details.entries.map((e) => Padding(
                           padding: const EdgeInsets.symmetric(vertical: 8),
                           child: Row(
                             children: [
@@ -779,7 +797,7 @@ class _ResultOverlayState extends State<_ResultOverlay>
                             ],
                           ),
                         )),
-                    if (widget.result.rawCode != null) ...[
+                    if (r.rawCode != null) ...[
                       const Divider(color: Colors.white12, height: 20),
                       Row(
                         children: [
@@ -788,7 +806,7 @@ class _ResultOverlayState extends State<_ResultOverlay>
                                   .copyWith(color: Colors.white38)),
                           const Spacer(),
                           Text(
-                            widget.result.rawCode!,
+                            r.rawCode!,
                             style: AppTextStyles.labelMedium
                                 .copyWith(
                                     color: Colors.white54,
@@ -809,7 +827,7 @@ class _ResultOverlayState extends State<_ResultOverlay>
                   children: [
                     Expanded(
                       child: GestureDetector(
-                        onTap: widget.onRescan,
+                        onTap: _submittingDecision ? null : widget.onRescan,
                         child: Container(
                           height: 52,
                           decoration: BoxDecoration(
@@ -835,7 +853,16 @@ class _ResultOverlayState extends State<_ResultOverlay>
                     const SizedBox(width: 12),
                     Expanded(
                       child: GestureDetector(
-                        onTap: () => Navigator.of(context).pop(),
+                        onTap: _submittingDecision
+                            ? null
+                            : () async {
+                                if (isGatePass && r.canDecide && r.rawCode != null) {
+                                  // Default action: approve (quick tap).
+                                  await _submitDecision(r.rawCode!, 'APPROVED');
+                                  return;
+                                }
+                                if (context.mounted) Navigator.of(context).pop();
+                              },
                         child: Container(
                           height: 52,
                           decoration: BoxDecoration(
@@ -845,19 +872,34 @@ class _ResultOverlayState extends State<_ResultOverlay>
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(
-                                isValid
-                                    ? Icons.done_all_rounded
-                                    : Icons.arrow_back_rounded,
-                                color: Colors.white,
-                                size: 18,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                isValid ? 'Allow Entry' : 'Deny Entry',
-                                style: AppTextStyles.labelLarge
-                                    .copyWith(color: Colors.white),
-                              ),
+                              if (_submittingDecision)
+                                const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              else ...[
+                                Icon(
+                                  isGatePass && r.canDecide
+                                      ? Icons.verified_rounded
+                                      : (isValid
+                                          ? Icons.done_all_rounded
+                                          : Icons.arrow_back_rounded),
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  isGatePass && r.canDecide
+                                      ? 'Approve'
+                                      : (isValid ? 'Allow Entry' : 'Back'),
+                                  style: AppTextStyles.labelLarge
+                                      .copyWith(color: Colors.white),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -866,11 +908,120 @@ class _ResultOverlayState extends State<_ResultOverlay>
                   ],
                 ),
               ),
+
+              // Gate pass reject button (only when valid + undecided)
+              if (isGatePass && r.canDecide && r.rawCode != null) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: OutlinedButton.icon(
+                      onPressed: _submittingDecision
+                          ? null
+                          : () => _submitDecision(r.rawCode!, 'REJECTED'),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.35)),
+                        foregroundColor: Colors.white,
+                      ),
+                      icon: const Icon(Icons.block_rounded, size: 18),
+                      label: const Text('Reject'),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _submitDecision(String passCode, String decision) async {
+    setState(() => _submittingDecision = true);
+    try {
+      final dio = ref.read(dioProvider);
+      final res = await dio.post('gatepasses/scan', data: {
+        'passCode': passCode,
+        'decision': decision,
+      });
+      final data = res.data['data'] as Map<String, dynamic>? ?? {};
+      final scannedAt = data['scannedAt'] as String?;
+      final scannedBy = data['scannedBy'] is Map ? data['scannedBy']['name'] : null;
+      final unit = data['unit'] is Map ? data['unit']['fullCode'] : null;
+      final creator = data['createdBy'] is Map ? data['createdBy']['name'] : null;
+      final desc = data['itemDescription'] as String? ?? 'Gate Pass';
+
+      final approved = decision.toUpperCase() == 'APPROVED';
+      setState(() {
+        _overrideResult = QrScanResult(
+          isValid: approved,
+          type: 'gatepass',
+          title: approved ? 'Gate Pass Approved' : 'Gate Pass Rejected',
+          subtitle: desc,
+          details: {
+            if (unit != null) 'Unit': 'Unit $unit',
+            if (creator != null) 'Created by': creator.toString(),
+            'Decision': decision.toUpperCase(),
+            if (scannedAt != null) 'Scanned at': _fmtDateTime(scannedAt),
+            if (scannedBy != null) 'Scanned by': scannedBy.toString(),
+          },
+          rawCode: passCode,
+          canDecide: false,
+        );
+        _submittingDecision = false;
+      });
+      HapticFeedback.heavyImpact();
+    } on DioException catch (e) {
+      final body = e.response?.data;
+      String msg = 'Could not submit decision';
+      Map<String, String> details = {};
+      if (body is Map) {
+        msg = body['message']?.toString() ?? msg;
+        final d = body['data'];
+        if (d is Map) {
+          final when = d['scannedAt']?.toString();
+          final by = d['scannedBy']?.toString();
+          final dec = d['decision']?.toString();
+          details = {
+            if (dec != null) 'Decision': dec,
+            if (when != null) 'Scanned at': _fmtDateTime(when),
+            if (by != null) 'Scanned by': by,
+          };
+        }
+      }
+      setState(() {
+        _overrideResult = QrScanResult(
+          isValid: false,
+          type: 'gatepass',
+          title: 'Gate Pass Not Allowed',
+          subtitle: msg,
+          details: details,
+          rawCode: passCode,
+          canDecide: false,
+        );
+        _submittingDecision = false;
+      });
+    } catch (_) {
+      setState(() => _submittingDecision = false);
+    }
+  }
+
+  String _fmtDateTime(String? iso) {
+    if (iso == null) return '-';
+    try {
+      final dt = DateTime.parse(iso).toLocal();
+      const m = [
+        'Jan','Feb','Mar','Apr','May','Jun',
+        'Jul','Aug','Sep','Oct','Nov','Dec'
+      ];
+      final h = dt.hour.toString().padLeft(2, '0');
+      final min = dt.minute.toString().padLeft(2, '0');
+      return '${dt.day} ${m[dt.month - 1]} ${dt.year}, $h:$min';
+    } catch (_) {
+      return iso;
+    }
   }
 
   IconData _typeIcon(String type) {

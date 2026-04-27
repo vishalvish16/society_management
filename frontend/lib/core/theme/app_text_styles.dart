@@ -9,80 +9,67 @@ class AppTextStyles {
   static TextStyle get displayLarge => GoogleFonts.plusJakartaSans(
         fontSize: 28,
         fontWeight: FontWeight.w800,
-        color: AppColors.textPrimary,
       );
 
   static TextStyle get displayMedium => GoogleFonts.plusJakartaSans(
         fontSize: 22,
         fontWeight: FontWeight.w800,
-        color: AppColors.textPrimary,
       );
 
   static TextStyle get h1 => GoogleFonts.plusJakartaSans(
         fontSize: 20,
         fontWeight: FontWeight.w700,
-        color: AppColors.textPrimary,
       );
 
   static TextStyle get h2 => GoogleFonts.plusJakartaSans(
         fontSize: 16,
         fontWeight: FontWeight.w700,
-        color: AppColors.textPrimary,
       );
 
   static TextStyle get unitCode => GoogleFonts.plusJakartaSans(
         fontSize: 15,
         fontWeight: FontWeight.w700,
-        color: AppColors.textPrimary,
       );
 
   static TextStyle get amountLarge => GoogleFonts.plusJakartaSans(
         fontSize: 24,
         fontWeight: FontWeight.w800,
-        color: AppColors.textPrimary,
       );
 
   // ── Body / Labels (Inter) ───────────────────────────────────────────────────
   static TextStyle get h3 => GoogleFonts.inter(
         fontSize: 14,
         fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
       );
 
   static TextStyle get bodyLarge => GoogleFonts.inter(
         fontSize: 14,
         fontWeight: FontWeight.w400,
-        color: AppColors.textPrimary,
       );
 
   static TextStyle get bodyMedium => GoogleFonts.inter(
         fontSize: 13,
         fontWeight: FontWeight.w400,
-        color: AppColors.textPrimary,
       );
 
   static TextStyle get bodySmall => GoogleFonts.inter(
         fontSize: 12,
         fontWeight: FontWeight.w400,
-        color: AppColors.textPrimary,
       );
 
   static TextStyle get labelLarge => GoogleFonts.inter(
         fontSize: 12,
         fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
       );
 
   static TextStyle get labelMedium => GoogleFonts.inter(
         fontSize: 11,
         fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
       );
 
   static TextStyle get labelSmall => GoogleFonts.inter(
         fontSize: 10,
         fontWeight: FontWeight.w500,
-        color: AppColors.textPrimary,
       );
 
   static TextStyle get caption => GoogleFonts.inter(

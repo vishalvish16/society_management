@@ -55,8 +55,8 @@ class PaymentSettingsNotifier
     fetch();
   }
 
-  Future<void> fetch() async {
-    state = const AsyncValue.loading();
+  Future<void> fetch({bool showLoading = true}) async {
+    if (showLoading) state = const AsyncValue.loading();
     try {
       final dio = ref.read(dioProvider);
       final res = await dio.get('settings/payment');

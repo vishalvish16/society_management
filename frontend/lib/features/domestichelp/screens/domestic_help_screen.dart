@@ -459,212 +459,217 @@ class _HelperFormState extends ConsumerState<_HelperForm> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppDimensions.screenPadding,
-        AppDimensions.lg,
-        AppDimensions.screenPadding,
-        MediaQuery.of(context).viewInsets.bottom + AppDimensions.lg,
-      ),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.border,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: AppDimensions.lg),
-            Text(_isEdit ? 'Edit Helper' : 'Add Helper', style: AppTextStyles.h1),
-            const SizedBox(height: AppDimensions.lg),
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Name',
-                prefixIcon: Icon(Icons.person_rounded),
-              ),
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-            ),
-            const SizedBox(height: AppDimensions.md),
-            // Profile Photo Picker
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 70,
-                  height: 70,
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    return SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: EdgeInsets.fromLTRB(
+          AppDimensions.screenPadding,
+          AppDimensions.lg,
+          AppDimensions.screenPadding,
+          bottomInset + AppDimensions.lg,
+        ),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceVariant,
-                    borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-                    border: Border.all(color: AppColors.border),
-                    image: _pickedFile != null && _pickedFile!.bytes != null
-                        ? DecorationImage(
-                            image: MemoryImage(_pickedFile!.bytes!),
-                            fit: BoxFit.cover,
-                          )
-                        : (widget.existing?['photoUrl'] != null
-                            ? DecorationImage(
-                                image: NetworkImage(
-                                    '${AppConstants.apiBaseUrl.replaceAll('/api/', '')}${widget.existing!['photoUrl']}'),
-                                fit: BoxFit.cover,
-                              )
-                            : null),
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  child: (_pickedFile == null && widget.existing?['photoUrl'] == null)
-                      ? const Icon(Icons.person_rounded, color: AppColors.textMuted)
-                      : null,
                 ),
-                const SizedBox(width: AppDimensions.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Profile Photo', style: AppTextStyles.labelLarge),
-                      Text(
-                        _pickedFile != null
-                            ? 'New photo selected'
-                            : 'Camera or attach from device',
-                        style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
-                      ),
-                      const SizedBox(height: AppDimensions.sm),
-                      Wrap(
-                        spacing: AppDimensions.sm,
-                        runSpacing: AppDimensions.sm,
-                        children: [
-                          OutlinedButton.icon(
-                            onPressed: _takePhotoFromCamera,
-                            icon: const Icon(Icons.photo_camera_outlined, size: 18),
-                            label: const Text('Camera'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.primary,
-                              side: const BorderSide(color: AppColors.border),
-                              shape: RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(AppDimensions.radiusMd),
-                              ),
-                            ),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: _pickImageFromFiles,
-                            icon: const Icon(Icons.attach_file_rounded, size: 18),
-                            label: const Text('Attach'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.primary,
-                              side: const BorderSide(color: AppColors.border),
-                              shape: RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(AppDimensions.radiusMd),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (_pickedFile != null || widget.existing?['photoUrl'] != null)
-                        TextButton(
-                          onPressed: () => setState(() => _pickedFile = null),
-                          style: TextButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: Text('Reset', style: AppTextStyles.labelSmall.copyWith(color: AppColors.danger)),
+              ),
+              const SizedBox(height: AppDimensions.lg),
+              Text(_isEdit ? 'Edit Helper' : 'Add Helper', style: AppTextStyles.h1),
+              const SizedBox(height: AppDimensions.lg),
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Name',
+                  prefixIcon: Icon(Icons.person_rounded),
+                ),
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: AppDimensions.md),
+              // Profile Photo Picker
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 70,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceVariant,
+                      borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+                      border: Border.all(color: AppColors.border),
+                      image: _pickedFile != null && _pickedFile!.bytes != null
+                          ? DecorationImage(
+                              image: MemoryImage(_pickedFile!.bytes!),
+                              fit: BoxFit.cover,
+                            )
+                          : (widget.existing?['photoUrl'] != null
+                              ? DecorationImage(
+                                  image: NetworkImage(
+                                      '${AppConstants.apiBaseUrl.replaceAll('/api/', '')}${widget.existing!['photoUrl']}'),
+                                  fit: BoxFit.cover,
+                                )
+                              : null),
+                    ),
+                    child: (_pickedFile == null && widget.existing?['photoUrl'] == null)
+                        ? const Icon(Icons.person_rounded, color: AppColors.textMuted)
+                        : null,
+                  ),
+                  const SizedBox(width: AppDimensions.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Profile Photo', style: AppTextStyles.labelLarge),
+                        Text(
+                          _pickedFile != null ? 'New photo selected' : 'Camera or attach from device',
+                          style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
                         ),
-                    ],
+                        const SizedBox(height: AppDimensions.sm),
+                        Wrap(
+                          spacing: AppDimensions.sm,
+                          runSpacing: AppDimensions.sm,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: _takePhotoFromCamera,
+                              icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                              label: const Text('Camera'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.primary,
+                                side: const BorderSide(color: AppColors.border),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                                ),
+                              ),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: _pickImageFromFiles,
+                              icon: const Icon(Icons.attach_file_rounded, size: 18),
+                              label: const Text('Attach'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.primary,
+                                side: const BorderSide(color: AppColors.border),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_pickedFile != null || widget.existing?['photoUrl'] != null)
+                          TextButton(
+                            onPressed: () => setState(() => _pickedFile = null),
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Text(
+                              'Reset',
+                              style: AppTextStyles.labelSmall.copyWith(color: AppColors.danger),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppDimensions.md),
+              AppSearchableDropdown<String>(
+                label: 'Type',
+                value: _selectedType,
+                items: _helperTypes.map((t) => AppDropdownItem(value: t, label: t)).toList(),
+                onChanged: (v) {
+                  if (v != null) setState(() => _selectedType = v);
+                },
+              ),
+              if (!_isEdit && !_lockUnit) ...[
+                const SizedBox(height: AppDimensions.md),
+                UnitPickerField(
+                  selectedUnitId: _selectedUnitId,
+                  selectedUnitCode: _selectedUnitCode,
+                  onChanged: (id, code) => setState(() {
+                    _selectedUnitId = id;
+                    _selectedUnitCode = code;
+                  }),
+                ),
+              ],
+              const SizedBox(height: AppDimensions.md),
+              TextFormField(
+                controller: _phoneController,
+                decoration: const InputDecoration(
+                  labelText: 'Phone (Optional)',
+                  prefixIcon: Icon(Icons.phone_rounded),
+                ),
+                keyboardType: TextInputType.phone,
+              ),
+              if (!_isEdit) ...[
+                const SizedBox(height: AppDimensions.md),
+                TextFormField(
+                  controller: _entryCodeController,
+                  decoration: const InputDecoration(
+                    labelText: 'Entry Code (Optional)',
+                    prefixIcon: Icon(Icons.vpn_key_rounded),
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: AppDimensions.md),
-
-            AppSearchableDropdown<String>(
-              label: 'Type',
-              value: _selectedType,
-              items: _helperTypes.map((t) => AppDropdownItem(value: t, label: t)).toList(),
-              onChanged: (v) { if (v != null) setState(() => _selectedType = v); },
-            ),
-            if (!_isEdit && !_lockUnit) ...[
               const SizedBox(height: AppDimensions.md),
-              UnitPickerField(
-                selectedUnitId: _selectedUnitId,
-                selectedUnitCode: _selectedUnitCode,
-                onChanged: (id, code) => setState(() {
-                  _selectedUnitId = id;
-                  _selectedUnitCode = code;
-                }),
-              ),
-            ],
-            const SizedBox(height: AppDimensions.md),
-            TextFormField(
-              controller: _phoneController,
-              decoration: const InputDecoration(
-                labelText: 'Phone (Optional)',
-                prefixIcon: Icon(Icons.phone_rounded),
-              ),
-              keyboardType: TextInputType.phone,
-            ),
-            if (!_isEdit) ...[
-              const SizedBox(height: AppDimensions.md),
-              TextFormField(
-                controller: _entryCodeController,
-                decoration: const InputDecoration(
-                  labelText: 'Entry Code (Optional)',
-                  prefixIcon: Icon(Icons.vpn_key_rounded),
-                ),
-              ),
-            ],
-            const SizedBox(height: AppDimensions.md),
-            if (_errorMsg != null) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(AppDimensions.sm),
-                margin: const EdgeInsets.only(bottom: AppDimensions.md),
-                decoration: BoxDecoration(
-                  color: AppColors.dangerSurface,
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
-                ),
-                child: Text(
-                  _errorMsg!,
-                  style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText),
-                ),
-              ),
-            ],
-            const SizedBox(height: AppDimensions.xl),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.textOnPrimary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+              if (_errorMsg != null) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(AppDimensions.sm),
+                  margin: const EdgeInsets.only(bottom: AppDimensions.md),
+                  decoration: BoxDecoration(
+                    color: AppColors.dangerSurface,
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                  ),
+                  child: Text(
+                    _errorMsg!,
+                    style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText),
                   ),
                 ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          color: AppColors.textOnPrimary,
-                          strokeWidth: 2,
+              ],
+              const SizedBox(height: AppDimensions.xl),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.textOnPrimary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                    ),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: AppColors.textOnPrimary,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Text(
+                          _isEdit ? 'Update Helper' : 'Add Helper',
+                          style: AppTextStyles.buttonLarge,
                         ),
-                      )
-                    : Text(
-                        _isEdit ? 'Update Helper' : 'Add Helper',
-                        style: AppTextStyles.buttonLarge,
-                      ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

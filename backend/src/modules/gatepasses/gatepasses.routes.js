@@ -13,6 +13,12 @@ router.get(
   c.verifyGatePass,
 );
 
+router.get(
+  '/:id/logs',
+  checkPlanLimit('gate_passes'),
+  c.listGatePassLogs,
+);
+
 router.get('/mine', roleGuard(['RESIDENT', 'MEMBER']), checkPlanLimit('gate_passes'), c.listMyGatePasses);
 router.get('/', checkPlanLimit('gate_passes'), c.listGatePasses);
 router.post('/', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'RESIDENT', 'MEMBER']), checkPlanLimit('gate_passes'), c.createGatePass);

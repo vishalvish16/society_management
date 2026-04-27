@@ -240,9 +240,32 @@ async function approveWalkin(req, res) {
       return sendError(res, 'Visitor approval already resolved', 400);
     }
 
-    const updated = await prisma.visitor.update({
-      where: { id },
-      data: { approvalStatus: upper, approvedById: userId, approvedAt: new Date() },
+    const now = new Date();
+    const updated = await prisma.$transaction(async (tx) => {
+      const v = await tx.visitor.update({
+        where: { id },
+        data: {
+          approvalStatus: upper,
+          approvedById: userId,
+          approvedAt: now,
+          // Important: update primary status so lists don't stay "pending" after approval/denial.
+          status: upper === 'APPROVED' ? 'USED' : 'EXPIRED',
+        },
+      });
+
+      // For walk-ins with photo, no QR scan happens; record a log so reports show an entry.
+      if (upper === 'APPROVED') {
+        await tx.visitorLog.create({
+          data: {
+            visitorId: id,
+            // invitedById is the watchman who logged the walk-in entry
+            scannedById: visitor.invitedById,
+            scanResult: 'VALID',
+          },
+        });
+      }
+
+      return v;
     });
 
     // Notify watchman via socket + push
