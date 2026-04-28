@@ -110,18 +110,11 @@ class _BillAuditLogsScreenState extends ConsumerState<BillAuditLogsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        title: Text(
-          _billIdFilter == null ? 'Bill Audit Logs' : 'Bill History',
-          style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary),
-        ),
-      ),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           Container(
-            color: AppColors.surface,
+            color: Theme.of(context).colorScheme.surface,
             padding: const EdgeInsets.symmetric(
               horizontal: AppDimensions.screenPadding,
               vertical: AppDimensions.sm,

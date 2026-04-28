@@ -119,7 +119,7 @@ class _PaymentSettingsScreenState
     final settingsAsync = ref.watch(paymentSettingsProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         title: Text('Payment Settings',
@@ -491,7 +491,7 @@ class _PaymentSettingsScreenState
           Icon(icon, size: 18, color: AppColors.primary),
           const SizedBox(width: AppDimensions.sm),
           Text(title,
-              style: AppTextStyles.h3.copyWith(color: AppColors.textPrimary)),
+              style: AppTextStyles.h3.copyWith(color: Theme.of(context).colorScheme.onSurface)),
         ],
       );
 

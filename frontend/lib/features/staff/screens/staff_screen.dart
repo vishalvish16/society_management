@@ -57,7 +57,7 @@ class StaffScreen extends ConsumerWidget {
 
     final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: isWide
           ? AppBar(
               backgroundColor: AppColors.primary,

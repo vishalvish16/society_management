@@ -18,17 +18,7 @@ class PendingApprovalsScreen extends ConsumerWidget {
     final approvalsAsync = ref.watch(pendingWalkinApprovalsProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        title: Text('Gate Approvals', style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: AppColors.textOnPrimary),
-            onPressed: () => ref.read(pendingWalkinApprovalsProvider.notifier).fetch(),
-          ),
-        ],
-      ),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: approvalsAsync.when(
         loading: () => const AppLoadingShimmer(),
         error: (e, _) => Center(

@@ -18,6 +18,7 @@ import '../../../shared/widgets/app_date_picker.dart';
 import 'upi_pay_sheet.dart';
 import '../../settings/screens/bill_schedule_screen.dart';
 import '../../plans/screens/plans_screen.dart';
+import '../../../shared/widgets/app_page_header.dart';
 
 class BillsScreen extends ConsumerStatefulWidget {
   const BillsScreen({super.key});
@@ -25,6 +26,7 @@ class BillsScreen extends ConsumerStatefulWidget {
   @override
   ConsumerState<BillsScreen> createState() => _BillsScreenState();
 }
+
 
 class _BillsScreenState extends ConsumerState<BillsScreen> {
   String _statusFilter = 'all';
@@ -189,6 +191,39 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
           : null,
       body: Column(
         children: [
+          AppPageHeader(
+            title: 'Bills',
+            icon: Icons.receipt_long_rounded,
+            actions: isAdmin
+                ? [
+                    IconButton(
+                      icon: const Icon(Icons.history_rounded),
+                      tooltip: 'Audit Logs',
+                      onPressed: () => context.push('/bills/audit-logs'),
+                    ),
+                    IconButton(
+                      icon: Icon(hasBillSchedules ? Icons.schedule_rounded : Icons.lock_rounded),
+                      tooltip: hasBillSchedules ? 'Bill Schedule' : 'Bill Schedule (Premium)',
+                      onPressed: () {
+                        if (hasBillSchedules) {
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => const BillScheduleScreen()));
+                        } else {
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => const PlansScreen()));
+                        }
+                      },
+                    ),
+                  ]
+                : [],
+            filterRow: AppFilterChipRow(
+              darkBackground: true,
+              selected: _statusFilter,
+              onSelected: (s) => setState(() => _statusFilter = s),
+              options: [
+                for (final s in ['all', 'pending', 'paid', 'overdue'])
+                  FilterOption(s, s[0].toUpperCase() + s.substring(1)),
+              ],
+            ),
+          ),
           Container(
             color: Theme.of(context).colorScheme.surface,
             padding: const EdgeInsets.symmetric(
@@ -808,179 +843,188 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
                 AppDimensions.screenPadding,
                 MediaQuery.of(ctx).viewInsets.bottom + AppDimensions.xxxl,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 36,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppColors.border,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: AppDimensions.lg),
-                  const Text(
-                    'Record Advance Maintenance',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: AppDimensions.md),
-                  unitsAsync.when(
-                    loading: () => const LinearProgressIndicator(),
-                    error: (e, _) => Text('Error loading units: $e'),
-                    data: (units) => AppSearchableDropdown<String>(
-                      label: 'Select Unit *',
-                      value: selectedUnitId,
-                      items: units
-                          .map(
-                            (u) => AppDropdownItem(
-                              value: u['id'] as String,
-                              label: u['fullCode'] as String,
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (v) => setDlgState(() => selectedUnitId = v),
-                    ),
-                  ),
-                  const SizedBox(height: AppDimensions.md),
-                  AppSearchableDropdown<int>(
-                    label: 'Advance Cycle',
-                    value: cycleMonths,
-                    items: const [
-                      AppDropdownItem(value: 1, label: 'Monthly'),
-                      AppDropdownItem(value: 6, label: 'Half-Yearly'),
-                      AppDropdownItem(value: 12, label: 'Yearly'),
-                    ],
-                    onChanged: (v) {
-                      if (v != null) {
-                        setDlgState(() {
-                          cycleMonths = v;
-                          monthsController.text = '$v';
-                        });
-                      }
-                    },
-                  ),
-                  const SizedBox(height: AppDimensions.md),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: monthsController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'No. of Months',
-                            border: OutlineInputBorder(),
-                          ),
+              child: SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppColors.border,
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                      const SizedBox(width: AppDimensions.md),
-                      Expanded(
-                        child: TextField(
-                          controller: amountController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Amount/Month',
-                            prefixText: '₹',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppDimensions.md),
-                  AppDateField(
-                    label: 'Advance Start Month',
-                    value: startDate,
-                    onTap: () async {
-                      final picked = await pickSingleDate(
-                        ctx,
-                        initial: startDate,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime(2100),
-                      );
-                      if (picked != null) setDlgState(() => startDate = picked);
-                    },
-                  ),
-                  const SizedBox(height: AppDimensions.md),
-                  AppSearchableDropdown<String>(
-                    label: 'Payment Method *',
-                    value: paymentMethod,
-                    items: const [
-                      AppDropdownItem(value: 'UPI', label: 'UPI'),
-                      AppDropdownItem(value: 'CASH', label: 'Cash'),
-                      AppDropdownItem(
-                        value: 'BANK_TRANSFER',
-                        label: 'Bank Transfer',
-                      ),
-                    ],
-                    onChanged: (v) {
-                      if (v != null) setDlgState(() => paymentMethod = v);
-                    },
-                  ),
-                  const SizedBox(height: AppDimensions.md),
-                  TextField(
-                    controller: notesController,
-                    decoration: const InputDecoration(
-                      labelText: 'Notes (Optional)',
-                      border: OutlineInputBorder(),
                     ),
-                  ),
-                  const SizedBox(height: AppDimensions.lg),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: () async {
-                        if (selectedUnitId == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Please select a unit'),
-                            ),
-                          );
-                          return;
-                        }
-                        final months = int.tryParse(monthsController.text) ?? 0;
-                        final amt = double.tryParse(amountController.text) ?? 0;
-                        if (months <= 0 || amt <= 0) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Please enter valid count and amount',
+                    const SizedBox(height: AppDimensions.lg),
+                    const Text(
+                      'Record Advance Maintenance',
+                      style:
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: AppDimensions.md),
+                    unitsAsync.when(
+                      loading: () => const LinearProgressIndicator(),
+                      error: (e, _) => Text('Error loading units: $e'),
+                      data: (units) => AppSearchableDropdown<String>(
+                        label: 'Select Unit *',
+                        value: selectedUnitId,
+                        items: units
+                            .map(
+                              (u) => AppDropdownItem(
+                                value: u['id'] as String,
+                                label: u['fullCode'] as String,
                               ),
-                            ),
-                          );
-                          return;
-                        }
-                        Navigator.pop(ctx);
-                        final error = await ref
-                            .read(billsProvider.notifier)
-                            .payAdvance(
-                              unitId: selectedUnitId!,
-                              monthsCount: months,
-                              amountPerMonth: amt,
-                              paymentMethod: paymentMethod,
-                              startDate: startDate,
-                              notes: notesController.text,
-                            );
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                error ?? 'Advance payment recorded',
-                              ),
-                              backgroundColor: error == null
-                                  ? AppColors.success
-                                  : AppColors.danger,
-                            ),
-                          );
+                            )
+                            .toList(),
+                        onChanged: (v) => setDlgState(() => selectedUnitId = v),
+                      ),
+                    ),
+                    const SizedBox(height: AppDimensions.md),
+                    AppSearchableDropdown<int>(
+                      label: 'Advance Cycle',
+                      value: cycleMonths,
+                      items: const [
+                        AppDropdownItem(value: 1, label: 'Monthly'),
+                        AppDropdownItem(value: 6, label: 'Half-Yearly'),
+                        AppDropdownItem(value: 12, label: 'Yearly'),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) {
+                          setDlgState(() {
+                            cycleMonths = v;
+                            monthsController.text = '$v';
+                          });
                         }
                       },
-                      child: const Text('Record Payment'),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: AppDimensions.md),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: monthsController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'No. of Months',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppDimensions.md),
+                        Expanded(
+                          child: TextField(
+                            controller: amountController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Amount/Month',
+                              prefixText: '₹',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppDimensions.md),
+                    AppDateField(
+                      label: 'Advance Start Month',
+                      value: startDate,
+                      onTap: () async {
+                        final picked = await pickSingleDate(
+                          ctx,
+                          initial: startDate,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2100),
+                        );
+                        if (picked != null) {
+                          setDlgState(() => startDate = picked);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: AppDimensions.md),
+                    AppSearchableDropdown<String>(
+                      label: 'Payment Method *',
+                      value: paymentMethod,
+                      items: const [
+                        AppDropdownItem(value: 'UPI', label: 'UPI'),
+                        AppDropdownItem(value: 'CASH', label: 'Cash'),
+                        AppDropdownItem(
+                          value: 'BANK_TRANSFER',
+                          label: 'Bank Transfer',
+                        ),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) setDlgState(() => paymentMethod = v);
+                      },
+                    ),
+                    const SizedBox(height: AppDimensions.md),
+                    TextField(
+                      controller: notesController,
+                      decoration: const InputDecoration(
+                        labelText: 'Notes (Optional)',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: AppDimensions.lg),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () async {
+                          if (selectedUnitId == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Please select a unit'),
+                              ),
+                            );
+                            return;
+                          }
+                          final months =
+                              int.tryParse(monthsController.text) ?? 0;
+                          final amt =
+                              double.tryParse(amountController.text) ?? 0;
+                          if (months <= 0 || amt <= 0) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Please enter valid count and amount',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+                          Navigator.pop(ctx);
+                          final error = await ref
+                              .read(billsProvider.notifier)
+                              .payAdvance(
+                                unitId: selectedUnitId!,
+                                monthsCount: months,
+                                amountPerMonth: amt,
+                                paymentMethod: paymentMethod,
+                                startDate: startDate,
+                                notes: notesController.text,
+                              );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  error ?? 'Advance payment recorded',
+                                ),
+                                backgroundColor: error == null
+                                    ? AppColors.success
+                                    : AppColors.danger,
+                              ),
+                            );
+                          }
+                        },
+                        child: const Text('Record Payment'),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           },

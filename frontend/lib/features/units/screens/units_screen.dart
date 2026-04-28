@@ -53,7 +53,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
 
     final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: isWide
           ? AppBar(
               backgroundColor: AppColors.primary,
@@ -252,7 +252,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
                                               : 'Vacant',
                                       style: AppTextStyles.bodySmall.copyWith(
                                         fontSize: 11,
-                                        color: AppColors.textPrimary,
+                                        color: Theme.of(context).colorScheme.onSurface,
                                         fontStyle: (residentNames.isNotEmpty || isRented) ? FontStyle.normal : FontStyle.italic,
                                       ),
                                       maxLines: 2,

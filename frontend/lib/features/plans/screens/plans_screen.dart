@@ -56,7 +56,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     final isWide = MediaQuery.of(context).size.width >= 768;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       floatingActionButton: isWide
           ? null
           : FloatingActionButton(

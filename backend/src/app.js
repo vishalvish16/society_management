@@ -74,6 +74,7 @@ app.use('/api/rentals', require('./modules/rentals/rentals.routes'));
 app.use('/api/tasks',   require('./modules/tasks/tasks.routes'));
 app.use('/api/rules',   require('./modules/rules/rules.routes'));
 app.use('/api/assets',  require('./modules/assets/assets.routes'));
+app.use('/api/wall',   require('./modules/wall/wall.routes'));
 
 // ── Health check ──────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ status: 'ok' }));

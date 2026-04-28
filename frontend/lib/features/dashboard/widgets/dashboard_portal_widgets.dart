@@ -5,8 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/models/search_result_model.dart';
+import '../../../core/models/user_model.dart';
+import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/global_search_provider.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../features/settings/providers/permissions_provider.dart';
 import '../../../core/theme/app_dimensions.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/app_card.dart';
@@ -296,16 +299,59 @@ class _DashboardGlobalSearchFieldState extends ConsumerState<DashboardGlobalSear
   }
 }
 
+/// Maps a search result route prefix to the role-permission feature key and optional plan feature key.
+/// Used to filter out results the user cannot navigate to.
+const _routeFeatureMap = <String, ({String roleKey, String? planKey})>{
+  '/members':      (roleKey: 'members',      planKey: null),
+  '/units':        (roleKey: 'units',        planKey: null),
+  '/bills':        (roleKey: 'bills',        planKey: null),
+  '/expenses':     (roleKey: 'expenses',     planKey: 'expenses'),
+  '/complaints':   (roleKey: 'complaints',   planKey: null),
+  '/suggestions':  (roleKey: 'suggestions',  planKey: null),
+  '/visitors':     (roleKey: 'visitors',     planKey: 'visitors'),
+  '/vehicles':     (roleKey: 'vehicles',     planKey: null),
+  '/deliveries':   (roleKey: 'deliveries',   planKey: 'delivery_tracking'),
+  '/domestichelp': (roleKey: 'domestic_help', planKey: 'domestic_help'),
+  '/staff':        (roleKey: 'staff',        planKey: null),
+  '/assets':       (roleKey: 'assets',       planKey: 'asset_management'),
+};
+
 class DashboardGlobalSearchOverlay extends ConsumerWidget {
   final LayerLink link;
   const DashboardGlobalSearchOverlay({super.key, required this.link});
+
+  bool _canNavigate(GlobalSearchResult result, UserModel? user, Map<String, bool>? rolePerms) {
+    if (user == null) return false;
+    if (user.role == 'SUPER_ADMIN') return true;
+    if (result.route.isEmpty) return false;
+
+    for (final entry in _routeFeatureMap.entries) {
+      final prefix = entry.key;
+      if (!result.route.startsWith(prefix)) continue;
+
+      // Plan gate
+      final planKey = entry.value.planKey;
+      if (planKey != null && !user.hasFeature(planKey)) return false;
+
+      // Role permission gate
+      final roleKey = entry.value.roleKey;
+      if (rolePerms != null && rolePerms[roleKey] != true) return false;
+
+      return true;
+    }
+    return true;
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final st = ref.watch(globalSearchProvider);
     if (st.query.length < 2) return const SizedBox.shrink();
 
-    final results = st.results;
+    final user = ref.watch(authProvider).user;
+    final rolePerms = ref.watch(rolePermissionsProvider).valueOrNull
+        ?.rolePermissions[user?.role.toUpperCase() ?? ''];
+
+    final results = st.results.where((r) => _canNavigate(r, user, rolePerms)).toList();
     final screenW = MediaQuery.sizeOf(context).width;
     final dropdownW = (screenW - AppDimensions.screenPadding * 2).clamp(260.0, 420.0);
 

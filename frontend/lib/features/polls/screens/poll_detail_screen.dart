@@ -88,7 +88,7 @@ class _PollDetailScreenState extends ConsumerState<PollDetailScreen> {
           }),
         },
         child: Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: isWide
           ? AppBar(
               backgroundColor: AppColors.primary,

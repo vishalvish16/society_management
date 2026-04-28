@@ -70,7 +70,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> with SingleTickerProv
     final avatarLetter = name.isNotEmpty ? name[0].toUpperCase() : 'U';
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Tasks'),
         actions: [
@@ -137,7 +137,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> with SingleTickerProv
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
                 children: [
                   Icon(Icons.task_alt_rounded, color: AppColors.primary, size: 28),
                   SizedBox(width: 10),
@@ -146,7 +146,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> with SingleTickerProv
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                 ],
@@ -248,17 +248,26 @@ class _TasksScreenState extends ConsumerState<TasksScreen> with SingleTickerProv
       decoration: BoxDecoration(
         border: Border.all(color: AppColors.border),
         borderRadius: BorderRadius.circular(10),
-        color: AppColors.surface,
+        color: Theme.of(context).colorScheme.surface,
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: value,
-          hint: Text(label, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+          hint: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
           items: items,
           onChanged: onChanged,
           isDense: true,
           isExpanded: true,
-          style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+          style: TextStyle(
+            fontSize: 13,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
         ),
       ),
     );
@@ -389,7 +398,11 @@ class _TaskCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       task.title,
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),

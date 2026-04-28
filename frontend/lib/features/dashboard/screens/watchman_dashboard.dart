@@ -495,7 +495,7 @@ class _ActivityCard extends StatelessWidget {
                       Expanded(
                           child: Text(row.label,
                               style: AppTextStyles.bodyMedium.copyWith(
-                                  color: AppColors.textPrimary))),
+                                  color: Theme.of(context).colorScheme.onSurface))),
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 4),

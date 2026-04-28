@@ -11,6 +11,7 @@ import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_empty_state.dart';
 import '../../../shared/widgets/app_loading_shimmer.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
+import '../../../shared/widgets/app_page_header.dart';
 import '../providers/events_provider.dart';
 
 class EventsScreen extends ConsumerStatefulWidget {
@@ -51,43 +52,78 @@ class _EventsScreenState extends ConsumerState<EventsScreen> with SingleTickerPr
       if (isAdmin) const Tab(text: 'All'),
     ];
 
+    final isWide = MediaQuery.of(context).size.width >= 720;
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        title: const Text('Events', style: TextStyle(color: Colors.white)),
-        bottom: TabBar(
-          controller: _tabCtrl,
-          tabs: tabs,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white.withValues(alpha: 0.8),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: () => ref.read(eventsProvider.notifier).refresh(),
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-          ),
-          if (isAdmin)
-            IconButton(
-              tooltip: 'Create event',
-              onPressed: () => _showCreateEventSheet(context, ref),
-              icon: const Icon(Icons.add_rounded, color: Colors.white),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: isWide
+          ? AppBar(
+              backgroundColor: AppColors.primary,
+              title: const Text('Events', style: TextStyle(color: Colors.white)),
+              bottom: TabBar(
+                controller: _tabCtrl,
+                tabs: tabs,
+                indicatorColor: Colors.white,
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.white.withValues(alpha: 0.8),
+              ),
+              actions: [
+                IconButton(
+                  tooltip: 'Refresh',
+                  onPressed: () => ref.read(eventsProvider.notifier).refresh(),
+                  icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                ),
+                if (isAdmin)
+                  IconButton(
+                    tooltip: 'Create event',
+                    onPressed: () => _showCreateEventSheet(context, ref),
+                    icon: const Icon(Icons.add_rounded, color: Colors.white),
+                  ),
+                const SizedBox(width: 8),
+              ],
+            )
+          : null,
+      body: Column(
+        children: [
+          AppPageHeader(
+            title: 'Events',
+            icon: Icons.event_rounded,
+            actions: [
+              IconButton(
+                tooltip: 'Refresh',
+                icon: const Icon(Icons.refresh_rounded),
+                onPressed: () => ref.read(eventsProvider.notifier).refresh(),
+              ),
+              if (isAdmin)
+                IconButton(
+                  tooltip: 'Create event',
+                  icon: const Icon(Icons.add_rounded),
+                  onPressed: () => _showCreateEventSheet(context, ref),
+                ),
+            ],
+            filterRow: TabBar(
+              controller: _tabCtrl,
+              tabs: tabs,
+              indicatorColor: Colors.white,
+              labelColor: Colors.white,
+              unselectedLabelColor: Colors.white.withValues(alpha: 0.65),
+              dividerColor: Colors.transparent,
+              padding: const EdgeInsets.symmetric(horizontal: AppDimensions.sm),
             ),
-          const SizedBox(width: 8),
+          ),
+          Expanded(
+            child: st.isLoading && st.events.isEmpty
+                ? const AppLoadingShimmer(itemCount: 4, itemHeight: 140)
+                : TabBarView(
+                    controller: _tabCtrl,
+                    children: [
+                      _EventList(events: _upcoming(st.events), isAdmin: isAdmin),
+                      _EventList(events: _past(st.events), isAdmin: isAdmin),
+                      if (isAdmin) _EventList(events: st.events, isAdmin: isAdmin),
+                    ],
+                  ),
+          ),
         ],
       ),
-      body: st.isLoading && st.events.isEmpty
-          ? const AppLoadingShimmer(itemCount: 4, itemHeight: 140)
-          : TabBarView(
-              controller: _tabCtrl,
-              children: [
-                _EventList(events: _upcoming(st.events), isAdmin: isAdmin),
-                _EventList(events: _past(st.events), isAdmin: isAdmin),
-                if (isAdmin) _EventList(events: st.events, isAdmin: isAdmin),
-              ],
-            ),
     );
   }
 

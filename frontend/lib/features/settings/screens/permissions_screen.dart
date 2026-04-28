@@ -121,11 +121,11 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
     final asyncData = ref.watch(rolePermissionsProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Role Permissions'),
-        backgroundColor: AppColors.surface,
-        foregroundColor: AppColors.textPrimary,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
         scrolledUnderElevation: 1,
         actions: [

@@ -327,8 +327,15 @@ async function listGatePassLogs(req, res, next) {
     const { id } = req.params;
     const societyId = req.user.societyId;
 
+    const looksLikePassCode = (v) =>
+      typeof v === 'string' && /^[0-9A-Fa-f]{8}$/.test(v.trim());
+
+    const where = looksLikePassCode(id)
+      ? { passCode: id.trim().toUpperCase() }
+      : { id };
+
     const gatePass = await prisma.gatePass.findUnique({
-      where: { id },
+      where,
       select: {
         id: true,
         societyId: true,
@@ -351,7 +358,7 @@ async function listGatePassLogs(req, res, next) {
     }
 
     const logs = await prisma.gatePassLog.findMany({
-      where: { gatePassId: id },
+      where: { gatePassId: gatePass.id },
       select: {
         id: true,
         result: true,

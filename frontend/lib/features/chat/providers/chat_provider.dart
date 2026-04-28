@@ -41,7 +41,7 @@ class ChatRoomsNotifier extends StateNotifier<AsyncValue<List<ChatRoom>>> {
     }
     
     try {
-      final res = await _client.dio.get('/chat/rooms');
+      final res = await _client.dio.get('chat/rooms');
       if (!mounted) return;
       
       final rooms = (res.data['rooms'] as List)
@@ -138,7 +138,7 @@ class ChatMessagesNotifier
       final before = existing.isNotEmpty ? existing.first.createdAt.toIso8601String() : null;
 
       final res = await _client.dio.get(
-        '/chat/rooms/$roomId/messages',
+        'chat/rooms/$roomId/messages',
         queryParameters: {
           'limit': 30,
           if (before != null) 'before': before,
@@ -255,7 +255,7 @@ class ChatApi {
 
   Future<ChatMessage> sendText(String roomId, String body) async {
     final res = await _client.dio.post(
-      '/chat/rooms/$roomId/messages',
+      'chat/rooms/$roomId/messages',
       data: {'type': 'TEXT', 'body': body},
     );
     return ChatMessage.fromJson(res.data['message']);
@@ -275,7 +275,7 @@ class ChatApi {
           .toList(),
     });
     final res = await _client.dio.post(
-      '/chat/rooms/$roomId/messages',
+      'chat/rooms/$roomId/messages',
       data: formData,
     );
     return ChatMessage.fromJson(res.data['message']);
@@ -292,40 +292,40 @@ class ChatApi {
       'files': MultipartFile.fromBytes(audioFile.bytes, filename: audioFile.name),
     });
     final res = await _client.dio.post(
-      '/chat/rooms/$roomId/messages',
+      'chat/rooms/$roomId/messages',
       data: formData,
     );
     return ChatMessage.fromJson(res.data['message']);
   }
 
   Future<void> markRead(String roomId) async {
-    await _client.dio.post('/chat/rooms/$roomId/read');
+    await _client.dio.post('chat/rooms/$roomId/read');
   }
 
   Future<bool> getMuteStatus(String roomId) async {
-    final res = await _client.dio.get('/chat/rooms/$roomId/mute');
+    final res = await _client.dio.get('chat/rooms/$roomId/mute');
     return res.data['isMuted'] == true;
   }
 
   Future<bool> setMute(String roomId, bool mute) async {
     final res = await _client.dio.post(
-      '/chat/rooms/$roomId/mute',
+      'chat/rooms/$roomId/mute',
       data: {'mute': mute},
     );
     return res.data['isMuted'] == true;
   }
 
   Future<void> deleteMessage(String messageId) async {
-    await _client.dio.delete('/chat/messages/$messageId');
+    await _client.dio.delete('chat/messages/$messageId');
   }
 
   Future<ChatRoom> getOrCreateDM(String userId) async {
-    final res = await _client.dio.post('/chat/dm/$userId');
+    final res = await _client.dio.post('chat/dm/$userId');
     return ChatRoom.fromJson(res.data['room']);
   }
 
   Future<ChatRoom> getGroupRoom() async {
-    final res = await _client.dio.get('/chat/group');
+    final res = await _client.dio.get('chat/group');
     return ChatRoom.fromJson(res.data['room']);
   }
 }

@@ -198,7 +198,7 @@ class VisitorQrPassScreen extends StatelessWidget {
         : '';
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         title: Text('Visitor Pass', style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
@@ -258,7 +258,7 @@ class VisitorQrPassScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Hello, $name!',
-                            style: AppTextStyles.h2.copyWith(color: AppColors.textPrimary)),
+                            style: AppTextStyles.h2.copyWith(color: Theme.of(context).colorScheme.onSurface)),
                         const SizedBox(height: 4),
                         Text(
                           'You have been invited to visit the society.\nPresent this QR code to the security guard.',
@@ -266,11 +266,11 @@ class VisitorQrPassScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 20),
 
-                        _infoRow('Visiting Unit', 'Unit $unit'),
-                        if (inviter != null) _infoRow('Invited by', inviter),
-                        if (phone != null && phone.isNotEmpty) _infoRow('Phone', phone),
-                        if (desc != null && desc.isNotEmpty) _infoRow('Vehicle / Note', desc),
-                        _infoRow('Valid Until', expires),
+                        _infoRow(context, 'Visiting Unit', 'Unit $unit'),
+                        if (inviter != null) _infoRow(context, 'Invited by', inviter),
+                        if (phone != null && phone.isNotEmpty) _infoRow(context, 'Phone', phone),
+                        if (desc != null && desc.isNotEmpty) _infoRow(context, 'Vehicle / Note', desc),
+                        _infoRow(context, 'Valid Until', expires),
 
                         const SizedBox(height: 24),
 
@@ -363,7 +363,7 @@ class VisitorQrPassScreen extends StatelessWidget {
     );
   }
 
-  Widget _infoRow(String label, String value) => Column(
+  Widget _infoRow(BuildContext context, String label, String value) => Column(
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 10),
@@ -375,7 +375,7 @@ class VisitorQrPassScreen extends StatelessWidget {
                 Flexible(
                   child: Text(value,
                       style: AppTextStyles.bodyMedium
-                          .copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+                          .copyWith(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w600),
                       textAlign: TextAlign.right),
                 ),
               ],

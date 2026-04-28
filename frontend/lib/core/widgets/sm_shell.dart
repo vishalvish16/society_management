@@ -64,6 +64,7 @@ class _SMShellState extends ConsumerState<SMShell> {
     _NavItem(icon: Icons.support_agent_rounded,          label: 'Staff',          path: '/staff',            group: 'Society', permissionKey: 'staff'),
     _NavItem(icon: Icons.local_shipping_rounded,         label: 'Deliveries',     path: '/deliveries',       group: 'Society', permissionKey: 'deliveries', featureKey: 'delivery_tracking'),
     _NavItem(icon: Icons.cleaning_services_rounded,      label: 'Domestic Help',  path: '/domestichelp',     group: 'Society', permissionKey: 'domestic_help', featureKey: 'domestic_help'),
+    _NavItem(icon: Icons.dynamic_feed_rounded,            label: 'Wall',           path: '/wall',             group: 'Society'),
     _NavItem(icon: Icons.chat_rounded,                   label: 'Messages',       path: '/chat',             group: 'More',    permissionKey: 'chat'),
     _NavItem(icon: Icons.notifications_rounded,          label: 'Notifications',  path: '/notifications',    group: 'More',    permissionKey: 'notifications'),
     _NavItem(icon: Icons.settings_rounded,               label: 'Settings',       path: '/settings',         group: 'More'),
@@ -71,6 +72,26 @@ class _SMShellState extends ConsumerState<SMShell> {
 
   // Paths hidden for member/resident roles — they see their unit in sidebar instead
   static const _memberHiddenPaths = {'/units', '/rentals', '/reports/balance'};
+
+  // Titles for sub-pages that don't match a nav item label.
+  static const _subPageTitles = {
+    '/bills/audit-logs': 'Bill Audit Logs',
+    '/visitors/pending-approvals': 'Gate Approvals',
+    '/donations/receipt': 'Donation Receipt',
+    '/settings/permissions': 'Role Permissions',
+    '/chat/members': 'New Message',
+    '/reports/balance': 'Balance Report',
+    '/reports/dues': 'Pending Dues',
+  };
+
+  String _shellTitle(String location, List<_NavItem> navItems, int safeIndex) {
+    for (final e in _subPageTitles.entries) {
+      if (location == e.key || location.startsWith('${e.key}/')) return e.value;
+    }
+    if (location.startsWith('/chat/room/')) return 'Messages';
+    if (navItems.isEmpty) return '';
+    return navItems[safeIndex].label;
+  }
 
   // Watchman sees only gate-related screens
   static const _watchmanNavItems = [
@@ -227,6 +248,7 @@ class _SMShellState extends ConsumerState<SMShell> {
         location != moduleRoot &&
         location.startsWith(moduleRoot);
 
+
     Future<void> doRefresh() async {
       // Replacing the current location rebuilds the screen, which is the closest
       // "refresh" behavior that works consistently for all pages.
@@ -277,7 +299,7 @@ class _SMShellState extends ConsumerState<SMShell> {
               title: Row(
                 children: [
                   Text(
-                    navItems[safeIndex].label,
+                    _shellTitle(location, navItems, safeIndex),
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                   // Unit chip for member/resident in the AppBar

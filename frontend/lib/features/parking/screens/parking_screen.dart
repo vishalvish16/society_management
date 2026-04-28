@@ -97,7 +97,7 @@ class _ParkingScreenState extends ConsumerState<ParkingScreen> {
     final state = ref.watch(parkingProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       floatingActionButton: _buildFab(context, isAdmin, isStaff, state),
       body: state.isLoading
           ? const AppLoadingShimmer(itemCount: 6, itemHeight: 120)

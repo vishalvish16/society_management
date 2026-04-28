@@ -373,6 +373,7 @@ model Society {
   tasks                    Task[]
   societyRules             SocietyRule[]
   assets                   Asset[]
+  wallPosts                WallPost[]
 
   @@map("societies")
 }
@@ -873,6 +874,9 @@ model User {
   societyRulesCreated  SocietyRule[]             @relation("SocietyRuleCreator")
   createdAssets        Asset[]                   @relation("CreatedAssets")
   assetMaintenanceLogs AssetMaintenanceLog[]     @relation("AssetMaintenanceLogs")
+  wallPosts            WallPost[]                @relation("WallPostAuthor")
+  wallComments         WallComment[]             @relation("WallCommentAuthor")
+  wallPostLikes        WallPostLike[]            @relation("WallPostLikes")
   householdMembers     HouseholdMember[]
 
   registeredVehicles Vehicle[] @relation("RegisteredVehicles")
@@ -1914,4 +1918,69 @@ model SocietyRule {
   @@index([societyId, isActive])
   @@index([societyId, category])
   @@map("society_rules")
+}
+
+// ─── Society Wall ─────────────────────────────────────────────────────────────
+
+model WallPost {
+  id          String            @id @default(uuid())
+  societyId   String
+  society     Society           @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User              @relation("WallPostAuthor", fields: [authorId], references: [id])
+  body        String?           // text content (optional if media present)
+  isHidden    Boolean           @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  media       WallPostMedia[]
+  comments    WallComment[]
+  likes       WallPostLike[]
+
+  @@index([societyId, deletedAt, isHidden, createdAt(sort: Desc)])
+  @@index([authorId])
+  @@map("wall_posts")
+}
+
+model WallPostMedia {
+  id        String    @id @default(uuid())
+  postId    String
+  post      WallPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  url       String
+  mediaType String    // IMAGE | VIDEO
+  fileName  String
+  fileSize  Int
+  sortOrder Int       @default(0)
+
+  @@index([postId])
+  @@map("wall_post_media")
+}
+
+model WallPostLike {
+  id        String   @id @default(uuid())
+  postId    String
+  post      WallPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation("WallPostLikes", fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@map("wall_post_likes")
+}
+
+model WallComment {
+  id        String    @id @default(uuid())
+  postId    String
+  post      WallPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User      @relation("WallCommentAuthor", fields: [authorId], references: [id])
+  body      String
+  isHidden  Boolean   @default(false)
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([postId, deletedAt, createdAt])
+  @@index([authorId])
+  @@map("wall_comments")
 }

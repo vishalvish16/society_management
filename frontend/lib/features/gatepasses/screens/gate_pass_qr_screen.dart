@@ -242,7 +242,7 @@ class _GatePassQrScreenState extends ConsumerState<GatePassQrScreen> {
         : null;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         title: Text('Gate Pass', style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
@@ -296,7 +296,7 @@ class _GatePassQrScreenState extends ConsumerState<GatePassQrScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(desc,
-                            style: AppTextStyles.h2.copyWith(color: AppColors.textPrimary)),
+                            style: AppTextStyles.h2.copyWith(color: Theme.of(context).colorScheme.onSurface)),
                         const SizedBox(height: 4),
                         Text(
                           'Show this QR code to the security guard at the gate.',
@@ -539,7 +539,7 @@ class _GatePassQrScreenState extends ConsumerState<GatePassQrScreen> {
                 Flexible(
                   child: Text(value,
                       style: AppTextStyles.bodyMedium.copyWith(
-                          color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+                          color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w600),
                       textAlign: TextAlign.right),
                 ),
               ],

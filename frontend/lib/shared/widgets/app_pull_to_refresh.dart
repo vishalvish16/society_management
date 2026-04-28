@@ -34,7 +34,11 @@ class AppPullToRefresh extends StatelessWidget {
           return SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              // IMPORTANT: give the child a *finite* height.
+              //
+              // If the child builds a Scaffold (even indirectly), it cannot be
+              // laid out with unbounded height (common when wrapped by a scroll view).
+              constraints: BoxConstraints.tightFor(height: constraints.maxHeight),
               child: child,
             ),
           );

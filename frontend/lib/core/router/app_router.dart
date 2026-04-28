@@ -50,6 +50,7 @@ import '../../features/assets/screens/assets_screen.dart';
 import '../../features/reports/screens/dues_report_screen.dart';
 import '../../features/tasks/screens/tasks_screen.dart';
 import '../../features/sos/screens/sos_alert_screen.dart';
+import '../../features/wall/screens/wall_screen.dart';
 import '../widgets/sa_shell.dart';
 import '../widgets/sm_shell.dart';
 
@@ -266,6 +267,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               notificationId: s.uri.queryParameters['notificationId'],
             ),
           ),
+          GoRoute(path: '/wall',            builder: (c, s) => const WallScreen()),
           GoRoute(path: '/chat/members',    builder: (c, s) => const ChatMemberListScreen()),
           GoRoute(
             path: '/chat/room/:roomId',

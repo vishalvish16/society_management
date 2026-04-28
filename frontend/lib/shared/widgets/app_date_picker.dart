@@ -319,7 +319,7 @@ class _CompactRangePickerDialogState extends State<_CompactRangePickerDialog> {
                 const Icon(Icons.date_range_rounded, color: AppColors.primary, size: 20),
                 const SizedBox(width: 8),
                 Text('Select Date Range',
-                    style: AppTextStyles.h2.copyWith(color: AppColors.textPrimary)),
+                    style: AppTextStyles.h2.copyWith(color: Theme.of(context).colorScheme.onSurface)),
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.close_rounded, size: 20),
@@ -372,7 +372,7 @@ class _CompactRangePickerDialogState extends State<_CompactRangePickerDialog> {
                 Expanded(
                   child: Text(_monthFmt.format(_viewMonth),
                       textAlign: TextAlign.center,
-                      style: AppTextStyles.labelLarge.copyWith(color: AppColors.textPrimary)),
+                      style: AppTextStyles.labelLarge.copyWith(color: Theme.of(context).colorScheme.onSurface)),
                 ),
                 IconButton(
                   icon: const Icon(Icons.chevron_right_rounded),

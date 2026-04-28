@@ -68,7 +68,7 @@ class AmenitiesScreen extends ConsumerWidget {
       return DefaultTabController(
         length: 2,
         child: Scaffold(
-          backgroundColor: AppColors.background,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           appBar: AppBar(
             backgroundColor: AppColors.primary,
             foregroundColor: AppColors.textOnPrimary,
@@ -111,7 +111,7 @@ class AmenitiesScreen extends ConsumerWidget {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       floatingActionButton: isAdmin
           ? FloatingActionButton.extended(
               onPressed: () => _showAmenityForm(context, ref, null),
@@ -1579,7 +1579,7 @@ class _AmenityCalendarScreenState extends State<AmenityCalendarScreen> {
     final bookingType = widget.amenity['bookingType'] as String? ?? 'SLOT';
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text('$name — Availability'),
         backgroundColor: AppColors.primary,

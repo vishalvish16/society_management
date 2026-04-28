@@ -918,6 +918,7 @@ module.exports = {
   listBills,
   bulkGenerateBills,
   payAdvance,
+  splitExpenseAmongUnits,
   recordPayment,
   getBill,
   listBillAuditLogs,

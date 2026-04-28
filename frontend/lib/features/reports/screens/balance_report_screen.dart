@@ -479,7 +479,7 @@ class _BalanceReportScreenState extends State<BalanceReportScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.textOnPrimary,
@@ -665,7 +665,7 @@ class _BalanceReportScreenState extends State<BalanceReportScreen> {
                                                 style: AppTextStyles.labelSmall.copyWith(color: AppColors.textMuted)),
                                             const SizedBox(height: 2),
                                             Text(_displayDescription(t),
-                                                style: AppTextStyles.bodySmall.copyWith(color: AppColors.textPrimary),
+                                                style: AppTextStyles.bodySmall.copyWith(color: Theme.of(context).colorScheme.onSurface),
                                                 maxLines: 2, overflow: TextOverflow.ellipsis),
                                             if (t['unit'] != null)
                                               Text(t['unit'].toString(),
@@ -697,7 +697,7 @@ class _BalanceReportScreenState extends State<BalanceReportScreen> {
                                           _currency.format(selectedBalance),
                                           textAlign: TextAlign.right,
                                           style: AppTextStyles.bodySmall.copyWith(
-                                              color: selectedBalance >= 0 ? AppColors.textPrimary : AppColors.danger,
+                                              color: selectedBalance >= 0 ? Theme.of(context).colorScheme.onSurface : AppColors.danger,
                                               fontWeight: FontWeight.w600),
                                         ),
                                       ),

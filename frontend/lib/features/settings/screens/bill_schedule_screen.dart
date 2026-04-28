@@ -25,7 +25,7 @@ class BillScheduleScreen extends ConsumerWidget {
 
     if (!hasBillSchedules && user?.role != 'SUPER_ADMIN') {
       return Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
           backgroundColor: AppColors.primary,
           foregroundColor: AppColors.textOnPrimary,
@@ -68,7 +68,7 @@ class BillScheduleScreen extends ConsumerWidget {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.textOnPrimary,

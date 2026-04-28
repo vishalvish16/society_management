@@ -17,6 +17,8 @@ import '../providers/visitors_provider.dart';
 import '../providers/visitor_config_provider.dart';
 import '../../../shared/widgets/unit_picker_field.dart';
 import 'visitor_qr_pass_screen.dart';
+import '../../../shared/widgets/app_page_header.dart';
+
 
 class VisitorsScreen extends ConsumerStatefulWidget {
   const VisitorsScreen({super.key});
@@ -35,6 +37,7 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
       case 'valid':
       case 'pending':
         return AppColors.warning;
+      case 'approved':
       case 'used':
         return AppColors.success;
       case 'expired':
@@ -50,6 +53,8 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
     // Walk-in approval flow: never show these as "expired" while awaiting approval.
     final approvalStatus = (v['approvalStatus'] as String?)?.toLowerCase();
     if (approvalStatus == 'awaiting') return 'pending';
+    if (approvalStatus == 'approved') return 'approved';
+    if (approvalStatus == 'denied') return 'denied';
 
     final status = (v['status'] as String? ?? 'pending').toLowerCase();
     if (status == 'used' || status == 'expired' || status == 'denied') {
@@ -76,7 +81,7 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
 
     final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: isWide
           ? AppBar(
               backgroundColor: AppColors.primary,
@@ -98,10 +103,21 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
       ),
       body: Column(
         children: [
+          AppPageHeader(
+            title: 'Visitors',
+            icon: Icons.person_pin_circle_rounded,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.qr_code_scanner_rounded),
+                tooltip: 'Scan QR',
+                onPressed: () => _showScanSheet(context),
+              ),
+            ],
+          ),
           // ── Resident/Member: Permanent "Gate Approvals" tab (received requests) ──
           if (isReceiver)
             Container(
-              color: AppColors.surface,
+              color: Theme.of(context).colorScheme.surface,
               padding: const EdgeInsets.fromLTRB(
                 AppDimensions.screenPadding,
                 AppDimensions.sm,

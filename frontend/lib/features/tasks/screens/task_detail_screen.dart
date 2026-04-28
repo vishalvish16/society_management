@@ -49,7 +49,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
     final authState = ref.watch(authProvider);
     final userId = authState.user?.id;
     final isAdmin = ['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'MANAGER']
-        .contains(authState.user?.role?.toUpperCase());
+        .contains(authState.user?.role.toUpperCase());
 
     return PopScope(
       canPop: true,
@@ -59,11 +59,11 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
           title: const Text('Task Details'),
-          backgroundColor: AppColors.surface,
-          foregroundColor: AppColors.textPrimary,
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          foregroundColor: Theme.of(context).colorScheme.onSurface,
           elevation: 0,
           actions: [
             if (_task != null && (isAdmin || _task!.createdById == userId))
@@ -124,7 +124,14 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
               _priorityIcon(task.priority),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(task.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                child: Text(
+                  task.title,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
               ),
             ],
           ),
@@ -191,7 +198,14 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Details', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+          Text(
+            'Details',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
           const SizedBox(height: 12),
           _infoRow('Category', categoryLabel, Icons.category_rounded),
           if (task.subCategory != null)
@@ -213,7 +227,16 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
           Icon(icon, size: 16, color: AppColors.textMuted),
           const SizedBox(width: 8),
           SizedBox(width: 100, child: Text(label, style: const TextStyle(fontSize: 13, color: AppColors.textMuted))),
-          Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textPrimary))),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -231,7 +254,14 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Assignees (${assignees.length})', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+          Text(
+            'Assignees (${assignees.length})',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
           const SizedBox(height: 10),
           ...assignees.map((a) => Padding(
             padding: const EdgeInsets.only(bottom: 8),
@@ -282,7 +312,14 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Attachments (${attachments.length})', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+          Text(
+            'Attachments (${attachments.length})',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
           const SizedBox(height: 10),
           ...attachments.map((a) {
             final isImage = a.fileType.startsWith('image/');
@@ -346,7 +383,14 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Update Status', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+          Text(
+            'Update Status',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
@@ -427,7 +471,14 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Comments (${comments.length})', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+          Text(
+            'Comments (${comments.length})',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
           const SizedBox(height: 12),
 
           // Comment input

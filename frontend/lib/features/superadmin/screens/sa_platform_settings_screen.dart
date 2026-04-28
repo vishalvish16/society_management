@@ -18,7 +18,7 @@ class SaPlatformSettingsScreen extends ConsumerWidget {
     final isMobile = MediaQuery.of(context).size.width < 768;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -32,7 +32,7 @@ class SaPlatformSettingsScreen extends ConsumerWidget {
                 AppDimensions.xxl,
                 AppDimensions.lg,
               ),
-              color: AppColors.surface,
+              color: Theme.of(context).colorScheme.surface,
               child: Row(
                 children: [
                   Expanded(

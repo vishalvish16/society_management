@@ -38,8 +38,11 @@ class RolePermissionsData {
     final features = (json['features'] as List)
         .map((f) => FeatureInfo.fromJson(f as Map<String, dynamic>))
         .toList();
-    final roles =
-        (json['roles'] as List).map((r) => r as String).toList();
+    // CHAIRMAN is merged into PRAMUKH; filter it out so only one tab shows.
+    final roles = (json['roles'] as List)
+        .map((r) => r as String)
+        .where((r) => r != 'CHAIRMAN')
+        .toList();
 
     return RolePermissionsData(
       rolePermissions: perms,

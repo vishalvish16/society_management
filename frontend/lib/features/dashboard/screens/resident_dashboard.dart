@@ -563,7 +563,7 @@ class _QuickActionTile extends StatelessWidget {
           Text(
             label,
             style: AppTextStyles.caption.copyWith(
-              color: AppColors.textPrimary,
+              color: Theme.of(context).colorScheme.onSurface,
               fontWeight: FontWeight.w600,
             ),
             textAlign: TextAlign.center,
@@ -760,7 +760,7 @@ class _PendingBillsSection extends StatelessWidget {
                         style: AppTextStyles.h3.copyWith(
                             color: isOverdue
                                 ? AppColors.danger
-                                : AppColors.textPrimary)),
+                                : Theme.of(context).colorScheme.onSurface)),
                     const SizedBox(width: AppDimensions.xl),
                     Container(
                       padding: const EdgeInsets.symmetric(

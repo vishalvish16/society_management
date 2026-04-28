@@ -534,7 +534,7 @@ class _ActionTile extends StatelessWidget {
           Text(
             label,
             style: AppTextStyles.caption.copyWith(
-              color: AppColors.textPrimary,
+              color: Theme.of(context).colorScheme.onSurface,
               fontWeight: FontWeight.w600,
             ),
             textAlign: TextAlign.center,

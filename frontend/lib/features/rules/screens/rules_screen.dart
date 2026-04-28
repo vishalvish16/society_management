@@ -80,7 +80,7 @@ class RulesScreen extends ConsumerWidget {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: isWide
           ? AppBar(
               backgroundColor: AppColors.primary,

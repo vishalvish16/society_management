@@ -264,7 +264,7 @@ class DonationReceiptScreen extends ConsumerWidget {
                     child: Text(
                       value,
                       style: AppTextStyles.bodyMedium.copyWith(
-                        color: AppColors.textPrimary,
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontWeight: FontWeight.w600,
                       ),
                       textAlign: TextAlign.right,
@@ -278,26 +278,32 @@ class DonationReceiptScreen extends ConsumerWidget {
         );
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textOnPrimary,
-        title: Text('Receipt', style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
-        actions: [
-          IconButton(
-            tooltip: 'Share PDF',
-            icon: const Icon(Icons.download_rounded),
-            onPressed: () => _sharePdf(context, societyName),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: Column(
+        children: [
+          Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(0, AppDimensions.sm, AppDimensions.sm, 0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: 'Share PDF',
+                    icon: const Icon(Icons.download_rounded),
+                    onPressed: () => _sharePdf(context, societyName),
+                  ),
+                  IconButton(
+                    tooltip: 'Print',
+                    icon: const Icon(Icons.print_rounded),
+                    onPressed: () => _printPdf(context, societyName),
+                  ),
+                ],
+              ),
+            ),
           ),
-          IconButton(
-            tooltip: 'Print',
-            icon: const Icon(Icons.print_rounded),
-            onPressed: () => _printPdf(context, societyName),
-          ),
-          const SizedBox(width: AppDimensions.sm),
-        ],
-      ),
-      body: SingleChildScrollView(
+          Expanded(
+            child: SingleChildScrollView(
         padding: const EdgeInsets.all(AppDimensions.screenPadding),
         child: Center(
           child: ConstrainedBox(
@@ -362,7 +368,7 @@ class DonationReceiptScreen extends ConsumerWidget {
                                     const SizedBox(height: 2),
                                     Text(
                                       _receiptNo(id),
-                                      style: AppTextStyles.labelLarge.copyWith(color: AppColors.textPrimary),
+                                      style: AppTextStyles.labelLarge.copyWith(color: Theme.of(context).colorScheme.onSurface),
                                     ),
                                   ],
                                 ),
@@ -425,6 +431,9 @@ class DonationReceiptScreen extends ConsumerWidget {
             ),
           ),
         ),
+            ),
+          ),
+        ],
       ),
     );
   }

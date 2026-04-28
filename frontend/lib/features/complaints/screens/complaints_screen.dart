@@ -15,6 +15,7 @@ import '../../../shared/widgets/app_status_chip.dart';
 import '../providers/complaints_provider.dart';
 import '../../../shared/widgets/unit_picker_field.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
+import '../../../shared/widgets/app_page_header.dart';
 import '../../../shared/utils/pick_camera_photo.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
 import '../../members/providers/members_provider.dart';
@@ -100,7 +101,7 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
 
     final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: isWide
           ? AppBar(
               backgroundColor: AppColors.primary,
@@ -124,33 +125,29 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
       ),
       body: Column(
         children: [
-          Container(
-            color: AppColors.surface,
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppDimensions.screenPadding, vertical: AppDimensions.sm),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (final s in statusMap.keys)
-                    Padding(
-                      padding: const EdgeInsets.only(right: AppDimensions.sm),
-                      child: ChoiceChip(
-                        label: Text(s == 'all' ? 'All' : s.replaceAll('_', ' ').toUpperCase()),
-                        selected: _filter == s,
-                        selectedColor: AppColors.primarySurface,
-                        labelStyle: AppTextStyles.labelMedium.copyWith(
-                          color: _filter == s ? AppColors.primary : AppColors.textMuted,
-                        ),
-                        onSelected: (_) {
-                          setState(() => _filter = s);
-                          ref.read(complaintsProvider.notifier).loadComplaints(
-                              status: s == 'all' ? null : statusMap[s]);
-                        },
-                      ),
-                    ),
-                ],
+          AppPageHeader(
+            title: 'Complaints',
+            icon: Icons.report_problem_rounded,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh_rounded),
+                tooltip: 'Refresh',
+                onPressed: () => ref.read(complaintsProvider.notifier).loadComplaints(
+                    status: _filter == 'all' ? null : statusMap[_filter]),
               ),
+            ],
+            filterRow: AppFilterChipRow(
+              darkBackground: true,
+              selected: _filter,
+              onSelected: (s) {
+                setState(() => _filter = s);
+                ref.read(complaintsProvider.notifier).loadComplaints(
+                    status: s == 'all' ? null : statusMap[s]);
+              },
+              options: [
+                for (final s in statusMap.keys)
+                  FilterOption(s, s == 'all' ? 'All' : s.replaceAll('_', ' ').toUpperCase()),
+              ],
             ),
           ),
           Expanded(
@@ -371,7 +368,7 @@ class _RaiseComplaintSheetState extends State<_RaiseComplaintSheet> {
                 spacing: AppDimensions.sm,
                 runSpacing: AppDimensions.sm,
                 children: _attachments.map((file) => Chip(
-                  label: Text(file.name, style: AppTextStyles.caption.copyWith(color: AppColors.textPrimary)),
+                  label: Text(file.name, style: AppTextStyles.caption.copyWith(color: Theme.of(context).colorScheme.onSurface)),
                   backgroundColor: AppColors.surfaceVariant,
                   deleteIcon: const Icon(Icons.close, size: 16),
                   onDeleted: () => setState(() => _attachments.remove(file)),

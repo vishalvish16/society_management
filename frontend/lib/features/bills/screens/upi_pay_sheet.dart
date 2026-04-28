@@ -540,7 +540,7 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
                       if (ps.hasRazorpay) ...[
                         Text('Pay Online',
                             style: AppTextStyles.labelLarge
-                                .copyWith(color: AppColors.textPrimary)),
+                                .copyWith(color: Theme.of(context).colorScheme.onSurface)),
                         const SizedBox(height: AppDimensions.sm),
                         _RazorpayButton(
                           isLoading: _isSubmitting,
@@ -557,7 +557,7 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
                       if (ps.hasUpi && !ps.hasRazorpay) ...[
                         Text('Pay via UPI',
                             style: AppTextStyles.labelLarge
-                                .copyWith(color: AppColors.textPrimary)),
+                                .copyWith(color: Theme.of(context).colorScheme.onSurface)),
                         const SizedBox(height: AppDimensions.sm),
                         _UpiIdCard(ps: ps),
                         const SizedBox(height: AppDimensions.md),

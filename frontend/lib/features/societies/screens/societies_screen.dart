@@ -59,7 +59,7 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
         .length;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       floatingActionButton: isMobile
           ? FloatingActionButton(
               onPressed: () => _showRegisterStepper(context),

@@ -18,6 +18,7 @@ import '../../../shared/widgets/show_app_sheet.dart';
 import '../../members/providers/members_provider.dart';
 import '../providers/suggestions_provider.dart';
 import 'pay_suggestion_sheet.dart';
+import '../../../shared/widgets/app_page_header.dart'; // AppPageHeader, AppFilterChipRow, FilterOption
 
 class SuggestionsScreen extends ConsumerStatefulWidget {
   const SuggestionsScreen({super.key});
@@ -95,7 +96,7 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
 
     final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: isWide
           ? AppBar(
               backgroundColor: AppColors.primary,
@@ -375,7 +376,7 @@ class _RaiseSuggestionSheetState extends State<_RaiseSuggestionSheet> {
                     .map((file) => Chip(
                           label: Text(file.name,
                               style: AppTextStyles.caption
-                                  .copyWith(color: AppColors.textPrimary)),
+                                  .copyWith(color: Theme.of(context).colorScheme.onSurface)),
                           backgroundColor: AppColors.surfaceVariant,
                           deleteIcon: const Icon(Icons.close, size: 16),
                           onDeleted: () => setState(() => _attachments.remove(file)),

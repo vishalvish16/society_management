@@ -54,7 +54,7 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
     final isDesktop = w >= 900;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: null,
       body: isDesktop ? _buildDesktop(context, state, isDesktop) : _buildMobile(context, state),
     );
@@ -1132,7 +1132,7 @@ class _SubscriptionCard extends StatelessWidget {
               const Spacer(),
               Text(
                 currencyFormat.format(amount),
-                style: AppTextStyles.labelLarge.copyWith(color: AppColors.textPrimary),
+                style: AppTextStyles.labelLarge.copyWith(color: Theme.of(context).colorScheme.onSurface),
               ),
             ],
           ),

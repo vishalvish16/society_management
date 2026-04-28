@@ -21,7 +21,7 @@ class SADashboardScreen extends ConsumerWidget {
     final name = rawName.isNotEmpty ? rawName : 'Admin';
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: DashboardRefreshWithSearchStack(
         showSearchOverlay: false,
         padding: const EdgeInsets.all(24),

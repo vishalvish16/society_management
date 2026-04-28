@@ -182,12 +182,12 @@ class _UnitPickerFieldState extends ConsumerState<UnitPickerField> {
           Container(
             constraints: const BoxConstraints(maxHeight: 220),
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
               border: Border.all(color: AppColors.border),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.textPrimary.withValues(alpha: 0.06),
+                  color: Colors.black.withValues(alpha: 0.08),
                   blurRadius: 8,
                   offset: const Offset(0, 4),
                 ),

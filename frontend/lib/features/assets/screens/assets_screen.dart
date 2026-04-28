@@ -89,7 +89,7 @@ class _AssetsScreenState extends ConsumerState<AssetsScreen> {
     final st = ref.watch(assetsProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         title: const Text('Assets', style: TextStyle(color: Colors.white)),

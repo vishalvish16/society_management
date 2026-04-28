@@ -267,34 +267,38 @@ class _MobileAdminLayout extends ConsumerWidget {
     final name = (user?.name?.toString().trim().isNotEmpty ?? false)
         ? user.name.toString().trim()
         : 'Admin';
-    final unitCode = user?.unitCode?.toString().trim();
-    final subtitle = (unitCode != null && unitCode.isNotEmpty)
-        ? 'Unit $unitCode'
-        : dashboardRoleSubtitle(role);
+    final unitCode = user?.unitCode?.toString().trim() ?? '';
+    final roleLabel = dashboardRoleSubtitle(role);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        DashboardGreetingHeader(
-          title: 'Dashboard',
-          greeting: dashboardGreetingForNow(),
+        // ── Gradient admin header ────────────────────────────────────────────
+        _AdminMobileHeader(
           name: name,
-          subtitle: subtitle,
-          compact: true,
+          unitCode: unitCode,
+          roleLabel: roleLabel,
+          stats: stats,
           onNotifications: () => context.go('/notifications'),
         ),
         const SizedBox(height: AppDimensions.md),
-        // Personal pending bills banner (only if user has a unit)
+
+        // ── Urgent alerts ────────────────────────────────────────────────────
         if (user?.unitCode != null) ...[
           _AdminPendingBillsBanner(pendingBills: pendingBills),
-          const SizedBox(height: AppDimensions.md),
+          const SizedBox(height: AppDimensions.sm),
         ],
         _AdminCampaignBanner(stats: stats),
         const SizedBox(height: AppDimensions.md),
-        _BillingCard(stats: stats),
-        const SizedBox.shrink(),
 
-        DashboardSectionHeaderRow(
+        // ── Quick Actions (icon grid) ─────────────────────────────────────────
+        _AdminSectionLabel(title: 'Quick Actions'),
+        const SizedBox(height: AppDimensions.md),
+        _AdminQuickActionsGrid(role: role),
+        const SizedBox(height: AppDimensions.lg),
+
+        // ── Overview KPIs ────────────────────────────────────────────────────
+        _AdminSectionLabel(
           title: 'Overview',
           actionLabel: 'Balance',
           onAction: () => context.go('/reports/balance'),
@@ -303,10 +307,22 @@ class _MobileAdminLayout extends ConsumerWidget {
         _KpiRow(stats: stats, crossAxisCount: 2),
         const SizedBox(height: AppDimensions.lg),
 
+        // ── Today's Activity ─────────────────────────────────────────────────
+        _AdminSectionLabel(
+          title: "Today's Activity",
+          actionLabel: 'View all',
+          onAction: () => context.go('/visitors'),
+        ),
+        const SizedBox(height: AppDimensions.md),
+        _ActivityCards(stats: stats),
+        const SizedBox(height: AppDimensions.lg),
+
+        // ── Parking ──────────────────────────────────────────────────────────
         _ParkingSnapshotCard(stats: stats),
         const SizedBox(height: AppDimensions.lg),
 
-        DashboardSectionHeaderRow(
+        // ── Insights ─────────────────────────────────────────────────────────
+        _AdminSectionLabel(
           title: 'Insights',
           actionLabel: 'Reports',
           onAction: () => context.go('/reports/balance'),
@@ -326,20 +342,357 @@ class _MobileAdminLayout extends ConsumerWidget {
           data: trendValuesFromDashboardStats(stats, key: 'visitors'),
         ),
         const SizedBox(height: AppDimensions.lg),
+      ],
+    );
+  }
+}
 
-        const DashboardSectionHeaderRow(title: 'Quick actions'),
-        const SizedBox(height: AppDimensions.md),
-        _QuickActionsSection(role: role, isWeb: false),
-        const SizedBox(height: AppDimensions.lg),
+// ─── Admin mobile header ──────────────────────────────────────────────────────
 
-        DashboardSectionHeaderRow(
-          title: "Today's activity",
-          actionLabel: 'View all',
-          onAction: () => context.go('/visitors'),
+class _AdminMobileHeader extends StatelessWidget {
+  final String name;
+  final String unitCode;
+  final String roleLabel;
+  final Map<String, dynamic> stats;
+  final VoidCallback onNotifications;
+  const _AdminMobileHeader({
+    required this.name,
+    required this.unitCode,
+    required this.roleLabel,
+    required this.stats,
+    required this.onNotifications,
+  });
+
+  String _fmt(dynamic v) {
+    final n = (v is num) ? v : num.tryParse(v.toString()) ?? 0;
+    if (n >= 100000) return '₹${(n / 100000).toStringAsFixed(1)}L';
+    if (n >= 1000) return '₹${(n / 1000).toStringAsFixed(1)}K';
+    return '₹${n.toStringAsFixed(0)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pendingBillsCount = stats['billing']?['pendingCount'] ?? 0;
+    final societyBalance = stats['billing']?['societyBalance'] ?? 0;
+    final openComplaints = stats['complaints']?['open'] ?? 0;
+    final visitorsToday = stats['visitors']?['today'] ?? 0;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F172A), Color(0xFF1E3A5F), Color(0xFF2563EB)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusXl),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppDimensions.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Name + notification
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        dashboardGreetingForNow(),
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: Colors.white.withValues(alpha: 0.65),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        name,
+                        style: AppTextStyles.h1.copyWith(color: Colors.white),
+                      ),
+                      const SizedBox(height: AppDimensions.xs),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: AppDimensions.sm, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          borderRadius:
+                              BorderRadius.circular(AppDimensions.radiusSm),
+                        ),
+                        child: Text(
+                          unitCode.isNotEmpty ? '$roleLabel · Unit $unitCode' : roleLabel,
+                          style: AppTextStyles.caption.copyWith(color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                GestureDetector(
+                  onTap: onNotifications,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      borderRadius:
+                          BorderRadius.circular(AppDimensions.radiusMd),
+                    ),
+                    child: const Icon(Icons.notifications_outlined,
+                        color: Colors.white, size: 22),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppDimensions.md),
+
+            // Society balance chip
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppDimensions.md, vertical: AppDimensions.sm),
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                border: Border.all(
+                    color: AppColors.success.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.account_balance_rounded,
+                      color: Colors.white, size: 15),
+                  const SizedBox(width: AppDimensions.xs),
+                  Text(
+                    'Society Balance: ${_fmt(societyBalance)}',
+                    style: AppTextStyles.labelMedium
+                        .copyWith(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppDimensions.md),
+
+            // Mini stat pills
+            Wrap(
+              spacing: AppDimensions.sm,
+              runSpacing: AppDimensions.sm,
+              children: [
+                _AdminStatPill(
+                  icon: Icons.receipt_long_rounded,
+                  label: '$pendingBillsCount Pending Bills',
+                  color: AppColors.warning,
+                ),
+                _AdminStatPill(
+                  icon: Icons.report_problem_rounded,
+                  label: '$openComplaints Complaints',
+                  color: AppColors.danger,
+                ),
+                _AdminStatPill(
+                  icon: Icons.person_pin_circle_rounded,
+                  label: '$visitorsToday Visitors',
+                  color: Colors.tealAccent,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminStatPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  const _AdminStatPill(
+      {required this.icon, required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(horizontal: AppDimensions.sm, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 12),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: AppTextStyles.caption
+                .copyWith(color: Colors.white.withValues(alpha: 0.9)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Admin section label ──────────────────────────────────────────────────────
+
+class _AdminSectionLabel extends StatelessWidget {
+  final String title;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  const _AdminSectionLabel(
+      {required this.title, this.actionLabel, this.onAction});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(title, style: AppTextStyles.h2),
+        if (actionLabel != null && onAction != null)
+          GestureDetector(
+            onTap: onAction,
+            child: Text(
+              actionLabel!,
+              style: AppTextStyles.labelMedium
+                  .copyWith(color: AppColors.primary),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ─── Admin Quick Actions icon grid ────────────────────────────────────────────
+
+class _AdminQuickActionsGrid extends StatelessWidget {
+  final String role;
+  const _AdminQuickActionsGrid({required this.role});
+
+  // Primary 4 actions — same for all admin roles, treasurer gets Bills/Expenses/Reports first
+  List<(IconData, String, String, Color)> _primaryFor(String role) {
+    if (role == 'TREASURER' || role == 'ASSISTANT_TREASURER') {
+      return [
+        (Icons.receipt_long_rounded, 'Bills', '/bills', const Color(0xFF2563EB)),
+        (Icons.money_off_rounded, 'Expenses', '/expenses', const Color(0xFF10B981)),
+        (Icons.bar_chart_rounded, 'Reports', '/reports/balance', const Color(0xFF8B5CF6)),
+        (Icons.report_problem_rounded, 'Complaints', '/complaints', const Color(0xFFF59E0B)),
+      ];
+    }
+    return [
+      (Icons.receipt_long_rounded, 'Bills', '/bills', const Color(0xFF2563EB)),
+      (Icons.person_add_rounded, 'Visitor', '/visitors', const Color(0xFF10B981)),
+      (Icons.report_problem_rounded, 'Complaints', '/complaints', const Color(0xFFF59E0B)),
+      (Icons.money_off_rounded, 'Expenses', '/expenses', const Color(0xFF8B5CF6)),
+    ];
+  }
+
+  static const _secondary = [
+    (Icons.campaign_rounded, 'Notices', '/notices', Color(0xFF0EA5E9)),
+    (Icons.how_to_vote_rounded, 'Polls', '/polls', Color(0xFFEC4899)),
+    (Icons.event_rounded, 'Events', '/events', Color(0xFF14B8A6)),
+    (Icons.local_parking_rounded, 'Parking', '/parking', Color(0xFFEF4444)),
+    (Icons.people_rounded, 'Members', '/members', Color(0xFF6366F1)),
+    (Icons.manage_accounts_rounded, 'Staff', '/staff', Color(0xFFF97316)),
+    (Icons.home_work_rounded, 'Units', '/units', Color(0xFF84CC16)),
+    (Icons.settings_rounded, 'Settings', '/settings', Color(0xFF64748B)),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = _primaryFor(role);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Primary 4
+        GridView.count(
+          crossAxisCount: 4,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: AppDimensions.sm,
+          mainAxisSpacing: AppDimensions.sm,
+          childAspectRatio: 0.85,
+          children: primary
+              .map((a) => _AdminActionTile(
+                    icon: a.$1,
+                    label: a.$2,
+                    route: a.$3,
+                    color: a.$4,
+                    large: true,
+                  ))
+              .toList(),
         ),
         const SizedBox(height: AppDimensions.md),
-        _ActivityCards(stats: stats),
+        Text('All Modules',
+            style: AppTextStyles.labelSmall
+                .copyWith(color: AppColors.textMuted)),
+        const SizedBox(height: AppDimensions.sm),
+        // Secondary 8 (2 rows of 4)
+        GridView.count(
+          crossAxisCount: 4,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: AppDimensions.sm,
+          mainAxisSpacing: AppDimensions.sm,
+          childAspectRatio: 0.85,
+          children: _secondary
+              .map((a) => _AdminActionTile(
+                    icon: a.$1,
+                    label: a.$2,
+                    route: a.$3,
+                    color: a.$4,
+                    large: false,
+                  ))
+              .toList(),
+        ),
       ],
+    );
+  }
+}
+
+class _AdminActionTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String route;
+  final Color color;
+  final bool large;
+  const _AdminActionTile({
+    required this.icon,
+    required this.label,
+    required this.route,
+    required this.color,
+    required this.large,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final boxSize = large ? 52.0 : 44.0;
+    final iconSize = large ? 26.0 : 22.0;
+    return GestureDetector(
+      onTap: () => context.go(route),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: boxSize,
+            height: boxSize,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+              border: Border.all(color: color.withValues(alpha: 0.25)),
+            ),
+            child: Icon(icon, color: color, size: iconSize),
+          ),
+          const SizedBox(height: AppDimensions.xs),
+          Text(
+            label,
+            style: AppTextStyles.caption.copyWith(
+              color: Theme.of(context).colorScheme.onSurface,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
   }
 }

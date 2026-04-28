@@ -151,7 +151,7 @@ class _SubscriptionReportScreenState extends State<SubscriptionReportScreen> {
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 768;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Padding(
         padding: EdgeInsets.all(isMobile ? 16 : 24),
         child: Column(
@@ -585,7 +585,7 @@ class _SubscriptionReportScreenState extends State<SubscriptionReportScreen> {
                           const SizedBox(width: 8),
                           Text(
                             _currency.format(amt),
-                            style: AppTextStyles.labelLarge.copyWith(color: AppColors.textPrimary),
+                            style: AppTextStyles.labelLarge.copyWith(color: Theme.of(context).colorScheme.onSurface),
                           ),
                         ],
                       ),

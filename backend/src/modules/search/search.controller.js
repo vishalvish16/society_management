@@ -1,5 +1,6 @@
 const prisma = require('../../config/db');
 const { sendSuccess, sendError } = require('../../utils/response');
+const { resolveRoleFeatureAllowed, buildDefaults } = require('../../utils/rolePermissions');
 
 function safeStr(v) {
   return (v ?? '').toString().trim();
@@ -29,9 +30,24 @@ exports.search = async (req, res) => {
     const isWatchman = role === 'WATCHMAN';
     const results = [];
 
+    // Load society's saved role permissions so we can respect admin-toggled feature access.
+    let rolePermissions = {};
+    if (societyId) {
+      const society = await prisma.society.findUnique({
+        where: { id: societyId },
+        select: { settings: true },
+      });
+      rolePermissions = society?.settings?.rolePermissions || {};
+    }
+
+    // Helper: returns true if this user's role has the given feature enabled.
+    const canAccess = (featureKey) => {
+      if (role === 'SUPER_ADMIN') return true;
+      return resolveRoleFeatureAllowed({ rolePermissions, role, featureKey });
+    };
+
     // ── Members (users) ───────────────────────────────────────────────
-    // WATCHMAN: can search members only (for identity verification at gate)
-    if (role !== 'SUPER_ADMIN') {
+    if (canAccess('members')) {
       const users = await prisma.user.findMany({
         where: {
           societyId,
@@ -68,14 +84,13 @@ exports.search = async (req, res) => {
           id: u.id,
           title: u.name || 'Member',
           subtitle: `${u.role || ''}${unitCode ? ` · ${unitCode}` : ''}${u.phone ? ` · ${u.phone}` : ''}`.trim(),
-          route: isWatchman ? '' : `/members?focusId=${encodeURIComponent(u.id)}`,
+          route: `/members?focusId=${encodeURIComponent(u.id)}`,
         });
       }
     }
 
     // ── Vehicles ──────────────────────────────────────────────────────
-    // WATCHMAN: should also be able to lookup vehicles at gate (route empty)
-    if (role !== 'SUPER_ADMIN') {
+    if (canAccess('vehicles')) {
       const vehicles = await prisma.vehicle.findMany({
         where: {
           societyId,
@@ -106,13 +121,13 @@ exports.search = async (req, res) => {
           id: v.id,
           title: v.numberPlate || 'Vehicle',
           subtitle: `${meta}${meta && (v.brand || v.model || v.colour) ? ' · ' : ''}${[v.brand, v.model, v.colour].filter(Boolean).join(' ')}`.trim(),
-          route: isWatchman ? '' : `/vehicles?plate=${encodeURIComponent(v.numberPlate || '')}`,
+          route: `/vehicles?plate=${encodeURIComponent(v.numberPlate || '')}`,
         });
       }
     }
 
     // ── Units ─────────────────────────────────────────────────────────
-    if (role !== 'SUPER_ADMIN' && !isWatchman) {
+    if (canAccess('units')) {
       const units = await prisma.unit.findMany({
         where: {
           societyId,
@@ -141,8 +156,7 @@ exports.search = async (req, res) => {
     }
 
     // ── Visitors ──────────────────────────────────────────────────────
-    // WATCHMAN: allowed (gate verification); other roles also allowed.
-    if (role !== 'SUPER_ADMIN') {
+    if (canAccess('visitors')) {
       const visitors = await prisma.visitor.findMany({
         where: {
           societyId,
@@ -170,13 +184,13 @@ exports.search = async (req, res) => {
           id: v.id,
           title: v.visitorName || 'Visitor',
           subtitle: `${unitCode ? `Unit ${unitCode}` : ''}${v.visitorPhone ? `${unitCode ? ' · ' : ''}${v.visitorPhone}` : ''}${v.status ? ` · ${v.status}` : ''}`.trim(),
-          route: isWatchman ? '' : '/visitors',
+          route: '/visitors',
         });
       }
     }
 
     // ── Deliveries ────────────────────────────────────────────────────
-    if (role !== 'SUPER_ADMIN' && !isWatchman) {
+    if (canAccess('deliveries')) {
       const deliveries = await prisma.delivery.findMany({
         where: {
           societyId,
@@ -210,7 +224,7 @@ exports.search = async (req, res) => {
     }
 
     // ── Domestic Help ────────────────────────────────────────────────
-    if (role !== 'SUPER_ADMIN' && !isWatchman) {
+    if (canAccess('domestic_help')) {
       const helps = await prisma.domesticHelp.findMany({
         where: {
           societyId,
@@ -245,7 +259,7 @@ exports.search = async (req, res) => {
     }
 
     // ── Staff ─────────────────────────────────────────────────────────
-    if (role !== 'SUPER_ADMIN' && !isWatchman) {
+    if (canAccess('staff')) {
       const staff = await prisma.staff.findMany({
         where: {
           societyId,
@@ -280,7 +294,7 @@ exports.search = async (req, res) => {
     }
 
     // ── Assets ────────────────────────────────────────────────────────
-    if (role !== 'SUPER_ADMIN' && !isWatchman) {
+    if (!isWatchman && role !== 'SUPER_ADMIN') {
       const assets = await prisma.asset.findMany({
         where: {
           societyId,
@@ -315,7 +329,7 @@ exports.search = async (req, res) => {
     }
 
     // ── Complaints ────────────────────────────────────────────────────
-    if (role !== 'SUPER_ADMIN' && !isWatchman) {
+    if (canAccess('complaints')) {
       const complaints = await prisma.complaint.findMany({
         where: {
           societyId,
@@ -341,7 +355,7 @@ exports.search = async (req, res) => {
     }
 
     // ── Suggestions ───────────────────────────────────────────────────
-    if (role !== 'SUPER_ADMIN' && !isWatchman) {
+    if (canAccess('suggestions')) {
       const suggestions = await prisma.suggestion.findMany({
         where: {
           societyId,
@@ -366,7 +380,7 @@ exports.search = async (req, res) => {
     }
 
     // ── Bills ─────────────────────────────────────────────────────────
-    if (role !== 'SUPER_ADMIN' && !isWatchman) {
+    if (canAccess('bills')) {
       const bills = await prisma.maintenanceBill.findMany({
         where: {
           societyId,

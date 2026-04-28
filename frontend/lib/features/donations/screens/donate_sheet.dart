@@ -339,7 +339,7 @@ class _DonateSheetState extends ConsumerState<_DonateSheet> {
                       const SizedBox(height: AppDimensions.lg),
 
                       if (ps.hasRazorpay) ...[
-                        Text('Pay Online', style: AppTextStyles.labelLarge.copyWith(color: AppColors.textPrimary)),
+                        Text('Pay Online', style: AppTextStyles.labelLarge.copyWith(color: Theme.of(context).colorScheme.onSurface)),
                         const SizedBox(height: AppDimensions.sm),
                         SizedBox(
                           width: double.infinity,
@@ -356,7 +356,7 @@ class _DonateSheetState extends ConsumerState<_DonateSheet> {
                       ],
 
                       if (ps.hasUpi && !ps.hasRazorpay) ...[
-                        Text('Pay via UPI App', style: AppTextStyles.labelLarge.copyWith(color: AppColors.textPrimary)),
+                        Text('Pay via UPI App', style: AppTextStyles.labelLarge.copyWith(color: Theme.of(context).colorScheme.onSurface)),
                         const SizedBox(height: AppDimensions.sm),
                         SizedBox(
                           width: double.infinity,

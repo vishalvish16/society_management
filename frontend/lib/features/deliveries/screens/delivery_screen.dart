@@ -71,7 +71,7 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
 
     final isWide = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: isWide
           ? AppBar(
               backgroundColor: AppColors.primary,
@@ -96,7 +96,7 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
         children: [
           // Filter chips
           Container(
-            color: AppColors.surface,
+            color: Theme.of(context).colorScheme.surface,
             padding: const EdgeInsets.symmetric(
               horizontal: AppDimensions.screenPadding,
               vertical: AppDimensions.sm,

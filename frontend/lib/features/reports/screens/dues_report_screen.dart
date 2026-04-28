@@ -250,7 +250,7 @@ class _DuesReportScreenState extends ConsumerState<DuesReportScreen> {
     final statusCounts = summary['statusCounts'] as Map<String, dynamic>? ?? {};
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         title: Text(_isAdmin ? 'Pending Dues' : 'My Pending Bills', style: const TextStyle(color: Colors.white)),
@@ -312,37 +312,34 @@ class _DuesReportScreenState extends ConsumerState<DuesReportScreen> {
                           const SizedBox(height: AppDimensions.md),
 
                           // Filter & search row
-                          Row(
-                            children: [
-                              // Status filter chips
-                              Expanded(
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: Row(
-                                    children: ['ALL', 'OVERDUE', 'PENDING', 'PARTIAL'].map((s) {
-                                      final isActive = _filterStatus == s;
-                                      return Padding(
-                                        padding: const EdgeInsets.only(right: 6),
-                                        child: FilterChip(
-                                          label: Text(s == 'ALL' ? 'All' : s[0] + s.substring(1).toLowerCase()),
-                                          selected: isActive,
-                                          onSelected: (_) {
-                                            setState(() => _filterStatus = s);
-                                          },
-                                          selectedColor: AppColors.primarySurface,
-                                          checkmarkColor: AppColors.primary,
-                                          labelStyle: AppTextStyles.labelMedium.copyWith(
-                                            color: isActive ? AppColors.primary : AppColors.textSecondary,
-                                          ),
+                          Builder(builder: (context) {
+                            Widget chips() {
+                              return SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: ['ALL', 'OVERDUE', 'PENDING', 'PARTIAL'].map((s) {
+                                    final isActive = _filterStatus == s;
+                                    return Padding(
+                                      padding: const EdgeInsets.only(right: 6),
+                                      child: FilterChip(
+                                        label: Text(s == 'ALL' ? 'All' : s[0] + s.substring(1).toLowerCase()),
+                                        selected: isActive,
+                                        onSelected: (_) => setState(() => _filterStatus = s),
+                                        selectedColor: AppColors.primarySurface,
+                                        checkmarkColor: AppColors.primary,
+                                        labelStyle: AppTextStyles.labelMedium.copyWith(
+                                          color: isActive ? AppColors.primary : AppColors.textSecondary,
                                         ),
-                                      );
-                                    }).toList(),
-                                  ),
+                                      ),
+                                    );
+                                  }).toList(),
                                 ),
-                              ),
-                              // Search
-                              SizedBox(
-                                width: isWide ? 220 : 140,
+                              );
+                            }
+
+                            Widget search({double? width}) {
+                              return SizedBox(
+                                width: width,
                                 height: 36,
                                 child: TextField(
                                   controller: _searchCtrl,
@@ -360,9 +357,29 @@ class _DuesReportScreenState extends ConsumerState<DuesReportScreen> {
                                     isDense: true,
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
+                              );
+                            }
+
+                            if (isWide) {
+                              return Row(
+                                children: [
+                                  Expanded(child: chips()),
+                                  const SizedBox(width: AppDimensions.sm),
+                                  search(width: 220),
+                                ],
+                              );
+                            }
+
+                            // Mobile: stack vertically to avoid overlap/overflow.
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                chips(),
+                                const SizedBox(height: AppDimensions.sm),
+                                search(),
+                              ],
+                            );
+                          }),
                         ],
                       ),
                     ),
@@ -452,15 +469,15 @@ class _DuesTable extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: AppDimensions.lg, vertical: AppDimensions.md),
               child: Row(
                 children: [
-                  _thCell('Unit', flex: 2),
-                  _thCell('Member', flex: 3),
-                  _thCell('Phone', flex: 2),
-                  _thCell('Month', flex: 2),
-                  _thCell('Amount', flex: 2),
-                  _thCell('Paid', flex: 2),
-                  _thCell('Pending', flex: 2),
-                  _thCell('Status', flex: 2),
-                  _thCell('Action', flex: 2),
+                  _thCell(context, 'Unit', flex: 2),
+                  _thCell(context, 'Member', flex: 3),
+                  _thCell(context, 'Phone', flex: 2),
+                  _thCell(context, 'Month', flex: 2),
+                  _thCell(context, 'Amount', flex: 2),
+                  _thCell(context, 'Paid', flex: 2),
+                  _thCell(context, 'Pending', flex: 2),
+                  _thCell(context, 'Status', flex: 2),
+                  _thCell(context, 'Action', flex: 2),
                 ],
               ),
             ),
@@ -482,13 +499,13 @@ class _DuesTable extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: AppDimensions.lg, vertical: AppDimensions.md),
                 child: Row(
                   children: [
-                    _tdCell(d['unitCode'] ?? '-', flex: 2, bold: true),
-                    _tdCell(primary?['name'] ?? '-', flex: 3),
-                    _tdCell(primary?['phone'] ?? '-', flex: 2),
-                    _tdCell(month, flex: 2),
-                    _tdCell(currency.format((d['amount'] as num?) ?? 0), flex: 2),
-                    _tdCell(currency.format((d['paidAmount'] as num?) ?? 0), flex: 2, color: AppColors.success),
-                    _tdCell(currency.format((d['remaining'] as num?) ?? 0), flex: 2, color: AppColors.danger, bold: true),
+                    _tdCell(context, d['unitCode'] ?? '-', flex: 2, bold: true),
+                    _tdCell(context, primary?['name'] ?? '-', flex: 3),
+                    _tdCell(context, primary?['phone'] ?? '-', flex: 2),
+                    _tdCell(context, month, flex: 2),
+                    _tdCell(context, currency.format((d['amount'] as num?) ?? 0), flex: 2),
+                    _tdCell(context, currency.format((d['paidAmount'] as num?) ?? 0), flex: 2, color: AppColors.success),
+                    _tdCell(context, currency.format((d['remaining'] as num?) ?? 0), flex: 2, color: AppColors.danger, bold: true),
                     Expanded(flex: 2, child: _StatusBadge(status: status)),
                     Expanded(
                       flex: 2,
@@ -535,21 +552,21 @@ class _DuesTable extends StatelessWidget {
     );
   }
 
-  Widget _thCell(String text, {int flex = 1}) {
+  Widget _thCell(BuildContext context, String text, {int flex = 1}) {
     return Expanded(
       flex: flex,
       child: Text(text, style: AppTextStyles.labelMedium.copyWith(color: AppColors.textMuted)),
     );
   }
 
-  Widget _tdCell(String text, {int flex = 1, bool bold = false, Color? color}) {
+  Widget _tdCell(BuildContext context, String text, {int flex = 1, bool bold = false, Color? color}) {
     return Expanded(
       flex: flex,
       child: Text(
         text,
         style: AppTextStyles.bodySmall.copyWith(
           fontWeight: bold ? FontWeight.w600 : FontWeight.normal,
-          color: color ?? AppColors.textPrimary,
+          color: color ?? Theme.of(context).colorScheme.onSurface,
         ),
         overflow: TextOverflow.ellipsis,
       ),
@@ -656,8 +673,8 @@ class _DuesList extends StatelessWidget {
               // Amount details
               Row(
                 children: [
-                  _AmountCell(label: 'Month', value: month, color: AppColors.textPrimary),
-                  _AmountCell(label: 'Due', value: currency.format((d['amount'] as num?) ?? 0), color: AppColors.textPrimary),
+                  _AmountCell(label: 'Month', value: month, color: Theme.of(context).colorScheme.onSurface),
+                  _AmountCell(label: 'Due', value: currency.format((d['amount'] as num?) ?? 0), color: Theme.of(context).colorScheme.onSurface),
                   _AmountCell(label: 'Paid', value: currency.format((d['paidAmount'] as num?) ?? 0), color: AppColors.success),
                   _AmountCell(label: 'Pending', value: currency.format(remaining), color: AppColors.danger, bold: true),
                 ],
