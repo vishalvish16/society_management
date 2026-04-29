@@ -18,7 +18,6 @@ import '../../../shared/widgets/show_app_sheet.dart';
 import '../../members/providers/members_provider.dart';
 import '../providers/suggestions_provider.dart';
 import 'pay_suggestion_sheet.dart';
-import '../../../shared/widgets/app_page_header.dart'; // AppPageHeader, AppFilterChipRow, FilterOption
 
 class SuggestionsScreen extends ConsumerStatefulWidget {
   const SuggestionsScreen({super.key});
@@ -69,11 +68,8 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
       'closed': 'CLOSED',
     };
 
-    final filtered = _filter == 'all'
-        ? state.suggestions
-        : state.suggestions
-            .where((c) => (c['status'] as String? ?? '').toUpperCase() == statusMap[_filter])
-            .toList();
+    // Server already filters by status; use the list as-is
+    final filtered = state.suggestions;
 
     if (focusId != null &&
         focusId.isNotEmpty &&
@@ -150,35 +146,41 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
             ),
           ),
           Expanded(
-            child: state.isLoading
-                ? const AppLoadingShimmer()
-                : state.error != null
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(AppDimensions.screenPadding),
-                          child: AppCard(
-                            backgroundColor: AppColors.dangerSurface,
-                            child: Text('Error: ${state.error}',
-                                style: AppTextStyles.bodySmall
-                                    .copyWith(color: AppColors.dangerText)),
-                          ),
-                        ),
-                      )
-                    : filtered.isEmpty
-                        ? const AppEmptyState(
-                            emoji: '💡',
-                            title: 'No Suggestions',
-                            subtitle: 'No suggestions match the selected filter.',
-                          )
-                        : RefreshIndicator(
-                            onRefresh: () => ref
-                                .read(suggestionsProvider.notifier)
-                                .loadSuggestions(
-                                    status: _filter == 'all'
-                                        ? null
-                                        : statusMap[_filter]),
-                            child: ListView.separated(
+            child: RefreshIndicator(
+              onRefresh: () => ref
+                  .read(suggestionsProvider.notifier)
+                  .loadSuggestions(status: _filter == 'all' ? null : statusMap[_filter]),
+              child: state.isLoading
+                  ? const AppLoadingShimmer()
+                  : state.error != null
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(AppDimensions.screenPadding),
+                              child: AppCard(
+                                backgroundColor: AppColors.dangerSurface,
+                                child: Text('Error: ${state.error}',
+                                    style: AppTextStyles.bodySmall
+                                        .copyWith(color: AppColors.dangerText)),
+                              ),
+                            ),
+                          ],
+                        )
+                      : filtered.isEmpty
+                          ? ListView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              children: const [
+                                AppEmptyState(
+                                  emoji: '💡',
+                                  title: 'No Suggestions',
+                                  subtitle: 'No suggestions match the selected filter.',
+                                ),
+                              ],
+                            )
+                          : ListView.separated(
                               controller: _scrollController,
+                              physics: const AlwaysScrollableScrollPhysics(),
                               padding: const EdgeInsets.all(AppDimensions.screenPadding),
                               itemCount: filtered.length,
                               separatorBuilder: (_, i) =>
@@ -190,7 +192,7 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
                                 isAdmin: _isAdmin,
                               ),
                             ),
-                          ),
+            ),
           ),
         ],
       ),
@@ -718,6 +720,8 @@ class _SuggestionDetailSheet extends StatelessWidget {
     final resolutionNote = s['resolutionNote'] as String?;
     final createdAt = s['createdAt'] as String? ?? '';
     final resolvedAt = s['resolvedAt'] as String?;
+    final updatedBy = (s['updatedBy'] as Map?)?['name'] as String?;
+    final updatedAt = s['updatedAt'] as String?;
     final amount = double.tryParse(s['amount']?.toString() ?? '0') ?? 0;
     final paidAmount = double.tryParse(s['paidAmount']?.toString() ?? '0') ?? 0;
     final paymentStatus = (s['paymentStatus'] as String? ?? 'UNPAID').toUpperCase();
@@ -768,6 +772,18 @@ class _SuggestionDetailSheet extends StatelessWidget {
             _row('Raised On', createdAt.length >= 10 ? createdAt.substring(0, 10) : createdAt),
             if (resolvedAt != null)
               _row('Resolved On', resolvedAt.length >= 10 ? resolvedAt.substring(0, 10) : resolvedAt),
+            if (updatedBy != null || (updatedAt != null && updatedAt.isNotEmpty)) ...[
+              const SizedBox(height: AppDimensions.sm),
+              const Divider(),
+              const SizedBox(height: AppDimensions.sm),
+              Text('Audit Trail', style: AppTextStyles.labelLarge.copyWith(color: AppColors.textSecondary)),
+              const SizedBox(height: AppDimensions.xs),
+              _row('Created By', raisedBy),
+              _row('Created On', createdAt.length >= 10 ? createdAt.substring(0, 10) : createdAt),
+              if (updatedBy != null) _row('Last Updated By', updatedBy),
+              if (updatedAt != null && updatedAt.length >= 10)
+                _row('Last Updated On', updatedAt.substring(0, 10)),
+            ],
             if (resolutionNote != null && resolutionNote.isNotEmpty) ...[
               const SizedBox(height: AppDimensions.md),
               const Divider(),

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimensions.dart';
@@ -32,6 +33,8 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
         return AppColors.warning;
       case 'collected':
         return AppColors.success;
+      case 'left_at_gate':
+        return AppColors.info;
       case 'returned':
         return AppColors.textMuted;
       case 'expired':
@@ -43,6 +46,7 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
 
   /// Deliveries do not carry a QR expiry; long‑stuck **pending** items are shown as **expired** so staff can clear them.
   String _effectiveDeliveryStatus(Map<String, dynamic> d) {
+    if (d['receivedAt'] != null) return 'collected';
     final status = (d['status'] as String? ?? 'pending').toLowerCase();
     if (status != 'pending') return status;
     final raw = d['createdAt'] as String?;
@@ -67,9 +71,18 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
     final deliveryState = ref.watch(deliveryProvider);
     final role = ref.watch(authProvider).user?.role ?? '';
     final isStaff    = _staffRoles.contains(role);
+    final isWatchman = role == 'WATCHMAN';
     final isResident = _residentRoles.contains(role);
 
     final isWide = MediaQuery.of(context).size.width >= 768;
+    final filterKeys = <String>[
+      'all',
+      'pending',
+      if (isWatchman) 'at_gate',
+      'collected',
+      'returned',
+      'expired',
+    ];
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: isWide
@@ -105,13 +118,15 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  for (final s in ['all', 'pending', 'collected', 'returned', 'expired'])
+                  for (final s in filterKeys)
                     Padding(
                       padding: const EdgeInsets.only(right: AppDimensions.sm),
                       child: ChoiceChip(
                         label: Text(
                           s == 'all'
                               ? 'All'
+                              : s == 'at_gate'
+                                  ? 'Collected at Gate'
                               : s == 'expired'
                                   ? 'Stale / Expired'
                                   : s[0].toUpperCase() + s.substring(1),
@@ -153,7 +168,9 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
                   ? deliveryState.deliveries
                   : deliveryState.deliveries.where((d) {
                       final m = Map<String, dynamic>.from(d as Map);
-                      return _effectiveDeliveryStatus(m) == _filter;
+                      final status = _effectiveDeliveryStatus(m);
+                      if (_filter == 'at_gate') return status == 'left_at_gate';
+                      return status == _filter;
                     }).toList();
 
               if (filtered.isEmpty) {
@@ -167,7 +184,15 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
               return RefreshIndicator(
                 onRefresh: () => ref.read(deliveryProvider.notifier).loadDeliveries(),
                 child: ListView.separated(
-                  padding: const EdgeInsets.all(AppDimensions.screenPadding),
+                  padding: EdgeInsets.fromLTRB(
+                    AppDimensions.screenPadding,
+                    AppDimensions.screenPadding,
+                    AppDimensions.screenPadding,
+                    AppDimensions.screenPadding +
+                        kFloatingActionButtonMargin +
+                        72 +
+                        MediaQuery.of(context).padding.bottom,
+                  ),
                   itemCount: filtered.length,
                   separatorBuilder: (_, _) => const SizedBox(height: AppDimensions.sm),
                   itemBuilder: (_, i) {
@@ -183,6 +208,11 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
                     final id = d['id'] as String? ?? '';
                     final photoUrl = d['photoUrl'] as String?;
                     final hasDropPhoto = photoUrl != null && photoUrl.trim().isNotEmpty;
+                    final droppedAt = _formatDate(d['droppedAt'] as String?);
+                    final receivedAt = d['receivedAt'] as String?;
+                    final receivedByUserName = (d['receivedByUser'] is Map)
+                        ? ((d['receivedByUser'] as Map)['name']?.toString())
+                        : null;
 
                     return AppCard(
                       leftBorderColor: _borderColor(status),
@@ -226,12 +256,63 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
                               Text(loggedAt, style: AppTextStyles.caption),
                             ],
                           ),
+                          if (status == 'left_at_gate') ...[
+                            const SizedBox(height: AppDimensions.xs),
+                            Row(
+                              children: [
+                                const Icon(Icons.storefront_outlined, size: 14, color: AppColors.textMuted),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Dropped: $droppedAt',
+                                  style: AppTextStyles.caption,
+                                ),
+                              ],
+                            ),
+                            if (hasDropPhoto) ...[
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppDimensions.sm,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.infoSurface,
+                                  borderRadius:
+                                      BorderRadius.circular(AppDimensions.radiusSm),
+                                ),
+                                child: Text(
+                                  'Watchman parcel photo available',
+                                  style: AppTextStyles.caption.copyWith(color: AppColors.info),
+                                ),
+                              ),
+                            ],
+                            if (receivedAt != null) ...[
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  const Icon(Icons.verified_rounded, size: 14, color: AppColors.success),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Collected: ${_formatDate(receivedAt)}',
+                                    style: AppTextStyles.caption.copyWith(color: AppColors.success),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
                           // Description (if present)
                           if (description != null && description.isNotEmpty) ...[
                             const SizedBox(height: AppDimensions.xs),
                             Text(
                               description,
                               style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
+                            ),
+                          ],
+                          if (receivedAt != null) ...[
+                            const SizedBox(height: AppDimensions.xs),
+                            Text(
+                              'Received by ${receivedByUserName ?? 'resident'}',
+                              style: AppTextStyles.caption.copyWith(color: AppColors.success),
                             ),
                           ],
                           // ── Resident: Allow / Deny / Drop at Gate on PENDING ──
@@ -280,6 +361,29 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
                                   side: const BorderSide(color: AppColors.info),
                                   shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
+                                  padding: const EdgeInsets.symmetric(vertical: AppDimensions.sm),
+                                ),
+                              ),
+                            ),
+                          ],
+                          // ── Resident: Collect from Watchman ──
+                          if (isResident &&
+                              receivedAt == null &&
+                              (status == 'left_at_gate' || status == 'collected' || status == 'allowed') &&
+                              id.isNotEmpty) ...[
+                            const SizedBox(height: AppDimensions.sm),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: () => _showCollectSheet(context, d),
+                                icon: const Icon(Icons.inventory_2_outlined, size: 16),
+                                label: const Text('Collect from watchman'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                  foregroundColor: AppColors.textOnPrimary,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                                  ),
                                   padding: const EdgeInsets.symmetric(vertical: AppDimensions.sm),
                                 ),
                               ),
@@ -413,6 +517,18 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
       ),
       builder: (_) => _DropPhotoSheet(deliveryId: deliveryId),
+    );
+  }
+
+  void _showCollectSheet(BuildContext context, Map<String, dynamic> delivery) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
+      ),
+      builder: (_) => _CollectFromWatchmanSheet(delivery: delivery),
     );
   }
 
@@ -793,6 +909,218 @@ class _DropPhotoSheetState extends ConsumerState<_DropPhotoSheet> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+// ─── Resident: Collect from Watchman Sheet ────────────────────────────────────
+
+class _CollectFromWatchmanSheet extends ConsumerStatefulWidget {
+  final Map<String, dynamic> delivery;
+  const _CollectFromWatchmanSheet({required this.delivery});
+
+  @override
+  ConsumerState<_CollectFromWatchmanSheet> createState() =>
+      _CollectFromWatchmanSheetState();
+}
+
+class _CollectFromWatchmanSheetState
+    extends ConsumerState<_CollectFromWatchmanSheet> {
+  bool _loading = false;
+  String? _error;
+
+  String _statusUpper() =>
+      (widget.delivery['status']?.toString() ?? '').toUpperCase();
+
+  String? _photoUrl() {
+    final raw = widget.delivery['photoUrl'] as String?;
+    return AppConstants.uploadUrlFromPath(raw);
+  }
+
+  Future<void> _collect() async {
+    final id = widget.delivery['id']?.toString() ?? '';
+    if (id.isEmpty) return;
+    if (_statusUpper() == 'LEFT_AT_GATE' && _photoUrl() == null) {
+      setState(() {
+        _error = 'Watchman photo is not uploaded yet. Please collect after photo upload.';
+      });
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    final error = await ref.read(deliveryProvider.notifier).markReceived(id);
+    if (!mounted) return;
+    if (error == null) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Parcel collected successfully'),
+        backgroundColor: AppColors.success,
+      ));
+      return;
+    }
+
+    setState(() {
+      _loading = false;
+      _error = error;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final d = widget.delivery;
+    final unit = d['unit'] is Map
+        ? (d['unit'] as Map)['fullCode'] ?? '-'
+        : (d['unit'] ?? '-').toString();
+    final agentName = d['agentName'] as String? ?? '-';
+    final company = d['company'] as String?;
+    final description = d['description'] as String?;
+    final photo = _photoUrl();
+    final requirePhotoBeforeCollect = _statusUpper() == 'LEFT_AT_GATE';
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: EdgeInsets.fromLTRB(
+          AppDimensions.screenPadding,
+          AppDimensions.lg,
+          AppDimensions.screenPadding,
+          MediaQuery.of(context).viewInsets.bottom + AppDimensions.lg,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppDimensions.lg),
+            Text('Collect from watchman', style: AppTextStyles.h1),
+            const SizedBox(height: AppDimensions.xs),
+            Text(
+              'Review the delivery details and confirm collection.',
+              style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
+            ),
+            const SizedBox(height: AppDimensions.lg),
+            AppCard(
+              padding: const EdgeInsets.all(AppDimensions.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(agentName, style: AppTextStyles.h3),
+                  if (company != null && company.isNotEmpty) ...[
+                    const SizedBox(height: AppDimensions.xs),
+                    Text(
+                      company,
+                      style: AppTextStyles.bodySmall
+                          .copyWith(color: AppColors.textSecondary),
+                    ),
+                  ],
+                  const SizedBox(height: AppDimensions.sm),
+                  Text(
+                    'Unit $unit',
+                    style:
+                        AppTextStyles.labelMedium.copyWith(color: AppColors.info),
+                  ),
+                  if (description != null && description.isNotEmpty) ...[
+                    const SizedBox(height: AppDimensions.xs),
+                    Text(
+                      description,
+                      style: AppTextStyles.bodySmall
+                          .copyWith(color: AppColors.textMuted),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: AppDimensions.lg),
+            if (photo != null) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: Image.network(
+                    photo,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: AppColors.background,
+                      child: const Center(
+                        child: Icon(Icons.broken_image_outlined,
+                            color: AppColors.textMuted),
+                      ),
+                    ),
+                    loadingBuilder: (context, child, progress) {
+                      if (progress == null) return child;
+                      return Container(
+                        color: AppColors.background,
+                        child: const Center(child: CircularProgressIndicator()),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppDimensions.sm),
+              Text('Watchman photo', style: AppTextStyles.caption),
+              const SizedBox(height: AppDimensions.lg),
+            ],
+            if (photo == null && requirePhotoBeforeCollect) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppDimensions.sm),
+                decoration: BoxDecoration(
+                  color: AppColors.warningSurface,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                ),
+                child: Text(
+                  'Waiting for watchman parcel photo upload.',
+                  style: AppTextStyles.bodySmall.copyWith(color: AppColors.warningText),
+                ),
+              ),
+              const SizedBox(height: AppDimensions.md),
+            ],
+            if (_error != null) ...[
+              Text(_error!,
+                  style:
+                      AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText)),
+              const SizedBox(height: AppDimensions.md),
+            ],
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: (_loading || (requirePhotoBeforeCollect && photo == null))
+                    ? null
+                    : _collect,
+                icon: _loading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Icon(Icons.check_circle_outline_rounded, size: 18),
+                label: Text(_loading ? 'Collecting…' : 'Collect'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.success,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

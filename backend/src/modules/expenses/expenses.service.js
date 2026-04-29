@@ -25,7 +25,28 @@ async function listExpenses(societyId, filters = {}) {
     prisma.expense.count({ where }),
   ]);
 
-  return { expenses, total, page: parseInt(page, 10), limit: parseInt(limit, 10) };
+  // Add computed flag so UI can hide "Split" and show "Undo split"
+  // We detect split by presence of bills with notes containing `expenseSplit:<expenseId>`.
+  const expensesWithSplit = await Promise.all(
+    expenses.map(async (ex) => {
+      const splitMarker = `expenseSplit:${ex.id}`;
+      const splitCount = await prisma.maintenanceBill.count({
+        where: {
+          societyId,
+          deletedAt: null,
+          notes: { contains: splitMarker },
+        },
+      });
+      return { ...ex, isSplit: splitCount > 0 };
+    }),
+  );
+
+  return {
+    expenses: expensesWithSplit,
+    total,
+    page: parseInt(page, 10),
+    limit: parseInt(limit, 10),
+  };
 }
 
 async function submitExpense(userId, societyId, data, files = []) {

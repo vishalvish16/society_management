@@ -58,6 +58,10 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
     final focusId = GoRouterState.of(context).uri.queryParameters['focusId'];
     final membersAsync = ref.watch(membersProvider);
     final notifier = ref.read(membersProvider.notifier);
+    final authUser = ref.watch(authProvider).user;
+    final currentRole = (authUser?.role ?? '').toUpperCase();
+    final isSecretary = currentRole == 'SECRETARY';
+    const secretaryManageableTargetRoles = {'MEMBER', 'RESIDENT'};
 
     final isWide = MediaQuery.of(context).size.width >= 768;
     final filtersWidget = SingleChildScrollView(
@@ -131,14 +135,22 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
                 SliverPadding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppDimensions.lg,
-                    vertical: AppDimensions.md,
+                  // Leave space for the floating "Add Member" button so last tiles aren't hidden.
+                  padding: const EdgeInsets.fromLTRB(
+                    AppDimensions.lg,
+                    AppDimensions.md,
+                    AppDimensions.lg,
+                    120,
                   ),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
                       (context, i) {
                         final m = members[i];
+                        final targetRole = m.role.toUpperCase();
+                        final canSecretaryManageTarget =
+                            secretaryManageableTargetRoles.contains(targetRole) ||
+                            (authUser?.id == m.id);
+                        final canEditThis = !isSecretary || canSecretaryManageTarget;
                         return LayoutBuilder(
                           builder: (context, constraints) {
                             final double maxWidth = constraints.maxWidth > 800 ? 800 : constraints.maxWidth;
@@ -147,7 +159,9 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                                 width: maxWidth,
                                 margin: const EdgeInsets.only(bottom: AppDimensions.md),
                                 child: AppCard(
-                                  onTap: () => _showAddEditDialog(context, ref, member: m),
+                                  onTap: canEditThis
+                                      ? () => _showAddEditDialog(context, ref, member: m)
+                                      : null,
                                   leftBorderColor: m.isActive ? AppColors.success : AppColors.textMuted,
                                   padding: const EdgeInsets.all(AppDimensions.md),
                                   child: Row(
@@ -236,14 +250,18 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                                             children: [
                                               IconButton(
                                                 icon: const Icon(Icons.lock_reset, size: 20, color: AppColors.warning),
-                                                onPressed: () => _showResetPasswordDialog(context, ref, m.id, m.name),
+                                                onPressed: canEditThis
+                                                    ? () => _showResetPasswordDialog(context, ref, m.id, m.name)
+                                                    : null,
                                                 constraints: const BoxConstraints(),
                                                 padding: EdgeInsets.zero,
                                               ),
                                               const SizedBox(width: AppDimensions.sm),
                                               IconButton(
                                                 icon: const Icon(Icons.edit_outlined, size: 20, color: AppColors.primary),
-                                                onPressed: () => _showAddEditDialog(context, ref, member: m),
+                                                onPressed: canEditThis
+                                                    ? () => _showAddEditDialog(context, ref, member: m)
+                                                    : null,
                                                 constraints: const BoxConstraints(),
                                                 padding: EdgeInsets.zero,
                                               ),
@@ -310,12 +328,12 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
     const privilegedRoles = {
       'PRAMUKH',
       'CHAIRMAN',
-      'SECRETARY',
       'SUPER_ADMIN',
       'MANAGER',
     };
     final authUser = ref.read(authProvider).user;
     final currentRole = authUser?.role.toUpperCase() ?? '';
+    final isSecretary = currentRole == 'SECRETARY';
     final lockUnit = !privilegedRoles.contains(currentRole);
     String? selectedUnitId =
         member?.unitId ?? (lockUnit ? authUser?.unitId : null);
@@ -389,7 +407,12 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                           AppSearchableDropdown<String>(
                             label: 'Role',
                             value: role,
-                            items: lockUnit
+                            items: isSecretary
+                                ? const [
+                                    AppDropdownItem(value: 'MEMBER', label: 'Member'),
+                                    AppDropdownItem(value: 'RESIDENT', label: 'Resident'),
+                                  ]
+                                : lockUnit
                                 ? const [
                                     AppDropdownItem(value: 'MEMBER', label: 'Member'),
                                     AppDropdownItem(value: 'RESIDENT', label: 'Resident'),

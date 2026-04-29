@@ -982,7 +982,11 @@ class _AmenityFormSheetState extends State<_AmenityFormSheet> {
           );
           final picked = await showTimePicker(context: context, initialTime: init,
             builder: (ctx, child) => Theme(
-              data: Theme.of(ctx).copyWith(colorScheme: const ColorScheme.light(primary: AppColors.primary)),
+              data: Theme.of(ctx).copyWith(
+                colorScheme: Theme.of(ctx).colorScheme.copyWith(
+                  primary: AppColors.primary,
+                ),
+              ),
               child: child!,
             ));
           if (picked != null) {
@@ -1304,7 +1308,9 @@ class _DatePickerRow extends StatelessWidget {
   const _DatePickerRow({this.selected, required this.maxDays, required this.onPick});
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return GestureDetector(
     onTap: () async {
       final now = DateTime.now();
       final picked = await showDatePicker(
@@ -1313,7 +1319,11 @@ class _DatePickerRow extends StatelessWidget {
         firstDate: now,
         lastDate: now.add(Duration(days: maxDays)),
         builder: (ctx, child) => Theme(
-          data: Theme.of(ctx).copyWith(colorScheme: const ColorScheme.light(primary: AppColors.primary)),
+          data: Theme.of(ctx).copyWith(
+            colorScheme: Theme.of(ctx).colorScheme.copyWith(
+              primary: AppColors.primary,
+            ),
+          ),
           child: child!,
         ),
       );
@@ -1322,22 +1332,25 @@ class _DatePickerRow extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: selected != null ? AppColors.primary : AppColors.border),
+        border: Border.all(
+          color: selected != null ? AppColors.primary : scheme.outlineVariant,
+        ),
       ),
       child: Row(children: [
         Icon(Icons.calendar_today_rounded, size: 16,
-            color: selected != null ? AppColors.primary : AppColors.textMuted),
+            color: selected != null ? AppColors.primary : scheme.onSurfaceVariant),
         const SizedBox(width: 8),
         Text(
           selected != null ? DateFormat('EEEE, dd MMM yyyy').format(selected!) : 'Tap to select date',
           style: AppTextStyles.bodyMedium.copyWith(
-              color: selected != null ? AppColors.textPrimary : AppColors.textMuted),
+              color: selected != null ? scheme.onSurface : scheme.onSurfaceVariant),
         ),
       ]),
     ),
   );
+  }
 }
 
 class _MonthYearPicker extends StatelessWidget {

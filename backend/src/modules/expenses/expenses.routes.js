@@ -19,6 +19,7 @@ router.get('/', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'WATCHMAN', 'MEMB
 router.post('/', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'WATCHMAN']), upload.array('attachments', 5), checkPlanLimit('expenses'), expensesController.submitExpense);
 router.put('/:id', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'WATCHMAN']), upload.array('attachments', 5), checkPlanLimit('expenses'), expensesController.updateExpense);
 router.post('/:id/convert-to-bill', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), checkPlanLimit('expenses'), expensesController.convertToBill);
+router.post('/:id/undo-split', roleGuard(['PRAMUKH', 'CHAIRMAN', 'SECRETARY']), checkPlanLimit('expenses'), expensesController.undoSplit);
 
 // Approval workflow — requires expense_approval feature (Standard+)
 router.patch('/:id/approve', permissionGuard('expense_approval'), checkPlanLimit('expense_approval'), expensesController.approveExpense);

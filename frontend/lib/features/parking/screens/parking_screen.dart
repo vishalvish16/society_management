@@ -1738,7 +1738,9 @@ class _EntryFormSheetState extends ConsumerState<_EntryFormSheet> {
                 initialTime: TimeOfDay.now(),
                 builder: (ctx, child) => Theme(
                   data: Theme.of(ctx).copyWith(
-                      colorScheme: const ColorScheme.light(primary: AppColors.primary)),
+                      colorScheme: Theme.of(ctx)
+                          .colorScheme
+                          .copyWith(primary: AppColors.primary)),
                   child: child!,
                 ),
               );

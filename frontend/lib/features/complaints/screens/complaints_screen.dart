@@ -72,13 +72,8 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
       'closed': 'CLOSED',
     };
 
-    final filtered = _filter == 'all'
-        ? state.complaints
-        : state.complaints
-            .where((c) =>
-                (c['status'] as String? ?? '').toUpperCase() ==
-                statusMap[_filter])
-            .toList();
+    // Server already filters by status; use the list as-is
+    final filtered = state.complaints;
 
     if (focusId != null &&
         focusId.isNotEmpty &&
@@ -151,35 +146,41 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
             ),
           ),
           Expanded(
-            child: state.isLoading
-                ? const AppLoadingShimmer()
-                : state.error != null
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(AppDimensions.screenPadding),
-                          child: AppCard(
-                            backgroundColor: AppColors.dangerSurface,
-                            child: Text('Error: ${state.error}',
-                                style: AppTextStyles.bodySmall
-                                    .copyWith(color: AppColors.dangerText)),
-                          ),
-                        ),
-                      )
-                    : filtered.isEmpty
-                        ? const AppEmptyState(
-                            emoji: '🔧',
-                            title: 'No Complaints',
-                            subtitle: 'No complaints match the selected filter.',
-                          )
-                        : RefreshIndicator(
-                            onRefresh: () => ref
-                                .read(complaintsProvider.notifier)
-                                .loadComplaints(
-                                    status: _filter == 'all'
-                                        ? null
-                                        : statusMap[_filter]),
-                            child: ListView.separated(
+            child: RefreshIndicator(
+              onRefresh: () => ref
+                  .read(complaintsProvider.notifier)
+                  .loadComplaints(status: _filter == 'all' ? null : statusMap[_filter]),
+              child: state.isLoading
+                  ? const AppLoadingShimmer()
+                  : state.error != null
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(AppDimensions.screenPadding),
+                              child: AppCard(
+                                backgroundColor: AppColors.dangerSurface,
+                                child: Text('Error: ${state.error}',
+                                    style: AppTextStyles.bodySmall
+                                        .copyWith(color: AppColors.dangerText)),
+                              ),
+                            ),
+                          ],
+                        )
+                      : filtered.isEmpty
+                          ? ListView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              children: const [
+                                AppEmptyState(
+                                  emoji: '🔧',
+                                  title: 'No Complaints',
+                                  subtitle: 'No complaints match the selected filter.',
+                                ),
+                              ],
+                            )
+                          : ListView.separated(
                               controller: _scrollController,
+                              physics: const AlwaysScrollableScrollPhysics(),
                               padding: const EdgeInsets.all(AppDimensions.screenPadding),
                               itemCount: filtered.length,
                               separatorBuilder: (_, i) =>
@@ -191,7 +192,7 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
                                 isAdmin: _isAdmin,
                               ),
                             ),
-                          ),
+            ),
           ),
         ],
       ),
@@ -722,6 +723,9 @@ class _ComplaintDetailSheet extends StatelessWidget {
     final paymentStatus = (c['paymentStatus'] as String? ?? 'UNPAID').toUpperCase();
     final isPaid = paymentStatus == 'PAID' || (amount > 0 && paidAmount >= amount);
 
+    final updatedBy = (c['updatedBy'] as Map?)?['name'] as String?;
+    final updatedAt = c['updatedAt'] as String?;
+
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.6,
@@ -766,6 +770,18 @@ class _ComplaintDetailSheet extends StatelessWidget {
             _row('Raised On', createdAt.length >= 10 ? createdAt.substring(0, 10) : createdAt),
             if (resolvedAt != null)
               _row('Resolved On', resolvedAt.length >= 10 ? resolvedAt.substring(0, 10) : resolvedAt),
+            if (updatedBy != null || (updatedAt != null && updatedAt.isNotEmpty)) ...[
+              const SizedBox(height: AppDimensions.sm),
+              const Divider(),
+              const SizedBox(height: AppDimensions.sm),
+              Text('Audit Trail', style: AppTextStyles.labelLarge.copyWith(color: AppColors.textSecondary)),
+              const SizedBox(height: AppDimensions.xs),
+              _row('Created By', raisedBy),
+              _row('Created On', createdAt.length >= 10 ? createdAt.substring(0, 10) : createdAt),
+              if (updatedBy != null) _row('Last Updated By', updatedBy),
+              if (updatedAt != null && updatedAt.length >= 10)
+                _row('Last Updated On', updatedAt.substring(0, 10)),
+            ],
             if (resolutionNote != null && resolutionNote.isNotEmpty) ...[
               const SizedBox(height: AppDimensions.md),
               const Divider(),

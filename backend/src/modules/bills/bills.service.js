@@ -374,6 +374,19 @@ async function payAdvance(unitId, monthsCount, amountPerMonth, societyId, paymen
  * Split an expense equally among all occupied units.
  */
 async function splitExpenseAmongUnits(societyId, expenseId, totalAmount, title, description, generatedById) {
+  // Prevent splitting same expense multiple times (used by UI to hide split button)
+  const splitMarker = `expenseSplit:${expenseId}`;
+  const alreadySplit = await prisma.maintenanceBill.count({
+    where: {
+      societyId,
+      deletedAt: null,
+      notes: { contains: splitMarker },
+    },
+  });
+  if (alreadySplit > 0) {
+    throw Object.assign(new Error('Expense is already split among units'), { status: 400 });
+  }
+
   const units = await prisma.unit.findMany({
     where: { societyId, status: 'OCCUPIED', deletedAt: null },
   });
@@ -394,7 +407,8 @@ async function splitExpenseAmongUnits(societyId, expenseId, totalAmount, title, 
     dueDate,
     title,
     description,
-    category: 'EVENT',
+    category: 'EXPENSE',
+    notes: splitMarker,
   }));
 
   const result = await prisma.maintenanceBill.createMany({ data: billsData });
@@ -413,6 +427,45 @@ async function splitExpenseAmongUnits(societyId, expenseId, totalAmount, title, 
   });
 
   return result;
+}
+
+/**
+ * Undo a previously split expense by soft-deleting the generated bills.
+ * Only allowed if none of the generated bills has any payment recorded.
+ */
+async function undoSplitExpenseAmongUnits(societyId, expenseId, actorId) {
+  const splitMarker = `expenseSplit:${expenseId}`;
+
+  const bills = await prisma.maintenanceBill.findMany({
+    where: {
+      societyId,
+      deletedAt: null,
+      notes: { contains: splitMarker },
+    },
+    select: { id: true, status: true, paidAmount: true },
+  });
+
+  if (bills.length === 0) {
+    throw Object.assign(new Error('No split bills found for this expense'), { status: 404 });
+  }
+
+  const hasAnyPayment = bills.some((b) => {
+    const paid = Number(b.paidAmount || 0);
+    return paid > 0 || ['PAID', 'PARTIAL'].includes(String(b.status || '').toUpperCase());
+  });
+  if (hasAnyPayment) {
+    throw Object.assign(
+      new Error('Cannot undo split because one or more bills already have payment recorded'),
+      { status: 400 },
+    );
+  }
+
+  const deleted = await prisma.maintenanceBill.updateMany({
+    where: { id: { in: bills.map((b) => b.id) } },
+    data: { deletedAt: new Date(), deletedById: actorId || null },
+  });
+
+  return { deletedCount: deleted.count };
 }
 
 async function getResidentUnitIds(userId, societyId, activeUnitId = null) {
@@ -919,6 +972,7 @@ module.exports = {
   bulkGenerateBills,
   payAdvance,
   splitExpenseAmongUnits,
+  undoSplitExpenseAmongUnits,
   recordPayment,
   getBill,
   listBillAuditLogs,

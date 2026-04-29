@@ -1,7 +1,6 @@
 const prisma = require('../../config/db');
 const notificationsService = require('../notifications/notifications.service');
 const { sendSuccess, sendError } = require('../../utils/response');
-const { pushToUsers, pushToRole } = require('../../utils/push');
 
 const createComplaint = async (req, res) => {
   try {
@@ -79,6 +78,7 @@ const getComplaints = async (req, res) => {
         include: {
           raisedBy: { select: { name: true, phone: true } },
           assignedTo: { select: { name: true } },
+          updatedBy: { select: { name: true } },
           unit: { select: { fullCode: true } },
           attachments: true,
         },
@@ -101,6 +101,7 @@ const getComplaintById = async (req, res) => {
       include: {
         raisedBy: { select: { name: true, phone: true } },
         assignedTo: { select: { name: true } },
+        updatedBy: { select: { name: true } },
         unit: { select: { fullCode: true } },
         attachments: true,
       },
@@ -114,7 +115,7 @@ const getComplaintById = async (req, res) => {
 
 const updateComplaint = async (req, res) => {
   try {
-    const { societyId } = req.user;
+    const { societyId, id: currentUserId } = req.user;
     const { id } = req.params;
     const { status, assignedToId, resolutionNote, amount, paidAmount, paymentMethod, transactionId } = req.body;
     const userRole = req.user.role.toUpperCase();
@@ -133,7 +134,7 @@ const updateComplaint = async (req, res) => {
       return sendError(res, 'Only Pramukh or Chairman can record manual payments', 403);
     }
 
-    const updateData = {};
+    const updateData = { updatedById: currentUserId };
     if (status) updateData.status = status.toUpperCase();
     if (assignedToId !== undefined) updateData.assignedToId = assignedToId || null;
     if (resolutionNote !== undefined) updateData.resolutionNote = resolutionNote;
@@ -162,7 +163,17 @@ const updateComplaint = async (req, res) => {
       }
     }
 
-    const updated = await prisma.complaint.update({ where: { id }, data: updateData });
+    const updated = await prisma.complaint.update({
+      where: { id },
+      data: updateData,
+      include: {
+        raisedBy: { select: { name: true, phone: true } },
+        assignedTo: { select: { name: true } },
+        updatedBy: { select: { name: true } },
+        unit: { select: { fullCode: true } },
+        attachments: true,
+      },
+    });
 
     // Notify the person who raised the complaint on status change
     if (status && complaint.raisedById) {
@@ -205,12 +216,14 @@ const updateComplaint = async (req, res) => {
 
 const deleteComplaint = async (req, res) => {
   try {
-    const { societyId } = req.user;
+    const { societyId, id: deletedById, name: deletedByName } = req.user;
     const { id } = req.params;
     const complaint = await prisma.complaint.findUnique({ where: { id } });
     if (!complaint || complaint.societyId !== societyId) return sendError(res, 'Complaint not found', 404);
+    // Record who deleted before removing
+    await prisma.complaint.update({ where: { id }, data: { deletedById } });
     await prisma.complaint.delete({ where: { id } });
-    return sendSuccess(res, null, 'Complaint deleted');
+    return sendSuccess(res, { deletedBy: deletedByName ?? null }, 'Complaint deleted');
   } catch (err) {
     return sendError(res, err.message, 500);
   }

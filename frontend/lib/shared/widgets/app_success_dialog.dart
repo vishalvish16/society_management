@@ -22,9 +22,11 @@ class AppSuccessDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      backgroundColor: AppColors.surface,
+      backgroundColor: scheme.surface,
+      surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
       ),
@@ -50,13 +52,17 @@ class AppSuccessDialog extends StatelessWidget {
                 child: Icon(icon, color: AppColors.success, size: 36),
               ),
               const SizedBox(height: AppDimensions.md),
-              Text(title, style: AppTextStyles.h2, textAlign: TextAlign.center),
+              Text(
+                title,
+                style: AppTextStyles.h2.copyWith(color: scheme.onSurface),
+                textAlign: TextAlign.center,
+              ),
               if (subtitle.trim().isNotEmpty) ...[
                 const SizedBox(height: AppDimensions.xs),
                 Text(
                   subtitle,
                   style: AppTextStyles.bodySmall
-                      .copyWith(color: AppColors.textMuted),
+                      .copyWith(color: scheme.onSurfaceVariant),
                   textAlign: TextAlign.center,
                 ),
               ],

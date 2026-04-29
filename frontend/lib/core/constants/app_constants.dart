@@ -6,7 +6,7 @@ class AppConstants {
   // For Flutter web (browser), use localhost.
   // static const String apiBaseUrl = 'http://localhost:3001/api/';
   static const String apiBaseUrl =
-      'https://wherever-registration-reynolds-quoted.trycloudflare.com/api/';
+      'https://treasury-praise-theatre-orientation.trycloudflare.com/api/';
 
   /// Server root for static `/uploads/...` paths returned by the API.
   static String get uploadsBaseUrl => apiBaseUrl.replaceAll('/api/', '');

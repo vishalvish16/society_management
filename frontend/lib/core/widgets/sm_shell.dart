@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../models/user_model.dart';
 import '../providers/auth_provider.dart';
+import '../providers/global_search_provider.dart';
+import '../models/search_result_model.dart';
 import '../theme/app_colors.dart';
 import '../../shared/widgets/confirm_logout.dart';
 import '../../shared/widgets/app_pull_to_refresh.dart';
@@ -166,6 +168,16 @@ class _SMShellState extends ConsumerState<SMShell> {
     return _mobileBottomItems.where((n) => _allowed(n, user, rolePerms)).toList();
   }
 
+  void _openSearch(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      useSafeArea: true,
+      builder: (_) => const _SearchModal(),
+    );
+  }
+
   void _onNavTap(int index, List<_NavItem> navItems) {
     final path = navItems[index].path;
     setState(() => _selectedIndex = index);
@@ -261,7 +273,6 @@ class _SMShellState extends ConsumerState<SMShell> {
       // This should only happen briefly while role permissions are loading.
       // Still render the current route content.
       return Scaffold(
-        key: _scaffoldKey,
         body: Row(
           children: [
             if (isWide) const SizedBox.shrink(),
@@ -283,11 +294,20 @@ class _SMShellState extends ConsumerState<SMShell> {
       appBar: isWide
           ? null
           : AppBar(
-              backgroundColor: const Color(0xFF0F172A),
-              foregroundColor: Colors.white,
+              backgroundColor: Theme.of(context).colorScheme.surface,
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              iconTheme: IconThemeData(
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+              actionsIconTheme: IconThemeData(
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
               elevation: 0,
               leading: IconButton(
-                icon: Icon(isSubPage ? Icons.arrow_back_rounded : Icons.menu_rounded),
+                icon: Icon(
+                  isSubPage ? Icons.arrow_back_rounded : Icons.menu_rounded,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
                 onPressed: () {
                   if (isSubPage) {
                     context.go(moduleRoot);
@@ -315,11 +335,15 @@ class _SMShellState extends ConsumerState<SMShell> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.apartment_rounded, size: 11, color: AppColors.primaryLight),
+                          Icon(Icons.apartment_rounded, size: 11, color: Theme.of(context).colorScheme.primary),
                           const SizedBox(width: 4),
                           Text(
                             authState.user!.unitCode!,
-                            style: const TextStyle(fontSize: 11, color: AppColors.primaryLight, fontWeight: FontWeight.w600),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Theme.of(context).colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ],
                       ),
@@ -329,12 +353,24 @@ class _SMShellState extends ConsumerState<SMShell> {
               ),
               actions: [
                 IconButton(
+                  icon: Icon(
+                    Icons.search_rounded,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  tooltip: 'Search',
+                  onPressed: () => _openSearch(context),
+                ),
+                IconButton(
                   icon: CircleAvatar(
                     radius: 14,
                     backgroundColor: AppColors.primary,
                     child: Text(
                       (authState.user?.name ?? 'U').substring(0, 1).toUpperCase(),
-                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                   onPressed: () => _scaffoldKey.currentState?.openDrawer(),
@@ -371,6 +407,10 @@ class _SMShellState extends ConsumerState<SMShell> {
   // ── Desktop sidebar ──────────────────────────────────────────────
 
   Widget _buildSidebar(AuthState authState, List<_NavItem> navItems, bool isUnitLocked) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final muted = cs.onSurface.withValues(alpha: 0.7);
+    final groupHeader = cs.onSurface.withValues(alpha: 0.45);
     final groups = <String, List<int>>{};
     for (int i = 0; i < navItems.length; i++) {
       groups.putIfAbsent(navItems[i].group ?? '', () => []).add(i);
@@ -378,9 +418,9 @@ class _SMShellState extends ConsumerState<SMShell> {
 
     return Container(
       width: 260,
-      decoration: const BoxDecoration(
-        color: Color(0xFF0F172A),
-        border: Border(right: BorderSide(color: Color(0xFF1E293B))),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        border: Border(right: BorderSide(color: theme.dividerColor)),
       ),
       child: Column(
         children: [
@@ -395,19 +435,19 @@ class _SMShellState extends ConsumerState<SMShell> {
                     color: AppColors.primary,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.apartment_rounded, color: Colors.white, size: 20),
+                  child: Icon(Icons.apartment_rounded, color: cs.onPrimary, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Society Manager',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                      Text('Society Manager',
+                          style: TextStyle(color: cs.onSurface, fontWeight: FontWeight.bold, fontSize: 14),
                           overflow: TextOverflow.ellipsis),
                       Text(
                         authState.user?.role ?? '',
-                        style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+                        style: TextStyle(color: muted, fontSize: 11),
                       ),
                     ],
                   ),
@@ -433,18 +473,18 @@ class _SMShellState extends ConsumerState<SMShell> {
                       color: AppColors.primary.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: const Icon(Icons.apartment_rounded, color: AppColors.primaryLight, size: 14),
+                    child: Icon(Icons.apartment_rounded, color: cs.primary, size: 14),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('My Unit',
-                            style: TextStyle(color: Color(0xFF94A3B8), fontSize: 10, fontWeight: FontWeight.w600)),
+                        Text('My Unit',
+                            style: TextStyle(color: muted, fontSize: 10, fontWeight: FontWeight.w600)),
                         Text(
                           authState.user!.unitCode!,
-                          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                          style: TextStyle(color: cs.onSurface, fontSize: 13, fontWeight: FontWeight.w700),
                         ),
                       ],
                     ),
@@ -452,7 +492,7 @@ class _SMShellState extends ConsumerState<SMShell> {
                 ],
               ),
             ),
-          const Divider(color: Color(0xFF1E293B), height: 1),
+          Divider(color: theme.dividerColor, height: 1),
 
           // Nav groups
           Expanded(
@@ -469,8 +509,8 @@ class _SMShellState extends ConsumerState<SMShell> {
                           padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
                           child: Text(
                             entry.key.toUpperCase(),
-                            style: const TextStyle(
-                              color: Color(0xFF475569),
+                            style: TextStyle(
+                              color: groupHeader,
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 1.0,
@@ -486,7 +526,7 @@ class _SMShellState extends ConsumerState<SMShell> {
           ),
 
           // User footer
-          const Divider(color: Color(0xFF1E293B), height: 1),
+          Divider(color: theme.dividerColor, height: 1),
           Padding(
             padding: const EdgeInsets.all(14),
             child: Row(
@@ -496,7 +536,7 @@ class _SMShellState extends ConsumerState<SMShell> {
                   backgroundColor: AppColors.primary,
                   child: Text(
                     (authState.user?.name ?? 'U').substring(0, 1).toUpperCase(),
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                    style: TextStyle(color: cs.onPrimary, fontWeight: FontWeight.bold, fontSize: 13),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -505,15 +545,15 @@ class _SMShellState extends ConsumerState<SMShell> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(authState.user?.name ?? 'User',
-                          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                          style: TextStyle(color: cs.onSurface, fontSize: 13, fontWeight: FontWeight.w500),
                           overflow: TextOverflow.ellipsis),
                       Text(authState.user?.phone ?? '',
-                          style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
+                          style: TextStyle(color: muted, fontSize: 11)),
                     ],
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.logout_rounded, color: Color(0xFF94A3B8), size: 18),
+                  icon: Icon(Icons.logout_rounded, color: muted, size: 18),
                   tooltip: 'Logout',
                   onPressed: () async {
                     final confirm = await showLogoutConfirmSheet(context);
@@ -531,6 +571,8 @@ class _SMShellState extends ConsumerState<SMShell> {
   }
 
   Widget _sidebarItem(int i, List<_NavItem> navItems) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final item = navItems[i];
     final isSelected = _selectedIndex == i;
     return Padding(
@@ -547,11 +589,11 @@ class _SMShellState extends ConsumerState<SMShell> {
               children: [
                 Icon(item.icon,
                     size: 18,
-                    color: isSelected ? AppColors.primaryLight : const Color(0xFF94A3B8)),
+                    color: isSelected ? cs.primary : cs.onSurface.withValues(alpha: 0.7)),
                 const SizedBox(width: 12),
                 Text(item.label,
                     style: TextStyle(
-                      color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+                      color: isSelected ? cs.onSurface : cs.onSurface.withValues(alpha: 0.7),
                       fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                       fontSize: 13,
                     )),
@@ -566,8 +608,12 @@ class _SMShellState extends ConsumerState<SMShell> {
   // ── Mobile drawer (full nav) ─────────────────────────────────────
 
   Widget _buildDrawer(AuthState authState, List<_NavItem> navItems, bool isUnitLocked) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final muted = cs.onSurface.withValues(alpha: 0.7);
+    final groupHeader = cs.onSurface.withValues(alpha: 0.45);
     return Drawer(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: cs.surface,
       child: SafeArea(
         child: Column(
           children: [
@@ -582,24 +628,24 @@ class _SMShellState extends ConsumerState<SMShell> {
                       color: AppColors.primary,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.apartment_rounded, color: Colors.white, size: 18),
+                    child: Icon(Icons.apartment_rounded, color: cs.onPrimary, size: 18),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Society Manager',
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                        Text('Society Manager',
+                            style: TextStyle(color: cs.onSurface, fontWeight: FontWeight.bold, fontSize: 14),
                             overflow: TextOverflow.ellipsis),
                         Text(authState.user?.name ?? '',
-                            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+                            style: TextStyle(color: muted, fontSize: 11),
                             overflow: TextOverflow.ellipsis),
                       ],
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close, color: Color(0xFF94A3B8), size: 20),
+                    icon: Icon(Icons.close, color: muted, size: 20),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
@@ -623,18 +669,18 @@ class _SMShellState extends ConsumerState<SMShell> {
                         color: AppColors.primary.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: const Icon(Icons.apartment_rounded, color: AppColors.primaryLight, size: 14),
+                      child: Icon(Icons.apartment_rounded, color: cs.primary, size: 14),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('My Unit',
-                              style: TextStyle(color: Color(0xFF94A3B8), fontSize: 10, fontWeight: FontWeight.w600)),
+                          Text('My Unit',
+                              style: TextStyle(color: muted, fontSize: 10, fontWeight: FontWeight.w600)),
                           Text(
                             authState.user!.unitCode!,
-                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                            style: TextStyle(color: cs.onSurface, fontSize: 13, fontWeight: FontWeight.w700),
                           ),
                         ],
                       ),
@@ -642,7 +688,7 @@ class _SMShellState extends ConsumerState<SMShell> {
                   ],
                 ),
               ),
-            const Divider(color: Color(0xFF1E293B), height: 1),
+            Divider(color: theme.dividerColor, height: 1),
 
             // Nav items
             Expanded(
@@ -665,8 +711,8 @@ class _SMShellState extends ConsumerState<SMShell> {
                           padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
                           child: Text(
                             (item.group ?? '').toUpperCase(),
-                            style: const TextStyle(
-                              color: Color(0xFF475569),
+                            style: TextStyle(
+                              color: groupHeader,
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 1.0,
@@ -677,10 +723,10 @@ class _SMShellState extends ConsumerState<SMShell> {
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
                         leading: Icon(item.icon,
                             size: 20,
-                            color: isSelected ? AppColors.primaryLight : const Color(0xFF94A3B8)),
+                            color: isSelected ? cs.primary : muted),
                         title: Text(item.label,
                             style: TextStyle(
-                              color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+                              color: isSelected ? cs.onSurface : muted,
                               fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                               fontSize: 14,
                             )),
@@ -699,15 +745,15 @@ class _SMShellState extends ConsumerState<SMShell> {
             ),
 
             // Logout
-            const Divider(color: Color(0xFF1E293B), height: 1),
+            Divider(color: theme.dividerColor, height: 1),
             ColoredBox(
-              color: const Color(0xFF0F172A),
+              color: cs.surface,
               child: SafeArea(
                 top: false,
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                  leading: const Icon(Icons.logout_rounded, color: Color(0xFF94A3B8), size: 20),
-                  title: const Text('Logout', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14)),
+                  leading: Icon(Icons.logout_rounded, color: muted, size: 20),
+                  title: Text('Logout', style: TextStyle(color: muted, fontSize: 14)),
                   onTap: () async {
                     Navigator.pop(context);
                     final confirm = await showLogoutConfirmSheet(context);
@@ -718,6 +764,384 @@ class _SMShellState extends ConsumerState<SMShell> {
                 ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Master Search Modal ──────────────────────────────────────────────────────
+
+class _SearchModal extends ConsumerStatefulWidget {
+  const _SearchModal();
+
+  @override
+  ConsumerState<_SearchModal> createState() => _SearchModalState();
+}
+
+class _SearchModalState extends ConsumerState<_SearchModal> {
+  final _controller = TextEditingController();
+  final _focusNode = FocusNode();
+
+  static const _typeIcons = <String, IconData>{
+    'member':       Icons.person_rounded,
+    'unit':         Icons.apartment_rounded,
+    'vehicle':      Icons.directions_car_rounded,
+    'visitor':      Icons.person_pin_circle_rounded,
+    'delivery':     Icons.local_shipping_rounded,
+    'domestic_help': Icons.cleaning_services_rounded,
+    'staff':        Icons.support_agent_rounded,
+    'asset':        Icons.inventory_2_rounded,
+    'complaint':    Icons.report_problem_rounded,
+    'suggestion':   Icons.lightbulb_rounded,
+    'bill':         Icons.receipt_long_rounded,
+  };
+
+  static const _typeColors = <String, Color>{
+    'member':       Color(0xFF2563EB),
+    'unit':         Color(0xFF7C3AED),
+    'vehicle':      Color(0xFF059669),
+    'visitor':      Color(0xFF0891B2),
+    'delivery':     Color(0xFFD97706),
+    'domestic_help': Color(0xFFDB2777),
+    'staff':        Color(0xFF65A30D),
+    'asset':        Color(0xFF9333EA),
+    'complaint':    Color(0xFFDC2626),
+    'suggestion':   Color(0xFFF59E0B),
+    'bill':         Color(0xFF0284C7),
+  };
+
+  static const _typeLabels = <String, String>{
+    'member':       'Member',
+    'unit':         'Unit',
+    'vehicle':      'Vehicle',
+    'visitor':      'Visitor',
+    'delivery':     'Delivery',
+    'domestic_help': 'Domestic Help',
+    'staff':        'Staff',
+    'asset':        'Asset',
+    'complaint':    'Complaint',
+    'suggestion':   'Suggestion',
+    'bill':         'Bill',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _focusNode.requestFocus());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    ref.read(globalSearchProvider.notifier).clear();
+    super.dispose();
+  }
+
+  void _onResultTap(GlobalSearchResult result) {
+    Navigator.of(context).pop();
+    ref.read(globalSearchProvider.notifier).clear();
+    final route = result.route;
+    if (route.isNotEmpty) context.go(route);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final search = ref.watch(globalSearchProvider);
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final inputTheme = theme.inputDecorationTheme;
+    final fillColor = inputTheme.fillColor ?? cs.surface;
+    final enabledBorder = (inputTheme.enabledBorder is OutlineInputBorder)
+        ? (inputTheme.enabledBorder! as OutlineInputBorder)
+        : null;
+    final borderColor = enabledBorder?.borderSide.color ?? theme.dividerColor;
+    final hintColor = inputTheme.hintStyle?.color ?? theme.hintColor;
+    final textColor = theme.textTheme.bodyMedium?.color ?? cs.onSurface;
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.92,
+      minChildSize: 0.5,
+      maxChildSize: 0.97,
+      expand: false,
+      builder: (_, scrollController) {
+        return Container(
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Drag handle
+              Container(
+                width: 36, height: 4,
+                margin: const EdgeInsets.only(top: 12, bottom: 16),
+                decoration: BoxDecoration(
+                  color: theme.dividerColor.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+
+              // Search field
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: fillColor,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: borderColor),
+                        ),
+                        child: TextField(
+                          controller: _controller,
+                          focusNode: _focusNode,
+                          style: TextStyle(color: textColor, fontSize: 15),
+                          cursorColor: cs.primary,
+                          decoration: InputDecoration(
+                            hintText: 'Search members, bills, complaints…',
+                            hintStyle: TextStyle(color: hintColor, fontSize: 15),
+                            prefixIcon: search.isLoading
+                                ? const Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: SizedBox(
+                                      width: 20, height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                  )
+                                : Icon(Icons.search_rounded, color: hintColor, size: 20),
+                            suffixIcon: _controller.text.isNotEmpty
+                                ? IconButton(
+                                    icon: Icon(Icons.close_rounded, color: hintColor, size: 18),
+                                    onPressed: () {
+                                      _controller.clear();
+                                      ref.read(globalSearchProvider.notifier).clear();
+                                    },
+                                  )
+                                : null,
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 14),
+                          ),
+                          onChanged: (v) {
+                            setState(() {});
+                            ref.read(globalSearchProvider.notifier).setQuery(v);
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    GestureDetector(
+                      onTap: () => Navigator.of(context).pop(),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(color: cs.primary, fontSize: 14, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              Divider(color: theme.dividerColor, height: 1),
+
+              // Results
+              Expanded(
+                child: _buildResults(search, scrollController, bottom),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildResults(GlobalSearchState search, ScrollController scrollController, double bottom) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final headerFallback = cs.primary;
+    final surfaceBox = theme.inputDecorationTheme.fillColor ?? cs.surface;
+    final borderColor = theme.dividerColor;
+
+    // Idle / empty query
+    if (search.query.isEmpty) {
+      return _emptyHint(
+        Icons.search_rounded,
+        'Search across your society',
+        'Members, bills, complaints, deliveries and more',
+      );
+    }
+
+    // Minimum chars
+    if (search.query.length < 2) {
+      return _emptyHint(Icons.keyboard_rounded, 'Keep typing…', 'Enter at least 2 characters');
+    }
+
+    // Error
+    if (search.error != null && !search.isLoading) {
+      return _emptyHint(Icons.error_outline_rounded, 'Search failed', search.error!);
+    }
+
+    // No results
+    if (!search.isLoading && search.results.isEmpty) {
+      return _emptyHint(Icons.search_off_rounded, 'No results', 'Try a different keyword');
+    }
+
+    // Group results by type
+    final grouped = <String, List<GlobalSearchResult>>{};
+    for (final r in search.results) {
+      grouped.putIfAbsent(r.type, () => []).add(r);
+    }
+
+    return ListView(
+      controller: scrollController,
+      padding: EdgeInsets.fromLTRB(16, 12, 16, 16 + bottom),
+      children: [
+        for (final entry in grouped.entries) ...[
+          // Group header
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 6),
+            child: Row(
+              children: [
+                Container(
+                  width: 20, height: 20,
+                  decoration: BoxDecoration(
+                    color: (_typeColors[entry.key] ?? AppColors.primary).withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Icon(
+                    _typeIcons[entry.key] ?? Icons.category_rounded,
+                    size: 12,
+                    color: _typeColors[entry.key] ?? headerFallback,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  (_typeLabels[entry.key] ?? entry.key).toUpperCase(),
+                  style: TextStyle(
+                    color: _typeColors[entry.key] ?? headerFallback,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Container(
+                    height: 1,
+                    color: borderColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Result tiles
+          Container(
+            decoration: BoxDecoration(
+              color: surfaceBox,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor),
+            ),
+            child: Column(
+              children: [
+                for (int i = 0; i < entry.value.length; i++) ...[
+                  _resultTile(entry.value[i], entry.key),
+                  if (i < entry.value.length - 1)
+                    Divider(color: borderColor, height: 1, indent: 52),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _resultTile(GlobalSearchResult result, String type) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final color = _typeColors[type] ?? AppColors.primary;
+    final icon = _typeIcons[type] ?? Icons.category_rounded;
+
+    return InkWell(
+      onTap: () => _onResultTap(result),
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(icon, size: 18, color: color),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    result.title,
+                    style: TextStyle(
+                      color: theme.textTheme.bodyMedium?.color ?? cs.onSurface,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (result.subtitle.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      result.subtitle,
+                      style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7), fontSize: 12),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: cs.onSurface.withValues(alpha: 0.45), size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyHint(IconData icon, String title, String subtitle) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final boxColor = theme.inputDecorationTheme.fillColor ?? cs.surface;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64, height: 64,
+              decoration: BoxDecoration(
+                color: boxColor,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(icon, size: 28, color: cs.onSurface.withValues(alpha: 0.45)),
+            ),
+            const SizedBox(height: 16),
+            Text(title,
+                style: TextStyle(color: theme.textTheme.bodyLarge?.color ?? cs.onSurface, fontSize: 16, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            Text(subtitle,
+                style: TextStyle(color: cs.onSurface.withValues(alpha: 0.65), fontSize: 13),
+                textAlign: TextAlign.center),
           ],
         ),
       ),

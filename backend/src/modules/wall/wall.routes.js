@@ -14,6 +14,7 @@ router.get('/', c.listPosts);
 router.post('/', uploadWall.array('media', 10), c.createPost);
 router.get('/:id', c.getPost);
 router.patch('/:id/hide', c.toggleHidePost);
+router.get('/:id/likes', c.getLikes);
 router.post('/:id/like', c.toggleLike);
 router.delete('/:id', c.deletePost);
 

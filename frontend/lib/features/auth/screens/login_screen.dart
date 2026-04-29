@@ -76,13 +76,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     super.dispose();
   }
 
-  void _routeByRole(String role) {
-    if (role.toUpperCase() == 'SUPER_ADMIN') {
-      context.go('/sa-dashboard');
-    } else {
-      context.go('/dashboard');
-    }
-  }
+  /// We intentionally avoid manual navigation after login/biometric.
+  /// `GoRouter.redirect` already reacts to `authProvider.isAuthenticated`
+  /// and routes to the correct dashboard. Triggering `context.go` here can
+  /// cause double-navigation and framework assertions.
+  void _onLoginComplete() {}
 
   Future<void> _login() async {
     FocusScope.of(context).unfocus();
@@ -100,7 +98,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       // Single society — already logged in
       await _saveRememberMe(identifier);
       if (!mounted) return;
-      _routeByRole(ref.read(authProvider).user?.role ?? '');
+      _onLoginComplete();
       return;
     }
 
@@ -128,7 +126,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           if (success) {
             await _saveRememberMe(identifier);
             if (!mounted) return;
-            _routeByRole(ref.read(authProvider).user?.role ?? '');
+            _onLoginComplete();
           }
         },
       ),
@@ -159,7 +157,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     final success =
         await ref.read(authProvider.notifier).login(identifier, password);
     if (!mounted) return;
-    if (success) _routeByRole(ref.read(authProvider).user?.role ?? '');
+    if (success) _onLoginComplete();
   }
 
   @override

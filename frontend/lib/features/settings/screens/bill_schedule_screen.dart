@@ -392,7 +392,9 @@ class BillScheduleScreen extends ConsumerWidget {
                           final amount = double.tryParse(amountController.text) ?? 0;
                           if (amount <= 0) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Please enter a valid amount')),
+                              const SnackBar(
+                                content: Text('Please enter a valid amount'),
+                              ),
                             );
                             return;
                           }
@@ -408,15 +410,17 @@ class BillScheduleScreen extends ConsumerWidget {
                             setState(() => isSaving = false);
                           }
                           if (!context.mounted) return;
+
+                          if (error == null && ctx.mounted) {
+                            Navigator.pop(ctx);
+                          }
+
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(error ?? 'Schedule saved successfully'),
                               backgroundColor: error == null ? AppColors.success : AppColors.danger,
                             ),
                           );
-                          if (error == null && ctx.mounted) {
-                            Navigator.pop(ctx);
-                          }
                         },
                         child: isSaving
                             ? const SizedBox(
@@ -437,7 +441,6 @@ class BillScheduleScreen extends ConsumerWidget {
       ),
     );
 
-    amountController.dispose();
   }
 }
 

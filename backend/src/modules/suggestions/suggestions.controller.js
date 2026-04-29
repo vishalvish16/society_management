@@ -83,6 +83,7 @@ const getSuggestions = async (req, res) => {
         include: {
           raisedBy: { select: { name: true, phone: true } },
           assignedTo: { select: { name: true } },
+          updatedBy: { select: { name: true } },
           unit: { select: { fullCode: true } },
           attachments: true,
         },
@@ -105,6 +106,7 @@ const getSuggestionById = async (req, res) => {
       include: {
         raisedBy: { select: { name: true, phone: true } },
         assignedTo: { select: { name: true } },
+        updatedBy: { select: { name: true } },
         unit: { select: { fullCode: true } },
         attachments: true,
       },
@@ -118,7 +120,7 @@ const getSuggestionById = async (req, res) => {
 
 const updateSuggestion = async (req, res) => {
   try {
-    const { societyId } = req.user;
+    const { societyId, id: currentUserId } = req.user;
     const { id } = req.params;
     const { status, assignedToId, resolutionNote, amount, paidAmount, paymentMethod, transactionId } = req.body;
     const userRole = req.user.role.toUpperCase();
@@ -134,7 +136,7 @@ const updateSuggestion = async (req, res) => {
       return sendError(res, 'Only Pramukh or Chairman can record manual payments', 403);
     }
 
-    const updateData = {};
+    const updateData = { updatedById: currentUserId };
     if (status) updateData.status = status.toUpperCase();
     if (assignedToId !== undefined) updateData.assignedToId = assignedToId || null;
     if (resolutionNote !== undefined) updateData.resolutionNote = resolutionNote;
@@ -162,7 +164,17 @@ const updateSuggestion = async (req, res) => {
       }
     }
 
-    const updated = await prisma.suggestion.update({ where: { id }, data: updateData });
+    const updated = await prisma.suggestion.update({
+      where: { id },
+      data: updateData,
+      include: {
+        raisedBy: { select: { name: true, phone: true } },
+        assignedTo: { select: { name: true } },
+        updatedBy: { select: { name: true } },
+        unit: { select: { fullCode: true } },
+        attachments: true,
+      },
+    });
 
     // Notify submitter on status change
     if (status && suggestion.raisedById) {
@@ -214,12 +226,13 @@ const updateSuggestion = async (req, res) => {
 
 const deleteSuggestion = async (req, res) => {
   try {
-    const { societyId } = req.user;
+    const { societyId, id: deletedById, name: deletedByName } = req.user;
     const { id } = req.params;
     const suggestion = await prisma.suggestion.findUnique({ where: { id } });
     if (!suggestion || suggestion.societyId !== societyId) return sendError(res, 'Suggestion not found', 404);
+    await prisma.suggestion.update({ where: { id }, data: { deletedById } });
     await prisma.suggestion.delete({ where: { id } });
-    return sendSuccess(res, null, 'Suggestion deleted');
+    return sendSuccess(res, { deletedBy: deletedByName ?? null }, 'Suggestion deleted');
   } catch (err) {
     return sendError(res, err.message, 500);
   }

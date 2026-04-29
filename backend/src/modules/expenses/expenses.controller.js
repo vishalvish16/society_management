@@ -169,6 +169,30 @@ async function convertToBill(req, res) {
   }
 }
 
+async function undoSplit(req, res) {
+  try {
+    const { id } = req.params;
+
+    // Ensure expense exists and belongs to society (also prevents undo for random ids)
+    const expense = await expensesService.getExpenseById(id, req.user.societyId);
+    if (!expense) return sendError(res, 'Expense not found', 404);
+    if (expense.status !== 'APPROVED') {
+      return sendError(res, 'Only approved expenses can be undone', 400);
+    }
+
+    const result = await billsService.undoSplitExpenseAmongUnits(
+      req.user.societyId,
+      id,
+      req.user.id,
+    );
+
+    return sendSuccess(res, result, 'Expense split undone successfully');
+  } catch (error) {
+    console.error('Undo expense split error:', error.message);
+    return sendError(res, error.message, error.status || 500);
+  }
+}
+
 module.exports = {
   getExpenses,
   submitExpense,
@@ -179,4 +203,5 @@ module.exports = {
   approveExpense,
   rejectExpense,
   convertToBill,
+  undoSplit,
 };

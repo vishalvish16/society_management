@@ -151,6 +151,16 @@ class WallNotifier extends StateNotifier<WallState> {
     }
   }
 
+  // ── Who liked ────────────────────────────────────────────────────────────
+  Future<List<Map<String, dynamic>>> getLikes(String postId) async {
+    try {
+      final res = await _dio.get('wall/$postId/likes');
+      return List<Map<String, dynamic>>.from(res.data['data'] as List? ?? []);
+    } catch (_) {
+      return [];
+    }
+  }
+
   // ── Likes ─────────────────────────────────────────────────────────────────
 
   Future<String?> toggleLike(String postId) async {

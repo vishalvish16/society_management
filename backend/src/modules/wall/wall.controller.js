@@ -1,5 +1,6 @@
 const prisma = require('../../config/db');
 const { sendSuccess, sendError } = require('../../utils/response');
+const notificationsService = require('../notifications/notifications.service');
 
 function isAdmin(role) {
   const r = String(role || '').toUpperCase();
@@ -44,6 +45,20 @@ async function createPost(req, res) {
         media: { orderBy: { sortOrder: 'asc' } },
         _count: { select: { comments: true, likes: true } },
       },
+    });
+
+    // Notify all society members asynchronously (best-effort)
+    setImmediate(() => {
+      const preview = (post.body || '').slice(0, 80) || 'Shared a photo/video';
+      notificationsService
+        .sendNotification(authorId, societyId, {
+          targetType: 'all',
+          title: `${post.author?.name || 'Someone'} posted on the Wall`,
+          body: preview,
+          type: 'MANUAL',
+          route: '/wall',
+        })
+        .catch(() => {});
     });
 
     return sendSuccess(res, { ...post, likedByMe: false }, 'Post created', 201);
@@ -292,6 +307,32 @@ async function deleteComment(req, res) {
   }
 }
 
+// ── Who liked ────────────────────────────────────────────────────────────────
+async function getLikes(req, res) {
+  try {
+    const { societyId, id: userId, role } = req.user;
+    const { id: postId } = req.params;
+
+    const post = await prisma.wallPost.findUnique({ where: { id: postId } });
+    if (!post || post.societyId !== societyId || post.deletedAt) {
+      return sendError(res, 'Post not found', 404);
+    }
+    if (post.isHidden && !isAdmin(role) && post.authorId !== userId) {
+      return sendError(res, 'Post not found', 404);
+    }
+
+    const likes = await prisma.wallPostLike.findMany({
+      where: { postId },
+      include: { user: { select: { id: true, name: true, profilePhotoUrl: true, role: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return sendSuccess(res, likes.map((l) => ({ ...l.user, likedAt: l.createdAt })), 'Likes retrieved');
+  } catch (err) {
+    return sendError(res, err.message, err.status || 500);
+  }
+}
+
 // ── Toggle like ───────────────────────────────────────────────────────────────
 async function toggleLike(req, res) {
   try {
@@ -330,6 +371,7 @@ module.exports = {
   getPost,
   toggleHidePost,
   deletePost,
+  getLikes,
   toggleLike,
   addComment,
   listComments,

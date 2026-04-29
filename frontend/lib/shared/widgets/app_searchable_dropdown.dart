@@ -37,6 +37,7 @@ class AppSearchableDropdown<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final selectedItem =
         items.where((i) => i.value == value).firstOrNull;
 
@@ -55,15 +56,16 @@ class AppSearchableDropdown<T> extends StatelessWidget {
         decoration: InputDecoration(
           labelText: label,
           hintText: hint ?? 'Select...',
-          labelStyle:
-              AppTextStyles.bodyMedium.copyWith(color: AppColors.textMuted),
+          labelStyle: AppTextStyles.bodyMedium.copyWith(
+            color: scheme.onSurfaceVariant,
+          ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-            borderSide: const BorderSide(color: AppColors.border),
+            borderSide: BorderSide(color: scheme.outlineVariant),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-            borderSide: const BorderSide(color: AppColors.border),
+            borderSide: BorderSide(color: scheme.outlineVariant),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
@@ -81,7 +83,7 @@ class AppSearchableDropdown<T> extends StatelessWidget {
         searchFieldProps: TextFieldProps(
           decoration: InputDecoration(
             hintText: 'Search...',
-            prefixIcon: const Icon(Icons.search, size: 18),
+            prefixIcon: Icon(Icons.search, size: 18, color: scheme.onSurfaceVariant),
             contentPadding: const EdgeInsets.symmetric(
                 horizontal: AppDimensions.md, vertical: AppDimensions.sm),
             border: OutlineInputBorder(
@@ -89,15 +91,17 @@ class AppSearchableDropdown<T> extends StatelessWidget {
             ),
           ),
         ),
-        menuProps: const MenuProps(
+        menuProps: MenuProps(
           elevation: 4,
+          backgroundColor: scheme.surface,
         ),
         itemBuilder: (ctx, item, isDisabled, isSelected) => ListTile(
           dense: true,
-          title: Text(item.label, style: AppTextStyles.bodyMedium),
+          title: Text(item.label,
+              style: AppTextStyles.bodyMedium.copyWith(color: scheme.onSurface)),
           selected: isSelected,
           selectedColor: AppColors.primary,
-          selectedTileColor: AppColors.primarySurface,
+          selectedTileColor: AppColors.primary.withValues(alpha: 0.12),
           trailing: isSelected
               ? const Icon(Icons.check_rounded,
                   color: AppColors.primary, size: 16)

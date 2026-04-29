@@ -236,11 +236,30 @@ class ExpensesNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
       final dio = ref.read(dioProvider);
       final response = await dio.post('expenses/$id/convert-to-bill');
       if (response.data['success'] == true) {
+        // Refresh so UI can hide split button (isSplit=true)
+        fetchExpenses();
         return null;
       }
       return response.data['message'] ?? 'Failed to convert expense to bill';
     } on DioException catch (e) {
       return e.response?.data['message'] ?? 'Failed to convert expense to bill';
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  Future<String?> undoSplit(String id) async {
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.post('expenses/$id/undo-split');
+      if (response.data['success'] == true) {
+        // Refresh so UI can show split button again (isSplit=false)
+        fetchExpenses();
+        return null;
+      }
+      return response.data['message'] ?? 'Failed to undo split';
+    } on DioException catch (e) {
+      return e.response?.data['message'] ?? 'Failed to undo split';
     } catch (e) {
       return e.toString();
     }

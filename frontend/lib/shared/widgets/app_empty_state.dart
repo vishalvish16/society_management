@@ -21,6 +21,7 @@ class AppEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(AppDimensions.xxxl),
@@ -31,7 +32,7 @@ class AppEmptyState extends StatelessWidget {
               width: 64,
               height: 64,
               decoration: BoxDecoration(
-                color: AppColors.primarySurface,
+                color: scheme.primary.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(32),
               ),
               child: Center(
@@ -39,11 +40,15 @@ class AppEmptyState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppDimensions.lg),
-            Text(title, style: AppTextStyles.h2, textAlign: TextAlign.center),
+            Text(
+              title,
+              style: AppTextStyles.h2.copyWith(color: scheme.onSurface),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: AppDimensions.sm),
             Text(
               subtitle,
-              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textMuted),
+              style: AppTextStyles.bodyMedium.copyWith(color: scheme.onSurfaceVariant),
               textAlign: TextAlign.center,
             ),
             if (actionLabel != null && onAction != null) ...[
@@ -61,7 +66,10 @@ class AppEmptyState extends StatelessWidget {
                     vertical: AppDimensions.md,
                   ),
                 ),
-                child: Text(actionLabel!, style: AppTextStyles.labelLarge.copyWith(color: AppColors.primary)),
+                child: Text(
+                  actionLabel!,
+                  style: AppTextStyles.labelLarge.copyWith(color: AppColors.primary),
+                ),
               ),
             ],
           ],

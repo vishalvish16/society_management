@@ -1,5 +1,9 @@
 -- CreateEnum
-CREATE TYPE "GatePassDecision" AS ENUM ('APPROVED', 'REJECTED');
+DO $$ BEGIN
+  CREATE TYPE "GatePassDecision" AS ENUM ('APPROVED', 'REJECTED');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 -- AlterTable
 ALTER TABLE "gate_passes"

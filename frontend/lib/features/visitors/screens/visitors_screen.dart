@@ -87,11 +87,13 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
               backgroundColor: AppColors.primary,
               title: Text('Visitors', style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
               actions: [
-                IconButton(
-                  icon: const Icon(Icons.qr_code_scanner_rounded, color: AppColors.textOnPrimary),
-                  onPressed: () => _showScanSheet(context),
-                ),
-                const SizedBox(width: AppDimensions.sm),
+                if (isWatchman) ...[
+                  IconButton(
+                    icon: const Icon(Icons.qr_code_scanner_rounded, color: AppColors.textOnPrimary),
+                    onPressed: () => _showScanSheet(context),
+                  ),
+                  const SizedBox(width: AppDimensions.sm),
+                ],
               ],
             )
           : null,
@@ -107,11 +109,12 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
             title: 'Visitors',
             icon: Icons.person_pin_circle_rounded,
             actions: [
-              IconButton(
-                icon: const Icon(Icons.qr_code_scanner_rounded),
-                tooltip: 'Scan QR',
-                onPressed: () => _showScanSheet(context),
-              ),
+              if (isWatchman)
+                IconButton(
+                  icon: const Icon(Icons.qr_code_scanner_rounded),
+                  tooltip: 'Scan QR',
+                  onPressed: () => _showScanSheet(context),
+                ),
             ],
           ),
           // ── Resident/Member: Permanent "Gate Approvals" tab (received requests) ──
@@ -363,6 +366,17 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
   }
 
   void _showScanSheet(BuildContext context) {
+    final role = (ref.read(authProvider).user?.role ?? '').toUpperCase();
+    final isWatchman = role == 'WATCHMAN';
+    if (!isWatchman) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('QR scan is available for watchman only.'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,

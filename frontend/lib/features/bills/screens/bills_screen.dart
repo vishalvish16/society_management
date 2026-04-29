@@ -219,7 +219,7 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
               selected: _statusFilter,
               onSelected: (s) => setState(() => _statusFilter = s),
               options: [
-                for (final s in ['all', 'pending', 'paid', 'overdue'])
+                for (final s in ['all', 'pending', 'partial', 'paid', 'overdue'])
                   FilterOption(s, s[0].toUpperCase() + s.substring(1)),
               ],
             ),
@@ -285,41 +285,6 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
                       ],
                     ),
                   ),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      for (final s in [
-                        'all',
-                        'pending',
-                        'partial',
-                        'paid',
-                        'overdue',
-                      ])
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            right: AppDimensions.sm,
-                          ),
-                          child: ChoiceChip(
-                            label: Text(
-                              s == 'all'
-                                  ? 'All'
-                                  : s[0].toUpperCase() + s.substring(1),
-                            ),
-                            selected: _statusFilter == s,
-                            selectedColor: AppColors.primarySurface,
-                            labelStyle: AppTextStyles.labelMedium.copyWith(
-                              color: _statusFilter == s
-                                  ? AppColors.primary
-                                  : AppColors.textMuted,
-                            ),
-                            onSelected: (_) =>
-                                setState(() => _statusFilter = s),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
               ],
             ),
           ),

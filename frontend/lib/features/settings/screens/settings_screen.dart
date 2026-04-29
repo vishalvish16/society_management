@@ -24,7 +24,6 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
-    final isDark = themeMode == ThemeMode.dark;
     final user = ref.watch(authProvider).user;
     final role = user?.role.toUpperCase() ?? '';
     final isAdmin =
@@ -104,44 +103,72 @@ class SettingsScreen extends ConsumerWidget {
               padding: EdgeInsets.zero,
               child: Column(
                 children: [
-                  SwitchListTile(
-                    secondary: Icon(
-                      isDark
-                          ? Icons.dark_mode_rounded
-                          : Icons.light_mode_rounded,
+                  RadioListTile<ThemeMode>(
+                    value: ThemeMode.light,
+                    groupValue: themeMode,
+                    activeColor: AppColors.primary,
+                    secondary: const Icon(
+                      Icons.light_mode_rounded,
                       color: AppColors.primary,
                     ),
-                    title: Text('Dark Mode', style: AppTextStyles.bodyMedium),
+                    title: Text('Light Theme', style: AppTextStyles.bodyMedium),
                     subtitle: Text(
-                      isDark ? 'Dark theme is on' : 'Light theme is on',
+                      'Always use light appearance',
                       style: AppTextStyles.bodySmall
                           .copyWith(color: AppColors.textMuted),
                     ),
-                    value: isDark,
-                    onChanged: (val) =>
-                        ref.read(themeModeProvider.notifier).state =
-                            val ? ThemeMode.dark : ThemeMode.light,
-                    activeThumbColor: AppColors.primary,
+                    onChanged: (value) {
+                      if (value == null) return;
+                      ref.read(themeModeProvider.notifier).state = value;
+                    },
                   ),
                   const Divider(
-                      height: 1,
-                      indent: AppDimensions.lg,
-                      endIndent: AppDimensions.lg),
-                  ListTile(
-                    leading: const Icon(Icons.brightness_auto_rounded,
-                        color: AppColors.primary),
-                    title:
-                        Text('System Theme', style: AppTextStyles.bodyMedium),
-                    subtitle: Text('Follow device setting',
-                        style: AppTextStyles.bodySmall
-                            .copyWith(color: AppColors.textMuted)),
-                    trailing: themeMode == ThemeMode.system
-                        ? const Icon(Icons.check_rounded,
-                            color: AppColors.primary)
-                        : null,
-                    onTap: () =>
-                        ref.read(themeModeProvider.notifier).state =
-                            ThemeMode.system,
+                    height: 1,
+                    indent: AppDimensions.lg,
+                    endIndent: AppDimensions.lg,
+                  ),
+                  RadioListTile<ThemeMode>(
+                    value: ThemeMode.dark,
+                    groupValue: themeMode,
+                    activeColor: AppColors.primary,
+                    secondary: const Icon(
+                      Icons.dark_mode_rounded,
+                      color: AppColors.primary,
+                    ),
+                    title: Text('Dark Theme', style: AppTextStyles.bodyMedium),
+                    subtitle: Text(
+                      'Always use dark appearance',
+                      style: AppTextStyles.bodySmall
+                          .copyWith(color: AppColors.textMuted),
+                    ),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      ref.read(themeModeProvider.notifier).state = value;
+                    },
+                  ),
+                  const Divider(
+                    height: 1,
+                    indent: AppDimensions.lg,
+                    endIndent: AppDimensions.lg,
+                  ),
+                  RadioListTile<ThemeMode>(
+                    value: ThemeMode.system,
+                    groupValue: themeMode,
+                    activeColor: AppColors.primary,
+                    secondary: const Icon(
+                      Icons.brightness_auto_rounded,
+                      color: AppColors.primary,
+                    ),
+                    title: Text('System Theme', style: AppTextStyles.bodyMedium),
+                    subtitle: Text(
+                      'Follow device setting',
+                      style: AppTextStyles.bodySmall
+                          .copyWith(color: AppColors.textMuted),
+                    ),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      ref.read(themeModeProvider.notifier).state = value;
+                    },
                   ),
                 ],
               ),

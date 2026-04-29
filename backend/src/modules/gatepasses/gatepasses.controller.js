@@ -9,12 +9,17 @@ function generatePassCode() {
 
 async function createGatePass(req, res, next) {
   try {
-    const { unitId, itemDescription, reason, validFrom, validTo } = req.body;
+    const { itemDescription, reason, validFrom, validTo } = req.body;
     const societyId   = req.user.societyId;
     const createdById = req.user.id;
+    const unitId      = req.user.unitId;
 
-    if (!unitId || !itemDescription || !validFrom || !validTo) {
-      return sendError(res, 'unitId, itemDescription, validFrom, validTo are required', 400);
+    if (!unitId) {
+      return sendError(res, 'You must be assigned to a unit to create a gate pass', 403);
+    }
+
+    if (!itemDescription || !validFrom || !validTo) {
+      return sendError(res, 'itemDescription, validFrom, validTo are required', 400);
     }
 
     const passCode = generatePassCode();

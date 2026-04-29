@@ -17,6 +17,22 @@ class AppTheme {
           surface: AppColors.surface,
           error: AppColors.danger,
         ),
+        dialogTheme: DialogThemeData(
+          backgroundColor: AppColors.surface,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+          ),
+        ),
+        bottomSheetTheme: BottomSheetThemeData(
+          backgroundColor: AppColors.surface,
+          surfaceTintColor: Colors.transparent,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(AppDimensions.radiusXl),
+            ),
+          ),
+        ),
         appBarTheme: AppBarTheme(
           backgroundColor: AppColors.primary,
           elevation: 0,
@@ -82,6 +98,11 @@ class AppTheme {
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),
+        textSelectionTheme: const TextSelectionThemeData(
+          cursorColor: AppColors.primary,
+          selectionColor: Color(0x332563EB),
+          selectionHandleColor: AppColors.primary,
+        ),
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           backgroundColor: AppColors.surface,
           selectedItemColor: AppColors.primary,
@@ -122,6 +143,22 @@ class AppTheme {
           surface: const Color(0xFF1E293B),
           error: AppColors.danger,
         ),
+        dialogTheme: DialogThemeData(
+          backgroundColor: const Color(0xFF1E293B),
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+          ),
+        ),
+        bottomSheetTheme: const BottomSheetThemeData(
+          backgroundColor: Color(0xFF1E293B),
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(AppDimensions.radiusXl),
+            ),
+          ),
+        ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: const Color(0xFF1E293B),
@@ -149,6 +186,11 @@ class AppTheme {
           hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        ),
+        textSelectionTheme: const TextSelectionThemeData(
+          cursorColor: AppColors.primaryLight,
+          selectionColor: Color(0x3360A5FA),
+          selectionHandleColor: AppColors.primaryLight,
         ),
         appBarTheme: AppBarTheme(
           backgroundColor: AppColors.primary,

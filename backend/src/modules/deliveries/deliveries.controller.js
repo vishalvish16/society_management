@@ -3,6 +3,32 @@ const notificationsService = require('../notifications/notifications.service');
 const { sendSuccess, sendError } = require('../../utils/response');
 const { isResidentLikeRole, userHasUnit, unitIdsForUser } = require('../../utils/unitResident');
 
+async function enrichDeliveriesWithUsers(deliveries) {
+  const ids = new Set();
+  for (const d of deliveries) {
+    if (d.receivedBy) ids.add(d.receivedBy);
+    if (d.collectedBy) ids.add(d.collectedBy);
+    if (d.respondedBy) ids.add(d.respondedBy);
+    if (d.loggedById) ids.add(d.loggedById);
+  }
+
+  if (!ids.size) return deliveries;
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: Array.from(ids) } },
+    select: { id: true, name: true, role: true, phone: true },
+  });
+  const byId = new Map(users.map((u) => [u.id, u]));
+
+  return deliveries.map((d) => ({
+    ...d,
+    receivedByUser: d.receivedBy ? byId.get(d.receivedBy) || null : null,
+    collectedByUser: d.collectedBy ? byId.get(d.collectedBy) || null : null,
+    respondedByUser: d.respondedBy ? byId.get(d.respondedBy) || null : null,
+    loggedByUser: d.loggedById ? byId.get(d.loggedById) || null : null,
+  }));
+}
+
 // GET /api/deliveries
 exports.getAllDeliveries = async (req, res) => {
   try {
@@ -40,7 +66,12 @@ exports.getAllDeliveries = async (req, res) => {
       prisma.delivery.count({ where }),
     ]);
 
-    return sendSuccess(res, { deliveries, total, page: parseInt(page), limit: parseInt(limit) }, 'Deliveries retrieved');
+    const enriched = await enrichDeliveriesWithUsers(deliveries);
+    return sendSuccess(
+      res,
+      { deliveries: enriched, total, page: parseInt(page), limit: parseInt(limit) },
+      'Deliveries retrieved'
+    );
   } catch (error) {
     return sendError(res, error.message, 500);
   }
@@ -110,7 +141,8 @@ exports.getTodayDeliveries = async (req, res) => {
       orderBy: { createdAt: 'desc' },
       include: { unit: { select: { fullCode: true } } },
     });
-    return sendSuccess(res, deliveries, "Today's deliveries retrieved");
+    const enriched = await enrichDeliveriesWithUsers(deliveries);
+    return sendSuccess(res, enriched, "Today's deliveries retrieved");
   } catch (error) {
     return sendError(res, error.message, 500);
   }
@@ -148,7 +180,12 @@ exports.getMyDeliveries = async (req, res) => {
       prisma.delivery.count({ where }),
     ]);
 
-    return sendSuccess(res, { deliveries, total, page: parseInt(page), limit: parseInt(limit) }, 'Your deliveries retrieved');
+    const enriched = await enrichDeliveriesWithUsers(deliveries);
+    return sendSuccess(
+      res,
+      { deliveries: enriched, total, page: parseInt(page), limit: parseInt(limit) },
+      'Your deliveries retrieved'
+    );
   } catch (error) {
     return sendError(res, error.message, 500);
   }

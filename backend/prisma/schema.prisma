@@ -841,8 +841,12 @@ model User {
   billAuditLogs        BillAuditLog[]
   raisedComplaints     Complaint[]               @relation("RaisedBy")
   assignedComplaints   Complaint[]               @relation("AssignedTo")
+  updatedComplaints    Complaint[]               @relation("ComplaintUpdatedBy")
+  deletedComplaints    Complaint[]               @relation("ComplaintDeletedBy")
   raisedSuggestions    Suggestion[]              @relation("RaisedSuggestions")
   assignedSuggestions  Suggestion[]              @relation("AssignedSuggestions")
+  updatedSuggestions   Suggestion[]              @relation("SuggestionUpdatedBy")
+  deletedSuggestions   Suggestion[]              @relation("SuggestionDeletedBy")
   markedAttendance     StaffAttendance[]
   refreshTokens        RefreshToken[]
   submittedExpenses    Expense[]                 @relation("SubmittedExpenses")
@@ -1314,8 +1318,8 @@ model Complaint {
   id             String                @id @default(uuid())
   societyId      String
   society        Society               @relation(fields: [societyId], references: [id])
-  unitId         String
-  unit           Unit                  @relation(fields: [unitId], references: [id])
+  unitId         String?
+  unit           Unit?                 @relation(fields: [unitId], references: [id])
   raisedById     String
   raisedBy       User                  @relation("RaisedBy", fields: [raisedById], references: [id])
   category       ComplaintCategory
@@ -1336,8 +1340,12 @@ model Complaint {
   transactionId String?
   paidAt        DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedById   String?
+  updatedBy     User?     @relation("ComplaintUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedAt     DateTime  @updatedAt
+  deletedById   String?
+  deletedBy     User?     @relation("ComplaintDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  createdAt     DateTime  @default(now())
 
   @@index([societyId])
   @@index([status])
@@ -1362,8 +1370,8 @@ model Suggestion {
   id             String                 @id @default(uuid())
   societyId      String
   society        Society                @relation(fields: [societyId], references: [id])
-  unitId         String
-  unit           Unit                   @relation(fields: [unitId], references: [id])
+  unitId         String?
+  unit           Unit?                  @relation(fields: [unitId], references: [id])
   raisedById     String
   raisedBy       User                   @relation("RaisedSuggestions", fields: [raisedById], references: [id])
   category       ComplaintCategory
@@ -1382,8 +1390,12 @@ model Suggestion {
   paymentStatus  String?                @default("UNPAID")
   transactionId  String?
   paidAt         DateTime?
-  createdAt      DateTime               @default(now())
+  updatedById    String?
+  updatedBy      User?                  @relation("SuggestionUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
   updatedAt      DateTime               @updatedAt
+  deletedById    String?
+  deletedBy      User?                  @relation("SuggestionDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime               @default(now())
 
   @@index([societyId])
   @@index([status])

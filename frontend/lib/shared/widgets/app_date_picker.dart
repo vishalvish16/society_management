@@ -28,6 +28,7 @@ class AppDateField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final fmt = DateFormat('dd MMM yyyy');
     final hasValue = value != null;
     return GestureDetector(
@@ -35,15 +36,17 @@ class AppDateField extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         decoration: BoxDecoration(
-          color: AppColors.surface,
-          border: Border.all(color: hasValue ? AppColors.primary : AppColors.border),
+          color: scheme.surface,
+          border: Border.all(
+            color: hasValue ? AppColors.primary : scheme.outlineVariant,
+          ),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(
           children: [
             Icon(Icons.calendar_today_rounded,
                 size: 18,
-                color: hasValue ? AppColors.primary : AppColors.textMuted),
+                color: hasValue ? AppColors.primary : scheme.onSurfaceVariant),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -52,12 +55,12 @@ class AppDateField extends StatelessWidget {
                 children: [
                   Text('$label${required ? ' *' : ''}',
                       style: AppTextStyles.labelSmall.copyWith(
-                          color: hasValue ? AppColors.primary : AppColors.textMuted)),
+                          color: hasValue ? AppColors.primary : scheme.onSurfaceVariant)),
                   const SizedBox(height: 2),
                   Text(
                     hasValue ? fmt.format(value!) : 'Select date',
                     style: AppTextStyles.bodyMedium.copyWith(
-                        color: hasValue ? AppColors.textPrimary : AppColors.textMuted),
+                        color: hasValue ? scheme.onSurface : scheme.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -65,10 +68,10 @@ class AppDateField extends StatelessWidget {
             if (clearable && hasValue)
               GestureDetector(
                 onTap: onClear,
-                child: const Icon(Icons.close_rounded, size: 18, color: AppColors.textMuted),
+                child: Icon(Icons.close_rounded, size: 18, color: scheme.onSurfaceVariant),
               )
             else
-              const Icon(Icons.expand_more_rounded, size: 20, color: AppColors.textMuted),
+              Icon(Icons.expand_more_rounded, size: 20, color: scheme.onSurfaceVariant),
           ],
         ),
       ),
@@ -90,18 +93,23 @@ Future<DateTime?> pickSingleDate(
     lastDate: lastDate ?? DateTime(2100),
     initialEntryMode: DatePickerEntryMode.calendarOnly,
     builder: (ctx, child) => Theme(
-      data: Theme.of(ctx).copyWith(
-        colorScheme: const ColorScheme.light(
-          primary: AppColors.primary,
-          onPrimary: AppColors.textOnPrimary,
-          surface: AppColors.surface,
-          onSurface: AppColors.textPrimary,
-        ),
-        dialogTheme: DialogThemeData(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        ),
-      ),
+      data: _pickerTheme(Theme.of(ctx)),
       child: child!,
+    ),
+  );
+}
+
+ThemeData _pickerTheme(ThemeData base) {
+  final scheme = base.colorScheme;
+  return base.copyWith(
+    colorScheme: scheme.copyWith(
+      primary: AppColors.primary,
+      onPrimary: AppColors.textOnPrimary,
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: scheme.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
   );
 }
@@ -131,6 +139,7 @@ class AppDateRangeField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final fmt = DateFormat('dd MMM yyyy');
     final hasValue = from != null && to != null;
     final display = hasValue
@@ -142,15 +151,17 @@ class AppDateRangeField extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         decoration: BoxDecoration(
-          color: AppColors.surface,
-          border: Border.all(color: hasValue ? AppColors.primary : AppColors.border),
+          color: scheme.surface,
+          border: Border.all(
+            color: hasValue ? AppColors.primary : scheme.outlineVariant,
+          ),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(
           children: [
             Icon(Icons.date_range_rounded,
                 size: 18,
-                color: hasValue ? AppColors.primary : AppColors.textMuted),
+                color: hasValue ? AppColors.primary : scheme.onSurfaceVariant),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -159,21 +170,21 @@ class AppDateRangeField extends StatelessWidget {
                 children: [
                   Text(label,
                       style: AppTextStyles.labelSmall.copyWith(
-                          color: hasValue ? AppColors.primary : AppColors.textMuted)),
+                          color: hasValue ? AppColors.primary : scheme.onSurfaceVariant)),
                   const SizedBox(height: 2),
                   Text(display,
                       style: AppTextStyles.bodyMedium.copyWith(
-                          color: hasValue ? AppColors.textPrimary : AppColors.textMuted)),
+                          color: hasValue ? scheme.onSurface : scheme.onSurfaceVariant)),
                 ],
               ),
             ),
             if (clearable && hasValue)
               GestureDetector(
                 onTap: onClear,
-                child: const Icon(Icons.close_rounded, size: 18, color: AppColors.textMuted),
+                child: Icon(Icons.close_rounded, size: 18, color: scheme.onSurfaceVariant),
               )
             else
-              const Icon(Icons.expand_more_rounded, size: 20, color: AppColors.textMuted),
+              Icon(Icons.expand_more_rounded, size: 20, color: scheme.onSurfaceVariant),
           ],
         ),
       ),
@@ -298,6 +309,7 @@ class _CompactRangePickerDialogState extends State<_CompactRangePickerDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final days = _buildCalendarDays();
     final fmt = DateFormat('dd MMM yyyy');
     final fromLabel = _from != null ? fmt.format(_from!) : '—';
@@ -306,6 +318,8 @@ class _CompactRangePickerDialogState extends State<_CompactRangePickerDialog> {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+      backgroundColor: scheme.surface,
+      surfaceTintColor: Colors.transparent,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 380),
         child: Padding(
@@ -335,7 +349,7 @@ class _CompactRangePickerDialogState extends State<_CompactRangePickerDialog> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: AppColors.primarySurface,
+                color: scheme.primary.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
@@ -347,7 +361,7 @@ class _CompactRangePickerDialogState extends State<_CompactRangePickerDialog> {
                       active: _pickingFrom,
                     ),
                   ),
-                  Container(width: 1, height: 32, color: AppColors.border),
+                  Container(width: 1, height: 32, color: scheme.outlineVariant),
                   Expanded(
                     child: _RangeLabel(
                       label: 'To',
@@ -390,7 +404,7 @@ class _CompactRangePickerDialogState extends State<_CompactRangePickerDialog> {
                         child: Center(
                           child: Text(h,
                               style: AppTextStyles.labelSmall
-                                  .copyWith(color: AppColors.textMuted)),
+                                  .copyWith(color: scheme.onSurfaceVariant)),
                         ),
                       ))
                   .toList(),
@@ -417,15 +431,15 @@ class _CompactRangePickerDialogState extends State<_CompactRangePickerDialog> {
                 final today = _isToday(day);
 
                 Color bg = Colors.transparent;
-                Color textColor = AppColors.textPrimary;
+                Color textColor = scheme.onSurface;
                 if (selected) {
                   bg = AppColors.primary;
                   textColor = Colors.white;
                 } else if (inRange) {
-                  bg = AppColors.primarySurface;
+                  bg = scheme.primary.withValues(alpha: 0.12);
                   textColor = AppColors.primary;
                 } else if (disabled) {
-                  textColor = AppColors.textMuted.withValues(alpha: 0.4);
+                  textColor = scheme.onSurfaceVariant.withValues(alpha: 0.45);
                 }
 
                 return GestureDetector(
@@ -447,7 +461,7 @@ class _CompactRangePickerDialogState extends State<_CompactRangePickerDialog> {
                           fontSize: 13,
                           fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
                           color: disabled
-                              ? AppColors.textMuted.withValues(alpha: 0.4)
+                              ? scheme.onSurfaceVariant.withValues(alpha: 0.45)
                               : textColor,
                         ),
                       ),
@@ -465,8 +479,8 @@ class _CompactRangePickerDialogState extends State<_CompactRangePickerDialog> {
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.textSecondary,
-                      side: const BorderSide(color: AppColors.border),
+                      foregroundColor: scheme.onSurfaceVariant,
+                      side: BorderSide(color: scheme.outlineVariant),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                     child: const Text('Cancel'),
@@ -504,6 +518,7 @@ class _RangeLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Column(
@@ -511,12 +526,12 @@ class _RangeLabel extends StatelessWidget {
         children: [
           Text(label,
               style: AppTextStyles.labelSmall.copyWith(
-                  color: active ? AppColors.primary : AppColors.textMuted,
+                  color: active ? AppColors.primary : scheme.onSurfaceVariant,
                   fontWeight: active ? FontWeight.w700 : FontWeight.w500)),
           const SizedBox(height: 2),
           Text(value,
               style: AppTextStyles.bodySmall.copyWith(
-                  color: active ? AppColors.primary : AppColors.textPrimary,
+                  color: active ? AppColors.primary : scheme.onSurface,
                   fontWeight: active ? FontWeight.w600 : FontWeight.w400)),
         ],
       ),

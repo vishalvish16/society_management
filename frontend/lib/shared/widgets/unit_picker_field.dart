@@ -83,6 +83,7 @@ class _UnitPickerFieldState extends ConsumerState<UnitPickerField> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     // ── Read-only mode: locked display for member-role users ──────────────────
     if (widget.readOnly) {
       final code = widget.selectedUnitCode ?? 'No unit assigned';
@@ -91,10 +92,10 @@ class _UnitPickerFieldState extends ConsumerState<UnitPickerField> {
         padding: const EdgeInsets.symmetric(
             horizontal: AppDimensions.md, vertical: 14),
         decoration: BoxDecoration(
-          color: AppColors.surfaceVariant,
+          color: scheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
           border: Border.all(
-            color: hasUnit ? AppColors.primary.withValues(alpha: 0.5) : AppColors.border,
+            color: hasUnit ? AppColors.primary.withValues(alpha: 0.5) : scheme.outlineVariant,
           ),
         ),
         child: Row(
@@ -107,7 +108,7 @@ class _UnitPickerFieldState extends ConsumerState<UnitPickerField> {
                   Text(
                     widget.label,
                     style: AppTextStyles.caption
-                        .copyWith(color: AppColors.textMuted),
+                        .copyWith(color: scheme.onSurfaceVariant),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -115,14 +116,16 @@ class _UnitPickerFieldState extends ConsumerState<UnitPickerField> {
                     style: hasUnit
                         ? AppTextStyles.bodyMedium
                         : AppTextStyles.bodyMedium
-                            .copyWith(color: AppColors.textMuted),
+                            .copyWith(color: scheme.onSurfaceVariant),
                   ),
                 ],
               ),
             ),
             Icon(
               Icons.lock_outline_rounded,
-              color: hasUnit ? AppColors.primary.withValues(alpha: 0.6) : AppColors.textMuted,
+              color: hasUnit
+                  ? AppColors.primary.withValues(alpha: 0.6)
+                  : scheme.onSurfaceVariant,
               size: 18,
             ),
           ],
@@ -143,10 +146,10 @@ class _UnitPickerFieldState extends ConsumerState<UnitPickerField> {
             padding: const EdgeInsets.symmetric(
                 horizontal: AppDimensions.md, vertical: 14),
             decoration: BoxDecoration(
-              color: AppColors.surfaceVariant,
+              color: scheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
               border: Border.all(
-                color: isSelected ? AppColors.primary : AppColors.border,
+                color: isSelected ? AppColors.primary : scheme.outlineVariant,
                 width: isSelected ? 1.5 : 1,
               ),
             ),
@@ -158,8 +161,8 @@ class _UnitPickerFieldState extends ConsumerState<UnitPickerField> {
                         ? widget.selectedUnitCode ?? 'Unit selected'
                         : widget.label,
                     style: isSelected
-                        ? AppTextStyles.bodyMedium
-                        : AppTextStyles.bodyMedium.copyWith(color: AppColors.textMuted),
+                        ? AppTextStyles.bodyMedium.copyWith(color: scheme.onSurface)
+                        : AppTextStyles.bodyMedium.copyWith(color: scheme.onSurfaceVariant),
                   ),
                 ),
                 if (_loading)
@@ -170,7 +173,7 @@ class _UnitPickerFieldState extends ConsumerState<UnitPickerField> {
                 else
                   Icon(
                     _open ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                    color: AppColors.textMuted,
+                    color: scheme.onSurfaceVariant,
                     size: 20,
                   ),
               ],
@@ -184,7 +187,7 @@ class _UnitPickerFieldState extends ConsumerState<UnitPickerField> {
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: scheme.outlineVariant),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.08),
@@ -201,18 +204,19 @@ class _UnitPickerFieldState extends ConsumerState<UnitPickerField> {
                   child: TextField(
                     controller: _searchCtrl,
                     autofocus: true,
+                    style: AppTextStyles.bodySmall.copyWith(color: scheme.onSurface),
                     decoration: InputDecoration(
                       hintText: 'Search unit (e.g. A-101)',
-                      hintStyle: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
-                      prefixIcon: const Icon(Icons.search, size: 18, color: AppColors.textMuted),
+                      hintStyle: AppTextStyles.bodySmall.copyWith(color: scheme.onSurfaceVariant),
+                      prefixIcon: Icon(Icons.search, size: 18, color: scheme.onSurfaceVariant),
                       contentPadding: const EdgeInsets.symmetric(vertical: 8),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: AppColors.border),
+                        borderSide: BorderSide(color: scheme.outlineVariant),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: AppColors.border),
+                        borderSide: BorderSide(color: scheme.outlineVariant),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -229,7 +233,7 @@ class _UnitPickerFieldState extends ConsumerState<UnitPickerField> {
                           padding: const EdgeInsets.all(AppDimensions.md),
                           child: Text('No units found',
                               style: AppTextStyles.bodySmall
-                                  .copyWith(color: AppColors.textMuted)),
+                                  .copyWith(color: scheme.onSurfaceVariant)),
                         )
                       : ListView.builder(
                           shrinkWrap: true,
@@ -242,11 +246,12 @@ class _UnitPickerFieldState extends ConsumerState<UnitPickerField> {
                             return ListTile(
                               dense: true,
                               selected: isSelected,
-                              selectedTileColor: AppColors.primarySurface,
-                              title: Text(code, style: AppTextStyles.bodyMedium),
+                              selectedTileColor: AppColors.primary.withValues(alpha: 0.12),
+                              title: Text(code,
+                                  style: AppTextStyles.bodyMedium.copyWith(color: scheme.onSurface)),
                               subtitle: u['wing'] != null
                                   ? Text('Wing ${u['wing']} • Floor ${u['floor'] ?? '-'}',
-                                      style: AppTextStyles.caption)
+                                      style: AppTextStyles.caption.copyWith(color: scheme.onSurfaceVariant))
                                   : null,
                               trailing: isSelected
                                   ? const Icon(Icons.check_circle_rounded,

@@ -24,7 +24,7 @@ void showPayComplaintSheet(BuildContext context, Map<String, dynamic> complaint)
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    backgroundColor: AppColors.surface,
+    backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
     ),

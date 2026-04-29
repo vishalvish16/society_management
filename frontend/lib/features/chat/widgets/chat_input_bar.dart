@@ -3,9 +3,11 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import '../../../shared/widgets/mention_text_field.dart';
 
 /// Platform-agnostic file wrapper — holds bytes so it works on web & mobile.
 class ChatFile {
@@ -24,7 +26,7 @@ typedef OnSendText = void Function(String text);
 typedef OnSendFiles = void Function(List<ChatFile> files, String type);
 typedef OnSendVoice = void Function(ChatFile audio, int durationSeconds);
 
-class ChatInputBar extends StatefulWidget {
+class ChatInputBar extends ConsumerStatefulWidget {
   final OnSendText onSendText;
   final OnSendFiles onSendFiles;
   final OnSendVoice onSendVoice;
@@ -39,10 +41,10 @@ class ChatInputBar extends StatefulWidget {
   });
 
   @override
-  State<ChatInputBar> createState() => _ChatInputBarState();
+  ConsumerState<ChatInputBar> createState() => _ChatInputBarState();
 }
 
-class _ChatInputBarState extends State<ChatInputBar> {
+class _ChatInputBarState extends ConsumerState<ChatInputBar> {
   final _ctrl = TextEditingController();
   final _focus = FocusNode();
   final _recorder = AudioRecorder();
@@ -53,20 +55,27 @@ class _ChatInputBarState extends State<ChatInputBar> {
   bool _hasText = false;
 
   @override
+  void initState() {
+    super.initState();
+    _ctrl.addListener(_onControllerChanged);
+  }
+
+  void _onControllerChanged() {
+    final has = _ctrl.text.trim().isNotEmpty;
+    if (has != _hasText) {
+      setState(() => _hasText = has);
+      widget.onTyping?.call(has);
+    }
+  }
+
+  @override
   void dispose() {
+    _ctrl.removeListener(_onControllerChanged);
     _ctrl.dispose();
     _focus.dispose();
     _recorder.dispose();
     _recordTimer?.cancel();
     super.dispose();
-  }
-
-  void _onTextChanged(String v) {
-    final has = v.trim().isNotEmpty;
-    if (has != _hasText) {
-      setState(() => _hasText = has);
-      widget.onTyping?.call(has);
-    }
   }
 
   void _sendText() {
@@ -319,14 +328,13 @@ class _ChatInputBarState extends State<ChatInputBar> {
             Expanded(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 120),
-                child: TextField(
+                child: MentionTextField(
                   controller: _ctrl,
-                  focusNode: _focus,
-                  onChanged: _onTextChanged,
-                  maxLines: null,
-                  textCapitalization: TextCapitalization.sentences,
+                  hintText: 'Type a message… use @ to mention',
+                  maxLines: 6,
+                  minLines: 1,
                   decoration: InputDecoration(
-                    hintText: 'Type a message…',
+                    hintText: 'Type a message… use @ to mention',
                     hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
                     contentPadding:
                         const EdgeInsets.symmetric(horizontal: 14, vertical: 10),

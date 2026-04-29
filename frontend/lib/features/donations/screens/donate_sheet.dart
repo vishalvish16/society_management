@@ -24,7 +24,7 @@ void showDonateSheet(BuildContext context, {String? campaignId, String? campaign
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    backgroundColor: AppColors.surface,
+    backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
     ),

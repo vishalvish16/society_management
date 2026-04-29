@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 import 'package:open_filex/open_filex.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/providers/auth_provider.dart';
@@ -472,6 +471,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
     bool isAdmin,
   ) {
     final status = (ex['status'] as String? ?? 'pending').toLowerCase();
+    final isSplit = ex['isSplit'] == true;
     final attachments = ex['attachments'] as List? ?? [];
     final fmt = NumberFormat('#,##0');
     final amount = double.tryParse(ex['totalAmount']?.toString() ?? '0') ?? 0;
@@ -587,23 +587,79 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
               ),
             ],
             const SizedBox(height: AppDimensions.xl),
-            if (isAdmin && status == 'approved')
+            if (isAdmin && status == 'approved' && !isSplit)
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
                   onPressed: () async {
                     Navigator.pop(ctx);
-                    final error = await ref.read(expensesProvider.notifier).convertToBill(ex['id']);
+                    final error =
+                        await ref.read(expensesProvider.notifier).convertToBill(ex['id']);
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text(error ?? 'Expense split and bill generated for all units'),
-                        backgroundColor: error == null ? AppColors.success : AppColors.danger,
-                      ));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            error ?? 'Expense split and bill generated for all units',
+                          ),
+                          backgroundColor:
+                              error == null ? AppColors.success : AppColors.danger,
+                        ),
+                      );
                     }
                   },
                   icon: const Icon(Icons.receipt_long_rounded),
                   label: const Text('Split Among Units (Generate Bills)'),
                   style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+                ),
+              ),
+            if (isAdmin && status == 'approved' && isSplit)
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final ok = await showDialog<bool>(
+                      context: context,
+                      builder: (dctx) => AlertDialog(
+                        title: const Text('Undo split?'),
+                        content: const Text(
+                          'This will remove the generated bills for all units. You can only undo if no one has paid yet.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(dctx, false),
+                            child: const Text('Cancel'),
+                          ),
+                          FilledButton(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.danger,
+                            ),
+                            onPressed: () => Navigator.pop(dctx, true),
+                            child: const Text('Undo'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (ok != true) return;
+
+                    Navigator.pop(ctx);
+                    final error =
+                        await ref.read(expensesProvider.notifier).undoSplit(ex['id']);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(error ?? 'Split undone successfully'),
+                          backgroundColor:
+                              error == null ? AppColors.success : AppColors.danger,
+                        ),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.undo_rounded),
+                  label: const Text('Undo Split'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.danger,
+                    side: const BorderSide(color: AppColors.danger),
+                  ),
                 ),
               ),
             const SizedBox(height: AppDimensions.xl),
@@ -957,6 +1013,7 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
   String _category = 'MAINTENANCE';
   DateTime _date = DateTime.now();
   XFile? _attachment;
+  String? _attachmentDisplayName;
   bool _isSubmitting = false;
   String? _errorMsg;
 
@@ -985,17 +1042,51 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
     if (result == null || !mounted) return;
     final file = result.files.single;
     if (file.bytes != null) {
-      setState(() => _attachment = XFile.fromData(file.bytes!, name: file.name));
+      setState(() {
+        _attachment = XFile.fromData(file.bytes!, name: file.name);
+        _attachmentDisplayName = file.name;
+      });
     } else if (file.path != null) {
-      setState(() => _attachment = XFile(file.path!));
+      setState(() {
+        _attachment = XFile(file.path!);
+        _attachmentDisplayName = file.name;
+      });
     }
   }
 
   Future<void> _takeAttachmentPhoto() async {
     final shot = await pickPhotoFromCamera();
     if (shot != null && mounted) {
-      setState(() => _attachment = shot);
+      setState(() {
+        _attachment = shot;
+        _attachmentDisplayName = _safeXFileName(shot);
+      });
     }
+  }
+
+  String _basenameFromPathOrUri(String value) {
+    if (value.trim().isEmpty) return '';
+    if (value.startsWith('content://') || value.startsWith('file://')) {
+      final uri = Uri.tryParse(value);
+      if (uri != null && uri.pathSegments.isNotEmpty) return uri.pathSegments.last;
+    }
+    final parts = value.split(RegExp(r'[\\/]+'));
+    return parts.isNotEmpty ? parts.last : value;
+  }
+
+  String _safeXFileName(XFile file) {
+    final direct = file.name.trim();
+    if (direct.isNotEmpty) return direct;
+    final derived = _basenameFromPathOrUri(file.path).trim();
+    return derived.isNotEmpty ? derived : 'attachment';
+  }
+
+  String? get _attachmentNameForUi {
+    if (_attachment == null) return null;
+    final v = (_attachmentDisplayName?.trim().isNotEmpty ?? false)
+        ? _attachmentDisplayName!.trim()
+        : _safeXFileName(_attachment!);
+    return v.isEmpty ? null : v;
   }
 
   void _previewAttachment() async {
@@ -1216,7 +1307,7 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
                       child: Row(
                         children: [
                           Icon(
-                            _attachment!.name.toLowerCase().endsWith('.pdf')
+                            _safeXFileName(_attachment!).toLowerCase().endsWith('.pdf')
                                 ? Icons.picture_as_pdf
                                 : Icons.image,
                             color: AppColors.success,
@@ -1224,7 +1315,7 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
                           const SizedBox(width: AppDimensions.sm),
                           Expanded(
                             child: Text(
-                              _attachment!.name,
+                              _attachmentNameForUi ?? 'attachment',
                               style: AppTextStyles.bodySmall,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -1237,7 +1328,10 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
                           ),
                           IconButton(
                             onPressed: () =>
-                                setState(() => _attachment = null),
+                                setState(() {
+                                  _attachment = null;
+                                  _attachmentDisplayName = null;
+                                }),
                             icon: const Icon(Icons.close, size: 18),
                             tooltip: 'Remove',
                           ),
@@ -1327,6 +1421,7 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
   late String _category;
   late DateTime _date;
   XFile? _attachment;
+  String? _attachmentDisplayName;
   bool _isSubmitting = false;
   String? _errorMsg;
 
@@ -1371,17 +1466,51 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
     if (result == null || !mounted) return;
     final file = result.files.single;
     if (file.bytes != null) {
-      setState(() => _attachment = XFile.fromData(file.bytes!, name: file.name));
+      setState(() {
+        _attachment = XFile.fromData(file.bytes!, name: file.name);
+        _attachmentDisplayName = file.name;
+      });
     } else if (file.path != null) {
-      setState(() => _attachment = XFile(file.path!));
+      setState(() {
+        _attachment = XFile(file.path!);
+        _attachmentDisplayName = file.name;
+      });
     }
   }
 
   Future<void> _takeAttachmentPhoto() async {
     final shot = await pickPhotoFromCamera();
     if (shot != null && mounted) {
-      setState(() => _attachment = shot);
+      setState(() {
+        _attachment = shot;
+        _attachmentDisplayName = _safeXFileName(shot);
+      });
     }
+  }
+
+  String _basenameFromPathOrUri(String value) {
+    if (value.trim().isEmpty) return '';
+    if (value.startsWith('content://') || value.startsWith('file://')) {
+      final uri = Uri.tryParse(value);
+      if (uri != null && uri.pathSegments.isNotEmpty) return uri.pathSegments.last;
+    }
+    final parts = value.split(RegExp(r'[\\/]+'));
+    return parts.isNotEmpty ? parts.last : value;
+  }
+
+  String _safeXFileName(XFile file) {
+    final direct = file.name.trim();
+    if (direct.isNotEmpty) return direct;
+    final derived = _basenameFromPathOrUri(file.path).trim();
+    return derived.isNotEmpty ? derived : 'attachment';
+  }
+
+  String? get _attachmentNameForUi {
+    if (_attachment == null) return null;
+    final v = (_attachmentDisplayName?.trim().isNotEmpty ?? false)
+        ? _attachmentDisplayName!.trim()
+        : _safeXFileName(_attachment!);
+    return v.isEmpty ? null : v;
   }
 
   void _previewAttachment() async {
@@ -1607,7 +1736,7 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
                       child: Row(
                         children: [
                           Icon(
-                            _attachment!.name.toLowerCase().endsWith('.pdf')
+                            _safeXFileName(_attachment!).toLowerCase().endsWith('.pdf')
                                 ? Icons.picture_as_pdf
                                 : Icons.image,
                             color: AppColors.success,
@@ -1615,7 +1744,7 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
                           const SizedBox(width: AppDimensions.sm),
                           Expanded(
                             child: Text(
-                              _attachment!.name,
+                              _attachmentNameForUi ?? 'attachment',
                               style: AppTextStyles.bodySmall,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -1628,7 +1757,10 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
                           ),
                           IconButton(
                             onPressed: () =>
-                                setState(() => _attachment = null),
+                                setState(() {
+                                  _attachment = null;
+                                  _attachmentDisplayName = null;
+                                }),
                             icon: const Icon(Icons.close, size: 18),
                             tooltip: 'Remove',
                           ),

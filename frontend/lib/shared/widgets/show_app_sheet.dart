@@ -9,11 +9,12 @@ Future<T?> showAppSheet<T>({
   required WidgetBuilder builder,
   bool isDismissible = true,
 }) {
+  final scheme = Theme.of(context).colorScheme;
   return showModalBottomSheet<T>(
     context: context,
     isScrollControlled: true,
     isDismissible: isDismissible,
-    backgroundColor: AppColors.surface,
+    backgroundColor: scheme.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(
         top: Radius.circular(AppDimensions.radiusXl),
@@ -33,10 +34,12 @@ Future<bool> showConfirmSheet({
   String cancelLabel = 'Cancel',
   Color confirmColor = AppColors.danger,
 }) async {
+  final scheme = Theme.of(context).colorScheme;
+  final textTheme = Theme.of(context).textTheme;
   final result = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: false,
-    backgroundColor: AppColors.surface,
+    backgroundColor: scheme.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(
         top: Radius.circular(AppDimensions.radiusXl),
@@ -65,13 +68,13 @@ Future<bool> showConfirmSheet({
           ),
           const SizedBox(height: AppDimensions.lg),
           Text(title,
-              style: const TextStyle(
-                  fontSize: 18, fontWeight: FontWeight.w600)),
+              style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
           const SizedBox(height: AppDimensions.sm),
           Text(message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                  color: AppColors.textMuted, fontSize: 14)),
+              style: textTheme.bodyMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
+              )),
           const SizedBox(height: AppDimensions.xxl),
           Row(
             children: [
