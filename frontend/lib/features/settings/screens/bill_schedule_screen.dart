@@ -12,6 +12,7 @@ import '../../../shared/widgets/show_app_sheet.dart';
 import '../../bills/providers/bill_schedule_provider.dart';
 import '../../plans/screens/plans_screen.dart';
 import '../../../core/providers/auth_provider.dart';
+import '../../../shared/widgets/app_page_header.dart';
 
 class BillScheduleScreen extends ConsumerWidget {
   const BillScheduleScreen({super.key});
@@ -22,58 +23,73 @@ class BillScheduleScreen extends ConsumerWidget {
     final hasBillSchedules = user?.hasFeature('bill_schedules') ?? false;
     final schedulesAsync = ref.watch(billSchedulesProvider);
     final notifier = ref.read(billSchedulesProvider.notifier);
+    final isWide = MediaQuery.of(context).size.width >= 720;
 
     if (!hasBillSchedules && user?.role != 'SUPER_ADMIN') {
       return Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        appBar: AppBar(
-          backgroundColor: AppColors.primary,
-          foregroundColor: AppColors.textOnPrimary,
-          title: const Text('Bill Schedule'),
-        ),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(AppDimensions.screenPadding),
-            child: AppCard(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.lock_rounded, size: 42, color: AppColors.warning),
-                  const SizedBox(height: AppDimensions.md),
-                  Text('Premium Feature', style: AppTextStyles.h2),
-                  const SizedBox(height: AppDimensions.xs),
-                  Text(
-                    'Bill Schedule is available in the Premium plan.',
-                    style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: AppDimensions.lg),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const PlansScreen()),
-                      ),
-                      icon: const Icon(Icons.workspace_premium_rounded),
-                      label: const Text('View Plans'),
+        appBar: isWide
+            ? AppBar(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.textOnPrimary,
+                title: const Text('Bill Schedule'),
+              )
+            : null,
+        body: Column(
+          children: [
+            const AppPageHeader(
+              title: 'Bill Schedule',
+              icon: Icons.schedule_rounded,
+            ),
+            Expanded(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppDimensions.screenPadding),
+                  child: AppCard(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.lock_rounded, size: 42, color: AppColors.warning),
+                        const SizedBox(height: AppDimensions.md),
+                        Text('Premium Feature', style: AppTextStyles.h2),
+                        const SizedBox(height: AppDimensions.xs),
+                        Text(
+                          'Bill Schedule is available in the Premium plan.',
+                          style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: AppDimensions.lg),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const PlansScreen()),
+                            ),
+                            icon: const Icon(Icons.workspace_premium_rounded),
+                            label: const Text('View Plans'),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
             ),
-          ),
+          ],
         ),
       );
     }
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textOnPrimary,
-        title: const Text('Bill Schedule'),
-      ),
+      appBar: isWide
+          ? AppBar(
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.textOnPrimary,
+              title: const Text('Bill Schedule'),
+            )
+          : null,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showUpsertSheet(context, ref),
         backgroundColor: AppColors.primary,
@@ -83,110 +99,139 @@ class BillScheduleScreen extends ConsumerWidget {
           style: AppTextStyles.labelLarge.copyWith(color: AppColors.textOnPrimary),
         ),
       ),
-      body: schedulesAsync.when(
-        loading: () => const AppLoadingShimmer(),
-        error: (e, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(AppDimensions.screenPadding),
-            child: AppCard(
-              backgroundColor: AppColors.dangerSurface,
-              child: Text(
-                'Error: $e',
-                style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText),
+      body: Column(
+        children: [
+          AppPageHeader(
+            title: 'Bill Schedule',
+            icon: Icons.schedule_rounded,
+            actions: [
+              IconButton(
+                tooltip: 'Set Schedule',
+                icon: const Icon(Icons.add_rounded),
+                onPressed: () => _showUpsertSheet(context, ref),
               ),
-            ),
+            ],
           ),
-        ),
-        data: (schedules) {
-          if (schedules.isEmpty) {
-            return RefreshIndicator(
-              onRefresh: () => notifier.fetchSchedules(),
-              child: ListView(
-                children: const [
-                  SizedBox(height: 80),
-                  AppEmptyState(
-                    emoji: '🗓️',
-                    title: 'No Schedule Set',
-                    subtitle:
-                        'Set a schedule once and bills will generate automatically on that date & time.',
+          Expanded(
+            child: schedulesAsync.when(
+              loading: () => const AppLoadingShimmer(),
+              error: (e, _) => Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppDimensions.screenPadding),
+                  child: AppCard(
+                    backgroundColor: AppColors.dangerSurface,
+                    child: Text(
+                      'Error: $e',
+                      style: AppTextStyles.bodySmall.copyWith(color: AppColors.dangerText),
+                    ),
                   ),
-                ],
+                ),
               ),
-            );
-          }
-
-          return RefreshIndicator(
-            onRefresh: () => notifier.fetchSchedules(),
-            child: ListView.separated(
-              padding: const EdgeInsets.all(AppDimensions.screenPadding),
-              itemCount: schedules.length,
-              separatorBuilder: (context, index) =>
-                  const SizedBox(height: AppDimensions.sm),
-              itemBuilder: (ctx, i) {
-                final s = schedules[i];
-                final billingMonth = _tryParseDate(s['billingMonth']);
-                final scheduledFor = _tryParseDate(s['scheduledFor']);
-                final dueDate = _tryParseDate(s['dueDate']);
-                final isActive = s['isActive'] == true;
-                final executedAt = _tryParseDate(s['executedAt']);
-                final defaultAmount = double.tryParse(s['defaultAmount']?.toString() ?? '') ?? 0;
-
-                final monthLabel = billingMonth != null
-                    ? DateFormat('MMM yyyy').format(billingMonth)
-                    : '-';
-                final scheduledLabel = scheduledFor != null
-                    ? DateFormat('dd MMM yyyy, hh:mm a').format(scheduledFor)
-                    : '-';
-                final dueLabel = dueDate != null
-                    ? DateFormat('dd MMM yyyy').format(dueDate)
-                    : '-';
-
-                return AppCard(
-                  padding: const EdgeInsets.all(AppDimensions.md),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              monthLabel,
-                              style: AppTextStyles.h3,
-                            ),
-                          ),
-                          _StatusPill(
-                            label: isActive ? 'ACTIVE' : 'INACTIVE',
-                            color: isActive ? AppColors.success : AppColors.textMuted,
-                            background: isActive ? AppColors.successSurface : AppColors.surfaceVariant,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppDimensions.sm),
-                      _kv('Schedule', scheduledLabel),
-                      _kv('Amount', '₹${defaultAmount.toStringAsFixed(2)}'),
-                      _kv('Due Date', dueLabel),
-                      if (executedAt != null)
-                        _kv('Executed', DateFormat('dd MMM yyyy, hh:mm a').format(executedAt)),
-                      const SizedBox(height: AppDimensions.sm),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: OutlinedButton.icon(
-                          onPressed: () => _showUpsertSheet(
-                            context,
-                            ref,
-                            initial: s,
-                          ),
-                          icon: const Icon(Icons.edit_rounded, size: 18),
-                          label: const Text('Edit'),
+              data: (schedules) {
+                if (schedules.isEmpty) {
+                  return RefreshIndicator(
+                    onRefresh: () => notifier.fetchSchedules(),
+                    child: ListView(
+                      children: const [
+                        SizedBox(height: 80),
+                        AppEmptyState(
+                          emoji: '🗓️',
+                          title: 'No Schedule Set',
+                          subtitle:
+                              'Set a schedule once and bills will generate automatically on that date & time.',
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                  );
+                }
+
+                return RefreshIndicator(
+                  onRefresh: () => notifier.fetchSchedules(),
+                  child: ListView.separated(
+                    padding: const EdgeInsets.all(AppDimensions.screenPadding),
+                    itemCount: schedules.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: AppDimensions.sm),
+                    itemBuilder: (ctx, i) {
+                      final s = schedules[i];
+                      final billingMonth = _tryParseDate(s['billingMonth']);
+                      final scheduledFor = _tryParseDate(s['scheduledFor']);
+                      final dueDate = _tryParseDate(s['dueDate']);
+                      final isActive = s['isActive'] == true;
+                      final executedAt = _tryParseDate(s['executedAt']);
+                      final defaultAmount =
+                          double.tryParse(s['defaultAmount']?.toString() ?? '') ??
+                              0;
+
+                      final monthLabel = billingMonth != null
+                          ? DateFormat('MMM yyyy').format(billingMonth)
+                          : '-';
+                      final scheduledLabel = scheduledFor != null
+                          ? DateFormat('dd MMM yyyy, hh:mm a')
+                              .format(scheduledFor)
+                          : '-';
+                      final dueLabel = dueDate != null
+                          ? DateFormat('dd MMM yyyy').format(dueDate)
+                          : '-';
+
+                      return AppCard(
+                        padding: const EdgeInsets.all(AppDimensions.md),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    monthLabel,
+                                    style: AppTextStyles.h3,
+                                  ),
+                                ),
+                                _StatusPill(
+                                  label: isActive ? 'ACTIVE' : 'INACTIVE',
+                                  color: isActive
+                                      ? AppColors.success
+                                      : AppColors.textMuted,
+                                  background: isActive
+                                      ? AppColors.successSurface
+                                      : AppColors.surfaceVariant,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: AppDimensions.sm),
+                            _kv('Schedule', scheduledLabel),
+                            _kv('Amount', '₹${defaultAmount.toStringAsFixed(2)}'),
+                            _kv('Due Date', dueLabel),
+                            if (executedAt != null)
+                              _kv(
+                                'Executed',
+                                DateFormat('dd MMM yyyy, hh:mm a')
+                                    .format(executedAt),
+                              ),
+                            const SizedBox(height: AppDimensions.sm),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: OutlinedButton.icon(
+                                onPressed: () => _showUpsertSheet(
+                                  context,
+                                  ref,
+                                  initial: s,
+                                ),
+                                icon:
+                                    const Icon(Icons.edit_rounded, size: 18),
+                                label: const Text('Edit'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
                 );
               },
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }

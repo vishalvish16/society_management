@@ -12,7 +12,6 @@ async function authMiddleware(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log(`[AUTH DEBUG] 401: Access token is required. Headers:`, JSON.stringify(req.headers));
       return sendError(res, 'Access token is required', 401);
     }
 

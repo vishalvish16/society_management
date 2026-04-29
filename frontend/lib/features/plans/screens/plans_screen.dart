@@ -170,8 +170,10 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
 
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      enableDrag: true,
       builder: (ctx) => _PlanBottomSheet(
         isEdit: isEdit,
         nameC: nameC,

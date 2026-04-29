@@ -55,9 +55,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     final rememberStr = await storage.read(key: _kRememberMe);
     if (rememberStr == 'true') {
       final identifier = await storage.read(key: _kRememberMeIdentifier);
-      if (identifier != null && mounted) {
-        _identifierCtrl.text = identifier;
+      if (mounted) {
         _rememberMe = true;
+        if (identifier != null) {
+          _identifierCtrl.text = identifier;
+        }
       }
     }
     if (mounted) {
@@ -113,8 +115,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   ) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      enableDrag: true,
       builder: (ctx) => _SocietyPickerSheet(
         societies: societies,
         onSelect: (userId) async {
@@ -137,11 +141,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     final storage = ref.read(authProvider.notifier).client.storage;
     if (_rememberMe) {
       await storage.write(key: _kRememberMe, value: 'true');
-      await storage.write(key: _kRememberMeIdentifier, value: identifier);
+      final normalized = identifier.trim();
+      if (normalized.isEmpty) {
+        await storage.delete(key: _kRememberMeIdentifier);
+      } else {
+        await storage.write(key: _kRememberMeIdentifier, value: normalized);
+      }
     } else {
       await storage.write(key: _kRememberMe, value: 'false');
       await storage.delete(key: _kRememberMeIdentifier);
     }
+  }
+
+  Future<void> _setRememberMe(bool value) async {
+    setState(() => _rememberMe = value);
+    // Persist immediately so it survives app restarts even before a successful login.
+    await _saveRememberMe(_identifierCtrl.text);
   }
 
   Future<void> _tryBiometricAuto() async {
@@ -358,7 +373,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           Row(
             children: [
               GestureDetector(
-                onTap: () => setState(() => _rememberMe = !_rememberMe),
+                onTap: () => _setRememberMe(!_rememberMe),
                 behavior: HitTestBehavior.opaque,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -368,8 +383,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                       width: 22,
                       child: Checkbox(
                         value: _rememberMe,
-                        onChanged: (val) =>
-                            setState(() => _rememberMe = val ?? false),
+                        onChanged: (val) => _setRememberMe(val ?? false),
                         activeColor: AppColors.primary,
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         shape: RoundedRectangleBorder(

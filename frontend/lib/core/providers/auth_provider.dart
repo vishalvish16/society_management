@@ -11,6 +11,9 @@ class AuthState {
   final bool isLoading;
   final String? error;
   final bool isAuthenticated;
+  /// Bumped whenever we want all avatar images to re-fetch.
+  /// Used to bust Flutter's in-memory/disk image cache after profile photo updates.
+  final int avatarRevision;
 
   const AuthState({
     this.user,
@@ -18,6 +21,7 @@ class AuthState {
     this.isLoading = false,
     this.error,
     this.isAuthenticated = false,
+    this.avatarRevision = 0,
   });
 
   AuthState copyWith({
@@ -26,6 +30,7 @@ class AuthState {
     bool? isLoading,
     String? error,
     bool? isAuthenticated,
+    int? avatarRevision,
   }) {
     return AuthState(
       user: user ?? this.user,
@@ -33,6 +38,7 @@ class AuthState {
       isLoading: isLoading ?? this.isLoading,
       error: error,
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
+      avatarRevision: avatarRevision ?? this.avatarRevision,
     );
   }
 }
@@ -43,6 +49,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   final _client = DioClient();
   DioClient get client => _client;
+
+  static const _kLastLoginIdentifier = 'last_login_identifier';
 
   String _dioErrorMessage(DioException e) {
     final data = e.response?.data;
@@ -75,7 +83,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       }
 
       // Single society — complete login immediately
-      await _applyLoginData(data);
+      await _applyLoginData(data, identifier: identifier);
       return []; // empty list = login done
     } on DioException catch (e) {
       final msg = _dioErrorMessage(e);
@@ -97,7 +105,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
         data: {'identifier': identifier, 'password': password, 'userId': userId},
       );
       if (response.statusCode == 200 && response.data['success'] == true) {
-        await _applyLoginData(response.data['data'] as Map<String, dynamic>);
+        await _applyLoginData(
+          response.data['data'] as Map<String, dynamic>,
+          identifier: identifier,
+        );
         return true;
       }
       state = state.copyWith(
@@ -123,7 +134,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
 
       if (response.statusCode == 200 && response.data['success'] == true) {
-        await _applyLoginData(response.data['data'] as Map<String, dynamic>);
+        await _applyLoginData(
+          response.data['data'] as Map<String, dynamic>,
+          identifier: identifier,
+        );
         return true;
       }
 
@@ -142,13 +156,23 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  Future<void> _applyLoginData(Map<String, dynamic> data) async {
+  Future<void> _applyLoginData(
+    Map<String, dynamic> data, {
+    String? identifier,
+  }) async {
     final token = data['accessToken'] as String;
     final user = UserModel.fromJson(data['user'] as Map<String, dynamic>);
 
     await _client.storage.write(key: 'accessToken', value: token);
     await _client.storage.write(key: 'userRole', value: user.role);
     await _client.storage.write(key: 'userId', value: user.id);
+    final normalizedIdentifier = identifier?.trim();
+    if (normalizedIdentifier != null && normalizedIdentifier.isNotEmpty) {
+      await _client.storage.write(
+        key: _kLastLoginIdentifier,
+        value: normalizedIdentifier,
+      );
+    }
 
     // Set initial auth state immediately, then hydrate full profile (incl. society plan features)
     // from `GET users/me`. This fixes cases where the login payload is missing/partial.
@@ -220,14 +244,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
       }
     } catch (_) {}
 
-    // Clear session keys. Also clear the remembered identifier so a
-    // different user logging in next doesn't see the previous user's phone.
+    // Clear session keys only. "Remember me" is a login-form preference and
+    // should not be tied to session lifecycle (users often want it to persist
+    // even after logging out).
     await Future.wait([
       _client.storage.delete(key: 'accessToken'),
       _client.storage.delete(key: 'userRole'),
       _client.storage.delete(key: 'userId'),
-      _client.storage.delete(key: 'remember_me_identifier'),
-      _client.storage.write(key: 'remember_me', value: 'false'),
     ]);
 
     state = const AuthState();
@@ -271,7 +294,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final response = await _client.dio.get('users/me');
       if (response.statusCode == 200 && response.data['success'] == true) {
         final user = UserModel.fromJson(response.data['data'] as Map<String, dynamic>);
-        state = state.copyWith(user: user);
+        state = state.copyWith(
+          user: user,
+          avatarRevision: state.avatarRevision + 1,
+        );
         return true;
       }
     } catch (_) {}

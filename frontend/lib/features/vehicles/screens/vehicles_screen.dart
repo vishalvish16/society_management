@@ -87,8 +87,10 @@ class _VehiclesScreenState extends ConsumerState<VehiclesScreen> {
 
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
         borderRadius:
             BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),

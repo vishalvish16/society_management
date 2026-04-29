@@ -417,6 +417,88 @@ exports.search = async (req, res) => {
       }
     }
 
+    // ── Donations & Campaigns ─────────────────────────────────────────
+    if (!isWatchman && canAccess('donations')) {
+      const campaigns = await prisma.donationCampaign.findMany({
+        where: {
+          societyId,
+          OR: [
+            ...containsWhere(['title', 'description'], q),
+          ],
+        },
+        select: {
+          id: true,
+          title: true,
+          isActive: true,
+          startDate: true,
+          endDate: true,
+        },
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      });
+
+      for (const c of campaigns) {
+        const active = c.isActive ? 'Active' : 'Closed';
+        const start = c.startDate ? new Date(c.startDate).toISOString().slice(0, 10) : '';
+        results.push({
+          type: 'donation_campaign',
+          id: c.id,
+          title: c.title || 'Donation Campaign',
+          subtitle: `${active}${start ? ` · From ${start}` : ''}`.trim(),
+          route: '/donations',
+        });
+      }
+
+      const donations = await prisma.donation.findMany({
+        where: {
+          societyId,
+          OR: [
+            ...containsWhere(['note'], q),
+            {
+              donor: {
+                OR: [
+                  ...containsWhere(['name', 'phone', 'email'], q),
+                ],
+              },
+            },
+            { campaign: { title: { contains: q, mode: 'insensitive' } } },
+          ],
+        },
+        select: {
+          id: true,
+          amount: true,
+          paymentMethod: true,
+          paidAt: true,
+          note: true,
+          donor: { select: { id: true, name: true, phone: true } },
+          campaign: { select: { id: true, title: true } },
+        },
+        take: limit,
+        orderBy: { paidAt: 'desc' },
+      });
+
+      for (const d of donations) {
+        const donorName = d.donor?.name || 'Donor';
+        const donorPhone = d.donor?.phone || '';
+        const campaignTitle = d.campaign?.title || '';
+        const amt = d.amount != null ? Number(d.amount) : 0;
+        const date = d.paidAt ? new Date(d.paidAt).toISOString().slice(0, 10) : '';
+        const parts = [
+          campaignTitle,
+          donorPhone,
+          date,
+          amt ? `₹${amt}` : '',
+        ].filter(Boolean);
+        results.push({
+          type: 'donation',
+          id: d.id,
+          title: donorName,
+          subtitle: parts.join(' · '),
+          route: '/donations',
+        });
+      }
+    }
+
     // De-dup by type+id and keep a stable order (members, units, complaints, bills)
     const seen = new Set();
     const uniq = [];

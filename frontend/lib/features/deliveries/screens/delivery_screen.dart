@@ -511,8 +511,10 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
   void _showDropPhotoSheet(BuildContext context, String deliveryId) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
       ),
@@ -523,8 +525,10 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
   void _showCollectSheet(BuildContext context, Map<String, dynamic> delivery) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
       ),
@@ -535,8 +539,10 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
   void _showLogDeliverySheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
       ),
@@ -815,7 +821,9 @@ class _DropPhotoSheetState extends ConsumerState<_DropPhotoSheet> {
                   GestureDetector(
                     onTap: () => showModalBottomSheet(
                       context: context,
+                      useRootNavigator: true,
                       backgroundColor: AppColors.surface,
+                      enableDrag: true,
                       builder: (_) => SafeArea(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../core/providers/auth_provider.dart';
+import '../../../shared/widgets/app_page_header.dart';
 import '../models/chat_models.dart';
 import '../providers/chat_provider.dart';
 
@@ -27,24 +28,44 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     final authState = ref.watch(authProvider);
     final myId = authState.user?.id ?? '';
     final roomsAsync = ref.watch(chatRoomsProvider);
+    final isWide = MediaQuery.of(context).size.width >= 720;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0F172A),
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: const Text('Messages',
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit_outlined),
-            tooltip: 'New Message',
-            onPressed: () => context.push('/chat/members'),
+      appBar: isWide
+          ? AppBar(
+              backgroundColor: const Color(0xFF0F172A),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              title: const Text(
+                'Messages',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined),
+                  tooltip: 'New Message',
+                  onPressed: () => context.push('/chat/members'),
+                ),
+              ],
+            )
+          : null,
+      body: Column(
+        children: [
+          AppPageHeader(
+            title: 'Messages',
+            icon: Icons.chat_bubble_rounded,
+            accentColor: const Color(0xFF0F172A),
+            actions: [
+              IconButton(
+                tooltip: 'New Message',
+                icon: const Icon(Icons.edit_outlined),
+                onPressed: () => context.push('/chat/members'),
+              ),
+            ],
           ),
-        ],
-      ),
-      body: roomsAsync.when(
+          Expanded(
+            child: roomsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
           child: Column(
@@ -139,6 +160,9 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
             ),
           );
         },
+      ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF3B82F6),

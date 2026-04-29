@@ -64,8 +64,19 @@ const getComplaints = async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const where = { societyId };
-    if (status) where.status = status.toUpperCase();
-    if (category) where.category = category.toUpperCase();
+    const normalizeFilter = (v) => {
+      if (v === undefined || v === null) return null;
+      const s = String(v).trim();
+      if (!s) return null;
+      const upper = s.toUpperCase();
+      if (upper === 'ALL' || upper === 'NULL' || upper === 'UNDEFINED') return null;
+      return upper;
+    };
+
+    const normalizedStatus = normalizeFilter(status);
+    const normalizedCategory = normalizeFilter(category);
+    if (normalizedStatus) where.status = normalizedStatus;
+    if (normalizedCategory) where.category = normalizedCategory;
     // Residents/Members only see complaints for their active unit.
     const roleUpper = String(role || '').toUpperCase();
     if ((roleUpper === 'RESIDENT' || roleUpper === 'MEMBER') && activeUnitId) {

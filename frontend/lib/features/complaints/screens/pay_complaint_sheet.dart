@@ -22,9 +22,11 @@ enum _Step { choose, upiLaunched, upiConfirm }
 void showPayComplaintSheet(BuildContext context, Map<String, dynamic> complaint) {
   showModalBottomSheet(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: Theme.of(context).colorScheme.surface,
+    enableDrag: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
     ),

@@ -483,7 +483,9 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
 
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       backgroundColor: AppColors.surface,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(AppDimensions.radiusXl),
@@ -969,29 +971,15 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   }
 
   void _showAddDialog(BuildContext context) {
-    showModalBottomSheet(
+    showAppSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppDimensions.radiusXl),
-        ),
-      ),
       builder: (_) => const _AddExpenseSheet(),
     );
   }
 
   void _showEditDialog(BuildContext context, Map<String, dynamic> ex) {
-    showModalBottomSheet(
+    showAppSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppDimensions.radiusXl),
-        ),
-      ),
       builder: (_) => _EditExpenseSheet(expense: ex),
     );
   }

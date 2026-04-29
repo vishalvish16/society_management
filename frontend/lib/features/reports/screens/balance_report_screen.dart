@@ -7,6 +7,7 @@ import '../../../core/api/dio_client.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/app_date_picker.dart';
+import '../../../shared/widgets/app_page_header.dart';
 
 class BalanceReportScreen extends StatefulWidget {
   const BalanceReportScreen({super.key});
@@ -203,8 +204,10 @@ class _BalanceReportScreenState extends State<BalanceReportScreen> {
   Future<void> _openLedgerActions() async {
     await showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       showDragHandle: true,
       isScrollControlled: true,
+      enableDrag: true,
       builder: (ctx) {
         return SafeArea(
           child: Padding(
@@ -478,27 +481,49 @@ class _BalanceReportScreenState extends State<BalanceReportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isWide = MediaQuery.of(context).size.width >= 720;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textOnPrimary,
-        title: Text('Balance Report', style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add_rounded),
-            tooltip: 'Ledger actions',
-            onPressed: _openLedgerActions,
-          ),
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf_rounded),
-            tooltip: 'Export PDF',
-            onPressed: _filteredTxns().isEmpty ? null : _exportPdf,
-          ),
-        ],
-      ),
+      appBar: isWide
+          ? AppBar(
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.textOnPrimary,
+              title: Text(
+                'Balance Report',
+                style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.add_rounded),
+                  tooltip: 'Ledger actions',
+                  onPressed: _openLedgerActions,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.picture_as_pdf_rounded),
+                  tooltip: 'Export PDF',
+                  onPressed: _filteredTxns().isEmpty ? null : _exportPdf,
+                ),
+              ],
+            )
+          : null,
       body: Column(
         children: [
+          AppPageHeader(
+            title: 'Balance Report',
+            icon: Icons.account_balance_wallet_rounded,
+            actions: [
+              IconButton(
+                tooltip: 'Ledger actions',
+                icon: const Icon(Icons.add_rounded),
+                onPressed: _openLedgerActions,
+              ),
+              IconButton(
+                tooltip: 'Export PDF',
+                icon: const Icon(Icons.picture_as_pdf_rounded),
+                onPressed: _filteredTxns().isEmpty ? null : _exportPdf,
+              ),
+            ],
+          ),
           // ── Date range filter ───────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),

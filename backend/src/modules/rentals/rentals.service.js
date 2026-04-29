@@ -147,6 +147,23 @@ async function updateRental(id, societyId, data, fileData = []) {
     throw Object.assign(new Error('Rental record not found'), { status: 404 });
   }
 
+  const _toNullIfEmpty = (v) => {
+    if (v === undefined) return undefined;
+    if (v === null) return null;
+    if (typeof v === 'string' && v.trim() === '') return null;
+    return v;
+  };
+
+  const _toDecimalOrNull = (v) => {
+    const normalized = _toNullIfEmpty(v);
+    if (normalized === undefined) return undefined;
+    if (normalized === null) return null;
+    // Prisma Decimal accepts number or decimal string. Keep strings as-is.
+    if (typeof normalized === 'number') return normalized;
+    if (typeof normalized === 'string') return normalized.trim();
+    return normalized;
+  };
+
   const updateData = {};
   const fields = [
     'portion', 'tenantName', 'tenantPhone', 'tenantEmail', 'tenantAadhaar',
@@ -156,7 +173,21 @@ async function updateRental(id, societyId, data, fileData = []) {
   ];
 
   for (const f of fields) {
-    if (data[f] !== undefined) updateData[f] = data[f];
+    if (data[f] === undefined) continue;
+
+    // Normalize empty strings coming from clients.
+    if (f === 'rentAmount' || f === 'securityDeposit') {
+      updateData[f] = _toDecimalOrNull(data[f]);
+      continue;
+    }
+
+    // Nullable string/id fields should become null when empty.
+    if (['portion', 'tenantEmail', 'tenantAadhaar', 'ownerUserId', 'tenantUserId', 'nokName', 'nokPhone', 'notes'].includes(f)) {
+      updateData[f] = _toNullIfEmpty(data[f]);
+      continue;
+    }
+
+    updateData[f] = data[f];
   }
   if (data.policeVerification !== undefined) {
     updateData.policeVerification = data.policeVerification === true || data.policeVerification === 'true';
@@ -164,8 +195,14 @@ async function updateRental(id, societyId, data, fileData = []) {
   if (data.membersCount !== undefined) {
     updateData.membersCount = parseInt(data.membersCount, 10) || 1;
   }
-  if (data.agreementStartDate) updateData.agreementStartDate = new Date(data.agreementStartDate);
-  if (data.agreementEndDate) updateData.agreementEndDate = new Date(data.agreementEndDate);
+  if (data.agreementStartDate !== undefined) {
+    const v = _toNullIfEmpty(data.agreementStartDate);
+    if (v) updateData.agreementStartDate = new Date(v);
+  }
+  if (data.agreementEndDate !== undefined) {
+    const v = _toNullIfEmpty(data.agreementEndDate);
+    updateData.agreementEndDate = v ? new Date(v) : null;
+  }
 
   return prisma.$transaction(async (tx) => {
     if (fileData.length > 0) {

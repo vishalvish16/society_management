@@ -22,9 +22,11 @@ enum _Step { choose, upiLaunched, upiConfirm }
 void showDonateSheet(BuildContext context, {String? campaignId, String? campaignTitle}) {
   showModalBottomSheet(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: Theme.of(context).colorScheme.surface,
+    enableDrag: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
     ),

@@ -202,14 +202,8 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
   void _showRaiseSheet(BuildContext context) {
     final user = ref.read(authProvider).user;
     final lockUnit = user?.isUnitLocked ?? false;
-    showModalBottomSheet(
+    showAppSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
-      ),
       builder: (_) => _RaiseComplaintSheet(
         lockUnit: lockUnit,
         preUnitId: lockUnit ? user?.unitId : null,
@@ -678,8 +672,10 @@ class _ComplaintCard extends ConsumerWidget {
   void _showDetailSheet(BuildContext context, Map<String, dynamic> c) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
       ),

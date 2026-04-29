@@ -2,38 +2,68 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const path = require('path');
+const helmet = require('helmet');
+const hpp = require('hpp');
+const { generalApiLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
 
-// ── CORS — allow Flutter web + mobile app ─────────────────────────
+// ── Security headers ──────────────────────────────────────────────
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'same-site' },
+  contentSecurityPolicy: false, // Configured separately if needed for web dashboards
+}));
+
+// ── CORS — strict whitelist only ──────────────────────────────────
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+
+// Always allow localhost in development
+if (process.env.NODE_ENV !== 'production') {
+  ALLOWED_ORIGINS.push('http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000');
+}
+
 app.use((req, res, next) => {
   const origin = req.headers.origin || '';
-  // Allow localhost (web dev) and any LAN IP (mobile dev), or no origin (native mobile)
-  if (
-    !origin ||
-    origin.startsWith('http://localhost') ||
-    origin.startsWith('http://127.0.0.1') ||
-    origin.startsWith('http://192.168.') ||
-    origin.includes('trycloudflare.com')
-  ) {
-    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+    if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
 
-app.use(express.static(path.join(__dirname, '../public')));
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-app.use(bodyParser.json());
+// ── HTTP Parameter Pollution protection ───────────────────────────
+app.use(hpp());
 
-// Logger for debugging
-app.use((req, res, next) => {
-  console.log(`[DEBUG] ${req.method} ${req.url}`);
-  next();
+// ── Body size limits ──────────────────────────────────────────────
+app.use(bodyParser.json({ limit: '10kb' }));
+app.use(bodyParser.urlencoded({ limit: '10kb', extended: false }));
+
+// ── Static public assets (non-sensitive) ─────────────────────────
+app.use(express.static(path.join(__dirname, '../public')));
+
+// ── Authenticated file serving ────────────────────────────────────
+// Uploads are NOT served statically — use /api/files/:folder/:filename
+const authMiddleware = require('./middleware/auth');
+const fs = require('fs');
+
+app.get('/api/files/:folder/:filename', authMiddleware, (req, res) => {
+  const { folder, filename } = req.params;
+  // Prevent path traversal: strip any directory separators
+  const safeFolder   = path.basename(folder);
+  const safeFilename = path.basename(filename);
+  const filePath = path.join(__dirname, '../uploads', safeFolder, safeFilename);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ success: false, message: 'File not found' });
+  res.sendFile(filePath);
 });
+
+// ── General API rate limiter (all routes) ─────────────────────────
+app.use('/api/', generalApiLimiter);
 
 // ── Routes ────────────────────────────────────────────────────────
 app.use('/api/auth', require('./modules/auth/auth.routes'));
@@ -75,17 +105,23 @@ app.use('/api/tasks',   require('./modules/tasks/tasks.routes'));
 app.use('/api/rules',   require('./modules/rules/rules.routes'));
 app.use('/api/assets',  require('./modules/assets/assets.routes'));
 app.use('/api/wall',   require('./modules/wall/wall.routes'));
+app.use('/api/app-info', require('./modules/appinfo/appinfo.routes'));
 
 // ── Health check ──────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 // ── Global error handler ──────────────────────────────────────────
-// Must be last — catches all next(err) calls from routes
 app.use((err, _req, res, _next) => {
+  // Always log the full error server-side
   console.error('[ERROR]', err.message, err.stack?.split('\n')[1]);
   const status = err.status || err.statusCode || 500;
-  res.status(status).json({ success: false, message: err.message || 'Internal server error' });
+
+  // Never expose internal error details to clients in production
+  const message = process.env.NODE_ENV === 'production'
+    ? (status < 500 ? err.message : 'Internal server error')
+    : (err.message || 'Internal server error');
+
+  res.status(status).json({ success: false, message });
 });
 
 module.exports = app;
-

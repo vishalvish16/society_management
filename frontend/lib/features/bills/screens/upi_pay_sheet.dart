@@ -24,9 +24,11 @@ import 'razorpay_web_stub.dart' if (dart.library.html) 'razorpay_web.dart';
 void showPaySheet(BuildContext context, {required Map<String, dynamic> bill}) {
   showModalBottomSheet(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: AppColors.surface,
+    enableDrag: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(
           top: Radius.circular(AppDimensions.radiusXl)),

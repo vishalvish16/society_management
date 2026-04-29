@@ -17,6 +17,7 @@ import '../../../shared/widgets/show_app_sheet.dart';
 import 'bill_schedule_screen.dart';
 import '../../plans/screens/plans_screen.dart';
 import '../../parking/screens/parking_screen.dart';
+import 'app_info_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -24,7 +25,8 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
-    final user = ref.watch(authProvider).user;
+    final authState = ref.watch(authProvider);
+    final user = authState.user;
     final role = user?.role.toUpperCase() ?? '';
     final isAdmin =
         role == 'PRAMUKH' || role == 'CHAIRMAN' || role == 'SECRETARY';
@@ -58,7 +60,7 @@ class SettingsScreen extends ConsumerWidget {
                         backgroundColor: AppColors.primarySurface,
                         backgroundImage: AppConstants.uploadUrlFromPath(user.profilePhotoUrl) != null
                             ? NetworkImage(
-                                AppConstants.uploadUrlFromPath(user.profilePhotoUrl)!,
+                                '${AppConstants.uploadUrlFromPath(user.profilePhotoUrl)!}?v=${authState.avatarRevision}',
                               )
                             : null,
                         child: AppConstants.uploadUrlFromPath(user.profilePhotoUrl) == null
@@ -403,6 +405,31 @@ class SettingsScreen extends ConsumerWidget {
                 ],
               ),
             ),
+            const SizedBox(height: AppDimensions.lg),
+
+            // ── About ──────────────────────────────────────────────────
+            Text('About',
+                style: AppTextStyles.labelMedium
+                    .copyWith(color: AppColors.textMuted)),
+            const SizedBox(height: AppDimensions.sm),
+            AppCard(
+              padding: EdgeInsets.zero,
+              child: ListTile(
+                leading: const Icon(Icons.info_outline_rounded,
+                    color: AppColors.primary),
+                title: Text('App Info', style: AppTextStyles.bodyMedium),
+                subtitle: Text('Version, support & terms',
+                    style: AppTextStyles.bodySmall
+                        .copyWith(color: AppColors.textMuted)),
+                trailing: const Icon(Icons.chevron_right_rounded,
+                    color: AppColors.textMuted),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const AppInfoScreen()),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -416,10 +443,16 @@ class SettingsScreen extends ConsumerWidget {
     if (user == null) return;
     
     // We need the user's password to store for biometric re-auth.
-    // Use the logged-in user's primary identifier (phone or email).
-    final identifier = user.phone;
+    // Prefer the identifier actually used to login (email/phone format matters).
+    final storage = ref.read(authProvider.notifier).client.storage;
+    final lastIdentifier =
+        (await storage.read(key: 'last_login_identifier'))?.trim();
+    final identifier = (lastIdentifier != null && lastIdentifier.isNotEmpty)
+        ? lastIdentifier
+        : (user.email?.trim().isNotEmpty == true ? user.email!.trim() : user.phone);
 
     // Ask them to enter password once to confirm.
+    if (!context.mounted) return;
     final password = await _showPasswordDialog(context);
     if (password == null) return;
 
@@ -444,60 +477,11 @@ class SettingsScreen extends ConsumerWidget {
 
   /// Asks user to re-enter their password to store for biometric use.
   Future<String?> _showPasswordDialog(BuildContext context) async {
-    final passwordCtrl = TextEditingController();
-    bool obscure = true;
-
-    final result = await showDialog<String?>(
+    return showDialog<String?>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogCtx) => StatefulBuilder(
-        builder: (builderCtx, setDialogState) => AlertDialog(
-          title: const Text('Confirm your password'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Enter your login password to enable biometric sign-in.',
-                  style: TextStyle(fontSize: 13),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: passwordCtrl,
-                  obscureText: obscure,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    prefixIcon: const Icon(Icons.lock_outline_rounded),
-                    suffixIcon: IconButton(
-                      icon: Icon(obscure
-                          ? Icons.visibility_off_rounded
-                          : Icons.visibility_rounded),
-                      onPressed: () => setDialogState(() => obscure = !obscure),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx, null),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final pw = passwordCtrl.text;
-                if (pw.isEmpty) return;
-                Navigator.pop(dialogCtx, pw);
-              },
-              child: const Text('Enable'),
-            ),
-          ],
-        ),
-      ),
+      builder: (_) => const _PasswordConfirmDialog(),
     );
-    passwordCtrl.dispose();
-    return result;
   }
 
   // ── Logout ───────────────────────────────────────────────────────────────
@@ -610,6 +594,73 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PasswordConfirmDialog extends StatefulWidget {
+  const _PasswordConfirmDialog();
+
+  @override
+  State<_PasswordConfirmDialog> createState() => _PasswordConfirmDialogState();
+}
+
+class _PasswordConfirmDialogState extends State<_PasswordConfirmDialog> {
+  final _passwordCtrl = TextEditingController();
+  bool _obscure = true;
+
+  @override
+  void dispose() {
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Confirm your password'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Enter your login password to enable biometric sign-in.',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _passwordCtrl,
+              obscureText: _obscure,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                prefixIcon: const Icon(Icons.lock_outline_rounded),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscure
+                        ? Icons.visibility_off_rounded
+                        : Icons.visibility_rounded,
+                  ),
+                  onPressed: () => setState(() => _obscure = !_obscure),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, null),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final pw = _passwordCtrl.text;
+            if (pw.isEmpty) return;
+            Navigator.pop(context, pw);
+          },
+          child: const Text('Enable'),
+        ),
+      ],
     );
   }
 }

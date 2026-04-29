@@ -28,9 +28,13 @@ if (process.env.NODE_ENV === 'test') {
 
   // Attempt connection
   container.instance.connect().catch(() => {
-    if (isLocalhost && process.env.NODE_ENV !== 'production') {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('CRITICAL: Redis connection failed in production. Exiting.');
+      process.exit(1);
+    }
+    if (isLocalhost) {
       console.warn('⚠️  Real Redis not found. Falling back to In-Memory Mock Redis for development...');
-      container.instance.disconnect(); // important to stop internal state
+      container.instance.disconnect();
       container.instance = new MockRedis();
       container.isMock = true;
     }

@@ -204,8 +204,10 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
     final lockUnit = user?.isUnitLocked ?? false;
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
         borderRadius:
             BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
@@ -683,8 +685,10 @@ class _SuggestionCard extends ConsumerWidget {
   void _showDetailSheet(BuildContext context, Map<String, dynamic> s) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
       ),

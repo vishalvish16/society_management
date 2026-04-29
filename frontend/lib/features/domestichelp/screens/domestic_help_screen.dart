@@ -343,8 +343,10 @@ class _DomesticHelpScreenState extends ConsumerState<DomesticHelpScreen> {
   void _showHelperSheet(BuildContext context, {required String role, Map<String, dynamic>? existing}) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
       ),

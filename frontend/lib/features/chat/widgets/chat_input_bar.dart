@@ -162,9 +162,11 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
   void _showAttachSheet() {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      enableDrag: true,
       builder: (_) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 16),

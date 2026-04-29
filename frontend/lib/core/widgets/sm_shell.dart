@@ -9,6 +9,8 @@ import '../theme/app_colors.dart';
 import '../../shared/widgets/confirm_logout.dart';
 import '../../shared/widgets/app_pull_to_refresh.dart';
 import '../../features/settings/providers/permissions_provider.dart';
+import '../../core/constants/app_constants.dart';
+import '../../features/settings/screens/profile_screen.dart';
 
 class SMShell extends ConsumerStatefulWidget {
   final Widget child;
@@ -171,9 +173,11 @@ class _SMShellState extends ConsumerState<SMShell> {
   void _openSearch(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       useSafeArea: true,
+      enableDrag: true,
       builder: (_) => const _SearchModal(),
     );
   }
@@ -364,16 +368,29 @@ class _SMShellState extends ConsumerState<SMShell> {
                   icon: CircleAvatar(
                     radius: 14,
                     backgroundColor: AppColors.primary,
-                    child: Text(
-                      (authState.user?.name ?? 'U').substring(0, 1).toUpperCase(),
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onPrimary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    backgroundImage: () {
+                      final u = authState.user;
+                      final url = AppConstants.uploadUrlFromPath(u?.profilePhotoUrl);
+                      if (url == null) return null;
+                      return NetworkImage('$url?v=${authState.avatarRevision}');
+                    }(),
+                    child: AppConstants.uploadUrlFromPath(authState.user?.profilePhotoUrl) == null
+                        ? Text(
+                            (authState.user?.name ?? 'U').substring(0, 1).toUpperCase(),
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onPrimary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          )
+                        : null,
                   ),
-                  onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                  tooltip: 'My profile',
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                    );
+                  },
                 ),
               ],
             ),
@@ -534,10 +551,18 @@ class _SMShellState extends ConsumerState<SMShell> {
                 CircleAvatar(
                   radius: 17,
                   backgroundColor: AppColors.primary,
-                  child: Text(
-                    (authState.user?.name ?? 'U').substring(0, 1).toUpperCase(),
-                    style: TextStyle(color: cs.onPrimary, fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
+                  backgroundImage: () {
+                    final u = authState.user;
+                    final url = AppConstants.uploadUrlFromPath(u?.profilePhotoUrl);
+                    if (url == null) return null;
+                    return NetworkImage('$url?v=${authState.avatarRevision}');
+                  }(),
+                  child: AppConstants.uploadUrlFromPath(authState.user?.profilePhotoUrl) == null
+                      ? Text(
+                          (authState.user?.name ?? 'U').substring(0, 1).toUpperCase(),
+                          style: TextStyle(color: cs.onPrimary, fontWeight: FontWeight.bold, fontSize: 13),
+                        )
+                      : null,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -719,24 +744,43 @@ class _SMShellState extends ConsumerState<SMShell> {
                             ),
                           ),
                         ),
-                      ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                        leading: Icon(item.icon,
-                            size: 20,
-                            color: isSelected ? cs.primary : muted),
-                        title: Text(item.label,
-                            style: TextStyle(
-                              color: isSelected ? cs.onSurface : muted,
-                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                              fontSize: 14,
-                            )),
-                        selected: isSelected,
-                        selectedTileColor: AppColors.primary.withValues(alpha: 0.15),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        onTap: () {
-                          Navigator.pop(context); // close drawer
-                          _onNavTap(i, navItems);
-                        },
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 1),
+                        child: Material(
+                          color: isSelected ? AppColors.primary.withValues(alpha: 0.15) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: () {
+                              Navigator.pop(context); // close drawer
+                              _onNavTap(i, navItems);
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    item.icon,
+                                    size: 20,
+                                    color: isSelected ? cs.primary : muted,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      item.label,
+                                      style: TextStyle(
+                                        color: isSelected ? cs.onSurface : muted,
+                                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                        fontSize: 14,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   );
@@ -796,6 +840,9 @@ class _SearchModalState extends ConsumerState<_SearchModal> {
     'complaint':    Icons.report_problem_rounded,
     'suggestion':   Icons.lightbulb_rounded,
     'bill':         Icons.receipt_long_rounded,
+    'donation':     Icons.volunteer_activism_rounded,
+    'donation_campaign': Icons.volunteer_activism_rounded,
+    'menu':         Icons.menu_rounded,
   };
 
   static const _typeColors = <String, Color>{
@@ -810,6 +857,9 @@ class _SearchModalState extends ConsumerState<_SearchModal> {
     'complaint':    Color(0xFFDC2626),
     'suggestion':   Color(0xFFF59E0B),
     'bill':         Color(0xFF0284C7),
+    'donation':     Color(0xFF16A34A),
+    'donation_campaign': Color(0xFF16A34A),
+    'menu':         Color(0xFF475569),
   };
 
   static const _typeLabels = <String, String>{
@@ -824,6 +874,9 @@ class _SearchModalState extends ConsumerState<_SearchModal> {
     'complaint':    'Complaint',
     'suggestion':   'Suggestion',
     'bill':         'Bill',
+    'donation':     'Donation',
+    'donation_campaign': 'Campaign',
+    'menu':         'Menu',
   };
 
   @override
@@ -845,6 +898,77 @@ class _SearchModalState extends ConsumerState<_SearchModal> {
     ref.read(globalSearchProvider.notifier).clear();
     final route = result.route;
     if (route.isNotEmpty) context.go(route);
+  }
+
+  bool _allowedNavItem(
+    _NavItem n,
+    UserModel? user,
+    Map<String, bool>? rolePerms,
+  ) {
+    // Role permissions (Admin toggles).
+    if (n.permissionKey != null) {
+      if (user?.isSuperAdmin == true) return true;
+      final roleKey = (user?.role ?? '').toUpperCase();
+      // Only enforce for roles that are actually configurable in the backend.
+      if (!_SMShellState._permissionControlledRoles.contains(roleKey)) return true;
+      // For permission-controlled roles, keep Dashboard accessible even while permissions are loading.
+      if (n.permissionKey == 'dashboard') return true;
+      // Deny-by-default until loaded to avoid flashing restricted items.
+      if (rolePerms == null) return false;
+      if (rolePerms[n.permissionKey!] != true) return false;
+    }
+
+    // Plan features (subscription plan).
+    if (n.featureKey == null) return true;
+    return user?.hasFeature(n.featureKey!) ?? false;
+  }
+
+  List<_NavItem> _visibleMenuItemsForUser() {
+    final authState = ref.read(authProvider);
+    final user = authState.user;
+    final role = (user?.role ?? '').toUpperCase();
+    final isUnitLocked = user?.isUnitLocked ?? false;
+    final permsAsync = ref.read(rolePermissionsProvider);
+    final rolePerms = permsAsync.valueOrNull?.rolePermissions[role];
+
+    final source = role == 'WATCHMAN' ? _SMShellState._watchmanNavItems : _SMShellState._allNavItems;
+    return source.where((n) {
+      if (role != 'WATCHMAN' && isUnitLocked && _SMShellState._memberHiddenPaths.contains(n.path)) {
+        return false;
+      }
+      return _allowedNavItem(n, user, rolePerms);
+    }).toList();
+  }
+
+  List<GlobalSearchResult> _menuResults(String query) {
+    final q = query.trim().toLowerCase();
+    if (q.length < 2) return const [];
+
+    final menuItems = _visibleMenuItemsForUser();
+    final matches = <GlobalSearchResult>[];
+    for (final m in menuItems) {
+      final label = m.label.trim();
+      if (label.isEmpty) continue;
+      if (!label.toLowerCase().contains(q)) continue;
+      matches.add(
+        GlobalSearchResult(
+          type: 'menu',
+          id: m.path,
+          title: label,
+          subtitle: (m.group ?? '').isNotEmpty ? (m.group ?? '') : 'Navigate',
+          route: m.path,
+        ),
+      );
+    }
+
+    // Keep a consistent order: exact prefix matches first, then alphabetic.
+    matches.sort((a, b) {
+      final ap = a.title.toLowerCase().startsWith(q) ? 0 : 1;
+      final bp = b.title.toLowerCase().startsWith(q) ? 0 : 1;
+      if (ap != bp) return ap - bp;
+      return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+    });
+    return matches.take(8).toList();
   }
 
   @override
@@ -903,7 +1027,7 @@ class _SearchModalState extends ConsumerState<_SearchModal> {
                           style: TextStyle(color: textColor, fontSize: 15),
                           cursorColor: cs.primary,
                           decoration: InputDecoration(
-                            hintText: 'Search members, bills, complaints…',
+                            hintText: 'Search menu, members, bills, donations…',
                             hintStyle: TextStyle(color: hintColor, fontSize: 15),
                             prefixIcon: search.isLoading
                                 ? const Padding(
@@ -988,13 +1112,19 @@ class _SearchModalState extends ConsumerState<_SearchModal> {
     }
 
     // No results
-    if (!search.isLoading && search.results.isEmpty) {
+    final menuResults = _menuResults(search.query);
+    final combined = <GlobalSearchResult>[
+      ...menuResults,
+      ...search.results,
+    ];
+
+    if (!search.isLoading && combined.isEmpty) {
       return _emptyHint(Icons.search_off_rounded, 'No results', 'Try a different keyword');
     }
 
     // Group results by type
     final grouped = <String, List<GlobalSearchResult>>{};
-    for (final r in search.results) {
+    for (final r in combined) {
       grouped.putIfAbsent(r.type, () => []).add(r);
     }
 

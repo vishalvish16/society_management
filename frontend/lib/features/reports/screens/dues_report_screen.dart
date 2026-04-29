@@ -13,6 +13,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_empty_state.dart';
 import '../../bills/screens/upi_pay_sheet.dart';
+import '../../../shared/widgets/app_page_header.dart';
 
 class DuesReportScreen extends ConsumerStatefulWidget {
   const DuesReportScreen({super.key});
@@ -251,44 +252,82 @@ class _DuesReportScreenState extends ConsumerState<DuesReportScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        title: Text(_isAdmin ? 'Pending Dues' : 'My Pending Bills', style: const TextStyle(color: Colors.white)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf_rounded, color: Colors.white),
-            tooltip: 'Download PDF',
-            onPressed: _allDues.isEmpty ? null : _exportPdf,
-          ),
-          if (_isAdmin)
-            IconButton(
-              icon: const Icon(Icons.notifications_active_rounded, color: Colors.white),
-              tooltip: 'Remind All',
-              onPressed: _allDues.isEmpty ? null : _sendRemindAll,
-            ),
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-            tooltip: 'Refresh',
-            onPressed: _load,
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text('Failed to load: $_error', style: AppTextStyles.bodySmall.copyWith(color: AppColors.danger)),
-                      const SizedBox(height: 12),
-                      OutlinedButton(onPressed: _load, child: const Text('Retry')),
-                    ],
+      appBar: isWide
+          ? AppBar(
+              backgroundColor: AppColors.primary,
+              title: Text(
+                _isAdmin ? 'Pending Dues' : 'My Pending Bills',
+                style: const TextStyle(color: Colors.white),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.picture_as_pdf_rounded, color: Colors.white),
+                  tooltip: 'Download PDF',
+                  onPressed: _allDues.isEmpty ? null : _exportPdf,
+                ),
+                if (_isAdmin)
+                  IconButton(
+                    icon: const Icon(Icons.notifications_active_rounded, color: Colors.white),
+                    tooltip: 'Remind All',
+                    onPressed: _allDues.isEmpty ? null : _sendRemindAll,
                   ),
-                )
-              : Column(
-                  children: [
+                IconButton(
+                  icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                  tooltip: 'Refresh',
+                  onPressed: _load,
+                ),
+                const SizedBox(width: 8),
+              ],
+            )
+          : null,
+      body: Column(
+        children: [
+          AppPageHeader(
+            title: _isAdmin ? 'Pending Dues' : 'My Pending Bills',
+            icon: Icons.warning_rounded,
+            actions: [
+              IconButton(
+                tooltip: 'Download PDF',
+                icon: const Icon(Icons.picture_as_pdf_rounded),
+                onPressed: _allDues.isEmpty ? null : _exportPdf,
+              ),
+              if (_isAdmin)
+                IconButton(
+                  tooltip: 'Remind All',
+                  icon: const Icon(Icons.notifications_active_rounded),
+                  onPressed: _allDues.isEmpty ? null : _sendRemindAll,
+                ),
+              IconButton(
+                tooltip: 'Refresh',
+                icon: const Icon(Icons.refresh_rounded),
+                onPressed: _load,
+              ),
+            ],
+          ),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Failed to load: $_error',
+                              style: AppTextStyles.bodySmall.copyWith(
+                                color: AppColors.danger,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            OutlinedButton(
+                              onPressed: _load,
+                              child: const Text('Retry'),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Column(
+                        children: [
                     // Summary cards
                     Container(
                       color: AppColors.surface,
@@ -396,8 +435,11 @@ class _DuesReportScreenState extends ConsumerState<DuesReportScreen> {
                               ? _DuesTable(dues: dues, currency: _currency, dateFmt: _dateFmt, onRemind: _sendReminder, isAdmin: _isAdmin, myUnitId: ref.read(authProvider).user?.unitId)
                               : _DuesList(dues: dues, currency: _currency, dateFmt: _dateFmt, onRemind: _sendReminder, isAdmin: _isAdmin, myUnitId: ref.read(authProvider).user?.unitId),
                     ),
-                  ],
-                ),
+                        ],
+                      ),
+          ),
+        ],
+      ),
     );
   }
 }

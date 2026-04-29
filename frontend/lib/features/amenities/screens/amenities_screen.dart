@@ -168,8 +168,10 @@ class AmenitiesScreen extends ConsumerWidget {
   void _showAmenityForm(BuildContext context, WidgetRef ref, Map<String, dynamic>? existing) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl))),
       builder: (_) => _AmenityFormSheet(
@@ -196,8 +198,10 @@ class AmenitiesScreen extends ConsumerWidget {
     }
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl))),
       builder: (_) => _BookingSheet(amenity: amenity, user: user,

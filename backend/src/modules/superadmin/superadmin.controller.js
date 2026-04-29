@@ -75,4 +75,61 @@ async function updateSetting(req, res, next) {
   }
 }
 
-module.exports = { getDashboard, getRevenue, getRecentSocieties, getSettings, updateSetting };
+// ─── App Info ─────────────────────────────────────────────────────────────────
+
+const APP_INFO_KEYS = ['app_name', 'app_tagline', 'app_version', 'app_support_email', 'app_support_phone', 'terms_and_conditions'];
+
+/**
+ * GET /api/superadmin/app-info
+ * Returns all editable app info fields for the SA editor.
+ */
+async function getAppInfoSettings(req, res, next) {
+  try {
+    const { getAppInfo } = require('../../utils/platformSettings');
+    const info = await getAppInfo();
+    return sendSuccess(res, info, 'App info retrieved');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * PATCH /api/superadmin/app-info
+ * Body: { appName, appTagline, appVersion, supportEmail, supportPhone, termsAndConditions }
+ * Updates all app info platform settings in one request.
+ */
+async function updateAppInfo(req, res, next) {
+  try {
+    const { sendError } = require('../../utils/response');
+    const { updateSetting } = require('../../utils/platformSettings');
+
+    const fieldMap = {
+      appName:            'app_name',
+      appTagline:         'app_tagline',
+      appVersion:         'app_version',
+      supportEmail:       'app_support_email',
+      supportPhone:       'app_support_phone',
+      termsAndConditions: 'terms_and_conditions',
+    };
+
+    const updates = [];
+    for (const [bodyKey, dbKey] of Object.entries(fieldMap)) {
+      if (req.body[bodyKey] !== undefined) {
+        updates.push(updateSetting(dbKey, String(req.body[bodyKey]), req.user.id));
+      }
+    }
+
+    if (updates.length === 0) {
+      return sendError(res, 'No fields provided', 400);
+    }
+
+    await Promise.all(updates);
+    const { getAppInfo } = require('../../utils/platformSettings');
+    const info = await getAppInfo();
+    return sendSuccess(res, info, 'App info updated');
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { getDashboard, getRevenue, getRecentSocieties, getSettings, updateSetting, getAppInfoSettings, updateAppInfo };

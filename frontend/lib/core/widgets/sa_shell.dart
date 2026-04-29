@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
+import '../constants/app_constants.dart';
 import '../theme/app_colors.dart';
 import '../../shared/widgets/confirm_logout.dart';
 
@@ -24,6 +25,7 @@ class _SAShellState extends ConsumerState<SAShell> {
     _NavItem(icon: Icons.subscriptions_rounded, label: 'Subscriptions', path: '/sa/subscriptions'),
     _NavItem(icon: Icons.settings_rounded,       label: 'Settings',      path: '/sa/settings'),
     _NavItem(icon: Icons.tune_rounded,           label: 'Platform',      path: '/sa/platform-settings'),
+    _NavItem(icon: Icons.info_outline_rounded,   label: 'App Info',      path: '/sa/app-info'),
   ];
 
   void _onNavTap(int index) {
@@ -143,21 +145,41 @@ class _SAShellState extends ConsumerState<SAShell> {
                 itemBuilder: (context, i) {
                   final item = _navItems[i];
                   final isSelected = _selectedIndex == i;
-                  return ListTile(
-                    leading: Icon(item.icon,
-                        color: isSelected ? AppColors.primaryLight : const Color(0xFF94A3B8)),
-                    title: Text(item.label,
-                        style: TextStyle(
-                          color: isSelected ? Colors.white : const Color(0xFF94A3B8),
-                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                        )),
-                    selected: isSelected,
-                    selectedTileColor: AppColors.primary.withValues(alpha: 0.15),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _onNavTap(i);
-                    },
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Material(
+                      color: isSelected ? AppColors.primary.withValues(alpha: 0.15) : Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _onNavTap(i);
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          child: Row(
+                            children: [
+                              Icon(
+                                item.icon,
+                                color: isSelected ? AppColors.primaryLight : const Color(0xFF94A3B8),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  item.label,
+                                  style: TextStyle(
+                                    color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+                                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   );
                 },
               ),
@@ -269,10 +291,17 @@ class _SAShellState extends ConsumerState<SAShell> {
                 CircleAvatar(
                   radius: 18,
                   backgroundColor: AppColors.primary,
-                  child: Text(
-                    (authState.user?.name ?? 'SA').substring(0, 1).toUpperCase(),
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
+                  backgroundImage: () {
+                    final url = AppConstants.uploadUrlFromPath(authState.user?.profilePhotoUrl);
+                    if (url == null) return null;
+                    return NetworkImage('$url?v=${authState.avatarRevision}');
+                  }(),
+                  child: AppConstants.uploadUrlFromPath(authState.user?.profilePhotoUrl) == null
+                      ? Text(
+                          (authState.user?.name ?? 'SA').substring(0, 1).toUpperCase(),
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        )
+                      : null,
                 ),
                 const SizedBox(width: 10),
                 Expanded(

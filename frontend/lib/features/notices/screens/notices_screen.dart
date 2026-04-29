@@ -104,14 +104,8 @@ class NoticesScreen extends ConsumerWidget {
 
   void _showNoticeSheet(
       BuildContext context, WidgetRef ref, Map<String, dynamic>? existing) {
-    showModalBottomSheet(
+    showAppSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
-      ),
       builder: (_) => _NoticeFormSheet(
         existing: existing,
         onSubmit: (data) async {

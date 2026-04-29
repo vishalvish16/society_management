@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const prisma = require('../../config/db');
 const authService = require('./auth.service');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../../utils/jwt');
@@ -338,7 +339,7 @@ exports.forgotPassword = async (req, res) => {
     // Always return success to avoid user enumeration
     if (!user) return sendSuccess(res, null, 'If account exists, OTP sent');
 
-    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const otp = crypto.randomInt(100000, 1000000).toString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     // Store OTP as a temporary marker in fcmToken field (or a dedicated table if available)
@@ -348,9 +349,13 @@ exports.forgotPassword = async (req, res) => {
       data: { userId: user.id, token: `OTP:${otp}`, expiresAt },
     });
 
-    console.log(`[OTP] User ${user.phone}: ${otp}`); // In prod: send via WhatsApp/SMS
+    // In development only: log OTP to server console (never to client response)
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[OTP-DEV] User ${user.id}: ${otp}`);
+    }
+    // TODO: send OTP via WhatsApp/SMS in production
 
-    return sendSuccess(res, { otp_dev: otp }, 'OTP sent (development mode)');
+    return sendSuccess(res, null, 'OTP sent successfully');
   } catch (err) {
     console.error('Forgot password error:', err.message);
     return sendError(res, 'Failed to send OTP', 500);

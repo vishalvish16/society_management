@@ -1,9 +1,27 @@
 node_modules
-# Keep environment variables out of version control
+
+# Environment variables — NEVER commit real credentials
 .env
+.env.local
+.env.production
+.env.staging
+
 # Runtime infra health data
 data/
 
 # Firebase service account (contains private key — never commit)
 firebase-service-account.json
-society-management-syste-15a8e-firebase-adminsdk-fbsvc-*.json
+society-management-syste-*.json
+*-firebase-adminsdk-*.json
+
+# Upload directory (user files — too large for git, managed separately)
+uploads/
+
+# PM2 logs and runtime files
+logs/
+*.log
+.pm2/
+
+# OS junk
+.DS_Store
+Thumbs.db

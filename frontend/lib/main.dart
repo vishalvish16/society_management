@@ -8,6 +8,7 @@ import 'core/providers/theme_provider.dart';
 import 'core/providers/auth_provider.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/connectivity_wrapper.dart';
+import 'core/services/app_update_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,6 +49,8 @@ class MyApp extends ConsumerStatefulWidget {
 }
 
 class _MyAppState extends ConsumerState<MyApp> {
+  bool _updateChecked = false;
+
   @override
   void initState() {
     super.initState();
@@ -66,7 +69,15 @@ class _MyAppState extends ConsumerState<MyApp> {
       darkTheme: AppTheme.dark,
       themeMode: themeMode,
       routerConfig: ref.watch(appRouterProvider),
-      builder: (context, child) => ConnectivityWrapper(child: child ?? const SizedBox()),
+      builder: (context, child) {
+        if (!_updateChecked) {
+          _updateChecked = true;
+          WidgetsBinding.instance.addPostFrameCallback(
+            (_) => AppUpdateService.checkForUpdate(context),
+          );
+        }
+        return ConnectivityWrapper(child: child ?? const SizedBox());
+      },
     );
   }
 }

@@ -332,6 +332,8 @@ model Society {
   planStartDate   DateTime
   planRenewalDate DateTime
   planDuration    String?       @default("MONTHLY") // MONTHLY, THREE_MONTHS, SIX_MONTHS, YEARLY
+  maxUnits        Int?          // per-society override; null = use plan limit
+  maxUsers        Int?          // per-society override; null = use plan limit
   status          SocietyStatus @default(ACTIVE)
   settings        Json?
   // settings shape: { late_fee_type, late_fee_amount, due_day, qr_expiry_mins,

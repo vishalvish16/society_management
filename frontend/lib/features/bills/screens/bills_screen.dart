@@ -19,6 +19,7 @@ import 'upi_pay_sheet.dart';
 import '../../settings/screens/bill_schedule_screen.dart';
 import '../../plans/screens/plans_screen.dart';
 import '../../../shared/widgets/app_page_header.dart';
+import 'bill_receipt_screen.dart';
 
 class BillsScreen extends ConsumerStatefulWidget {
   const BillsScreen({super.key});
@@ -221,70 +222,6 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
               options: [
                 for (final s in ['all', 'pending', 'partial', 'paid', 'overdue'])
                   FilterOption(s, s[0].toUpperCase() + s.substring(1)),
-              ],
-            ),
-          ),
-          Container(
-            color: Theme.of(context).colorScheme.surface,
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppDimensions.screenPadding,
-              vertical: AppDimensions.sm,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (isAdmin)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: AppDimensions.sm),
-                    child: Wrap(
-                      spacing: AppDimensions.sm,
-                      runSpacing: AppDimensions.sm,
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: () => context.push('/bills/audit-logs'),
-                          icon: const Icon(Icons.history_rounded, size: 18),
-                          label: const Text('Audit Logs'),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: () {
-                            if (hasBillSchedules) {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const BillScheduleScreen(),
-                                ),
-                              );
-                              return;
-                            }
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Bill Schedule is a Premium feature. Please upgrade to access it.',
-                                ),
-                              ),
-                            );
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const PlansScreen(),
-                              ),
-                            );
-                          },
-                          icon: Icon(
-                            hasBillSchedules
-                                ? Icons.schedule_rounded
-                                : Icons.lock_rounded,
-                            size: 18,
-                          ),
-                          label: Text(
-                            hasBillSchedules
-                                ? 'Bill Schedule'
-                                : 'Bill Schedule (Premium)',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
               ],
             ),
           ),
@@ -574,16 +511,10 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
   }
 
   void _showSlipSheet(BuildContext context, Map<String, dynamic> bill) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppDimensions.radiusXl),
-        ),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => BillReceiptScreen(bill: bill),
       ),
-      builder: (_) => _PaymentSlipSheet(bill: bill),
     );
   }
 
@@ -1003,109 +934,7 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
 
 // ─── Payment Detail Card ──────────────────────────────────────────────────────
 
-class _PaymentSlipSheet extends StatelessWidget {
-  final Map<String, dynamic> bill;
-
-  const _PaymentSlipSheet({required this.bill});
-
-  @override
-  Widget build(BuildContext context) {
-    final fmt = NumberFormat('#,##0.00');
-    final unit = bill['unit'] as Map<String, dynamic>?;
-    final title = bill['title'] as String?;
-    final paidAt = bill['paidAt'] != null
-        ? DateFormat(
-            'dd MMM yyyy, hh:mm a',
-          ).format(DateTime.parse(bill['paidAt']))
-        : '-';
-    final method = (bill['paymentMethod'] as String? ?? '-').replaceAll(
-      '_',
-      ' ',
-    );
-    final amount = double.tryParse(bill['paidAmount']?.toString() ?? '0') ?? 0;
-    final coverageFrom = bill['coverageFrom'] != null
-        ? DateFormat('MMM yyyy').format(DateTime.parse(bill['coverageFrom']))
-        : null;
-    final coverageTo = bill['coverageTo'] != null
-        ? DateFormat('MMM yyyy').format(DateTime.parse(bill['coverageTo']))
-        : null;
-
-    Widget line(String label, String value) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: AppDimensions.sm),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 110,
-              child: Text(
-                label,
-                style: AppTextStyles.bodySmall.copyWith(
-                  color: AppColors.textMuted,
-                ),
-              ),
-            ),
-            Expanded(child: Text(value, style: AppTextStyles.bodyMedium)),
-          ],
-        ),
-      );
-    }
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppDimensions.screenPadding,
-        AppDimensions.lg,
-        AppDimensions.screenPadding,
-        MediaQuery.of(context).viewInsets.bottom + AppDimensions.lg,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.border,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: AppDimensions.lg),
-            Text(title ?? 'Maintenance Pay Slip', style: AppTextStyles.h2),
-            const SizedBox(height: AppDimensions.md),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(AppDimensions.md),
-              decoration: BoxDecoration(
-                color: AppColors.primarySurface,
-                borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  line('Unit', unit?['fullCode']?.toString() ?? '-'),
-                  line('Amount', 'Rs ${fmt.format(amount)}'),
-                  line('Status', bill['status']?.toString() ?? '-'),
-                  line('Paid On', paidAt),
-                  line('Method', method),
-                  if (coverageFrom != null && coverageTo != null)
-                    line('Coverage', '$coverageFrom to $coverageTo'),
-                  if ((bill['description'] as String?)?.isNotEmpty == true)
-                    line('Details', bill['description'] as String),
-                  if ((bill['notes'] as String?)?.isNotEmpty == true)
-                    line('Notes', bill['notes'] as String),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+// (Pay slip is now a full screen: BillReceiptScreen)
 
 class _BillAdminMenu extends StatelessWidget {
   final VoidCallback onViewHistory;

@@ -1,28 +1,29 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'dart:typed_data';
 
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimensions.dart';
 import '../../../core/theme/app_text_styles.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../shared/widgets/app_page_header.dart';
 
-class DonationReceiptScreen extends ConsumerWidget {
-  final Map<String, dynamic> donation;
+class BillReceiptScreen extends ConsumerWidget {
+  final Map<String, dynamic> bill;
 
-  const DonationReceiptScreen({super.key, required this.donation});
+  const BillReceiptScreen({super.key, required this.bill});
 
   String _receiptNo(String id) {
     final cleaned = id.replaceAll('-', '').toUpperCase();
-    return cleaned.length >= 10 ? 'DON-${cleaned.substring(0, 10)}' : 'DON-$cleaned';
+    return cleaned.length >= 10 ? 'BILL-${cleaned.substring(0, 10)}' : 'BILL-$cleaned';
   }
 
-  String _fmtDate(dynamic iso) {
+  String _fmtDateTime(dynamic iso) {
     if (iso == null) return '—';
     final s = iso.toString();
     if (s.isEmpty) return '—';
@@ -35,18 +36,27 @@ class DonationReceiptScreen extends ConsumerWidget {
 
   Future<Uint8List> _buildPdfBytes({
     required String societyName,
-    required Map<String, dynamic> d,
+    required Map<String, dynamic> b,
   }) async {
     final pdf = pw.Document();
     final currency = NumberFormat.currency(locale: 'en_IN', symbol: 'Rs. ', decimalDigits: 0);
 
-    final id = (d['id'] ?? '').toString();
-    final donor = d['donor'] as Map<String, dynamic>?;
-    final campaign = d['campaign'] as Map<String, dynamic>?;
-    final method = (d['paymentMethod'] ?? '').toString();
-    final note = (d['note'] ?? '').toString().trim();
-    final paidAt = d['paidAt'];
-    final amount = _amt(d['amount']);
+    final id = (b['id'] ?? '').toString();
+    final unit = b['unit'] as Map<String, dynamic>?;
+    final title = (b['title'] as String?)?.trim();
+    final status = (b['status'] ?? '').toString();
+    final paidAt = b['paidAt'];
+    final method = (b['paymentMethod'] ?? '').toString();
+    final amount = _amt(b['paidAmount']);
+    final desc = (b['description'] ?? '').toString().trim();
+    final notes = (b['notes'] ?? '').toString().trim();
+
+    final coverageFrom = b['coverageFrom'] != null
+        ? DateFormat('MMM yyyy').format(DateTime.parse(b['coverageFrom']).toLocal())
+        : null;
+    final coverageTo = b['coverageTo'] != null
+        ? DateFormat('MMM yyyy').format(DateTime.parse(b['coverageTo']).toLocal())
+        : null;
 
     pw.Widget row(String label, String value) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -96,7 +106,7 @@ class DonationReceiptScreen extends ConsumerWidget {
                   ),
                   pw.SizedBox(height: 6),
                   pw.Text(
-                    'Donation Receipt',
+                    'Payment Receipt',
                     style: pw.TextStyle(
                       color: PdfColors.white,
                       fontSize: 18,
@@ -105,7 +115,7 @@ class DonationReceiptScreen extends ConsumerWidget {
                   ),
                   pw.SizedBox(height: 4),
                   pw.Text(
-                    'Thank you for your contribution',
+                    'Bill payment confirmation',
                     style: const pw.TextStyle(color: PdfColors.grey300, fontSize: 11),
                   ),
                 ],
@@ -133,12 +143,14 @@ class DonationReceiptScreen extends ConsumerWidget {
                               pw.Text('Receipt No.',
                                   style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
                               pw.SizedBox(height: 2),
-                              pw.Text(_receiptNo(id),
-                                  style: pw.TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: pw.FontWeight.bold,
-                                    color: const PdfColor.fromInt(0xFF1A1A2E),
-                                  )),
+                              pw.Text(
+                                _receiptNo(id),
+                                style: pw.TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: pw.FontWeight.bold,
+                                  color: const PdfColor.fromInt(0xFF1A1A2E),
+                                ),
+                              ),
                             ],
                           ),
                           pw.Column(
@@ -147,26 +159,28 @@ class DonationReceiptScreen extends ConsumerWidget {
                               pw.Text('Amount',
                                   style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
                               pw.SizedBox(height: 2),
-                              pw.Text(currency.format(amount),
-                                  style: pw.TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: pw.FontWeight.bold,
-                                    color: const PdfColor.fromInt(0xFF2E7D32),
-                                  )),
+                              pw.Text(
+                                currency.format(amount),
+                                style: pw.TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: pw.FontWeight.bold,
+                                  color: const PdfColor.fromInt(0xFF2E7D32),
+                                ),
+                              ),
                             ],
                           ),
                         ],
                       ),
                     ),
                     pw.SizedBox(height: 16),
-                    row('Donor', (donor?['name'] ?? '—').toString()),
-                    if ((donor?['phone'] ?? '').toString().trim().isNotEmpty)
-                      row('Phone', (donor?['phone'] ?? '—').toString()),
-                    if (campaign != null && (campaign['title'] ?? '').toString().trim().isNotEmpty)
-                      row('Campaign', (campaign['title'] ?? '—').toString()),
-                    row('Paid At', _fmtDate(paidAt)),
+                    if ((title ?? '').isNotEmpty) row('Title', title!),
+                    row('Unit', unit?['fullCode']?.toString() ?? '—'),
+                    row('Paid At', _fmtDateTime(paidAt)),
                     row('Payment Method', method.isNotEmpty ? method.replaceAll('_', ' ') : '—'),
-                    if (note.isNotEmpty) row('Note', note),
+                    if (status.isNotEmpty) row('Status', status),
+                    if (coverageFrom != null && coverageTo != null) row('Coverage', '$coverageFrom to $coverageTo'),
+                    if (desc.isNotEmpty) row('Details', desc),
+                    if (notes.isNotEmpty) row('Notes', notes),
                     pw.SizedBox(height: 18),
                     pw.Container(
                       padding: const pw.EdgeInsets.all(12),
@@ -225,15 +239,15 @@ class DonationReceiptScreen extends ConsumerWidget {
   }
 
   Future<void> _sharePdf(BuildContext context, String societyName) async {
-    final bytes = await _buildPdfBytes(societyName: societyName, d: donation);
-    final donor = donation['donor'] as Map<String, dynamic>?;
-    final donorName = (donor?['name'] ?? 'donor').toString().replaceAll(' ', '_');
-    await Printing.sharePdf(bytes: bytes, filename: 'donation_receipt_$donorName.pdf');
+    final bytes = await _buildPdfBytes(societyName: societyName, b: bill);
+    final unit = bill['unit'] as Map<String, dynamic>?;
+    final unitCode = (unit?['fullCode'] ?? 'unit').toString().replaceAll(' ', '_');
+    await Printing.sharePdf(bytes: bytes, filename: 'bill_receipt_$unitCode.pdf');
   }
 
   Future<void> _printPdf(BuildContext context, String societyName) async {
     await Printing.layoutPdf(
-      onLayout: (_) => _buildPdfBytes(societyName: societyName, d: donation),
+      onLayout: (_) => _buildPdfBytes(societyName: societyName, b: bill),
     );
   }
 
@@ -242,15 +256,24 @@ class DonationReceiptScreen extends ConsumerWidget {
     final user = ref.watch(authProvider).user;
     final societyName = (user?.societyName ?? '').trim();
 
-    final donor = donation['donor'] as Map<String, dynamic>?;
-    final campaign = donation['campaign'] as Map<String, dynamic>?;
-    final id = (donation['id'] ?? '').toString();
-    final amount = _amt(donation['amount']);
+    final unit = bill['unit'] as Map<String, dynamic>?;
+    final id = (bill['id'] ?? '').toString();
+    final amount = _amt(bill['paidAmount']);
     final currencyUi = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
 
-    final paidAt = donation['paidAt'];
-    final method = (donation['paymentMethod'] ?? '').toString();
-    final note = (donation['note'] ?? '').toString().trim();
+    final paidAt = bill['paidAt'];
+    final method = (bill['paymentMethod'] ?? '').toString();
+    final title = (bill['title'] as String?)?.trim();
+    final status = (bill['status'] ?? '').toString();
+    final desc = (bill['description'] ?? '').toString().trim();
+    final notes = (bill['notes'] ?? '').toString().trim();
+
+    final coverageFrom = bill['coverageFrom'] != null
+        ? DateFormat('MMM yyyy').format(DateTime.parse(bill['coverageFrom']).toLocal())
+        : null;
+    final coverageTo = bill['coverageTo'] != null
+        ? DateFormat('MMM yyyy').format(DateTime.parse(bill['coverageTo']).toLocal())
+        : null;
 
     Widget infoRow(String label, String value) => Column(
           children: [
@@ -283,7 +306,7 @@ class DonationReceiptScreen extends ConsumerWidget {
       body: Column(
         children: [
           AppPageHeader(
-            title: 'Donation Receipt',
+            title: 'Pay Slip',
             icon: Icons.receipt_long_rounded,
             actions: [
               IconButton(
@@ -300,133 +323,137 @@ class DonationReceiptScreen extends ConsumerWidget {
           ),
           Expanded(
             child: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppDimensions.screenPadding),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusXl)),
-              clipBehavior: Clip.antiAlias,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    color: AppColors.primary,
-                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 22),
-                    child: Column(
-                      children: [
-                        const Icon(Icons.receipt_long_rounded, color: AppColors.textOnPrimary, size: 32),
-                        const SizedBox(height: 8),
-                        if (societyName.isNotEmpty) ...[
-                          Text(
-                            societyName,
-                            style: AppTextStyles.labelLarge.copyWith(
-                              color: AppColors.textOnPrimary.withValues(alpha: 0.85),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                        ],
-                        Text(
-                          'Donation Receipt',
-                          style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Thank you for your contribution',
-                          style: AppTextStyles.bodySmall.copyWith(
-                            color: AppColors.textOnPrimary.withValues(alpha: 0.75),
-                          ),
-                        ),
-                      ],
+              padding: const EdgeInsets.all(AppDimensions.screenPadding),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppDimensions.radiusXl),
                     ),
-                  ),
-                  Container(
-                    color: AppColors.surface,
-                    padding: const EdgeInsets.all(24),
+                    clipBehavior: Clip.antiAlias,
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppColors.primarySurface,
-                            borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: Row(
+                          color: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 22),
+                          child: Column(
                             children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                              const Icon(Icons.receipt_long_rounded, color: AppColors.textOnPrimary, size: 32),
+                              const SizedBox(height: 8),
+                              if (societyName.isNotEmpty) ...[
+                                Text(
+                                  societyName,
+                                  style: AppTextStyles.labelLarge.copyWith(
+                                    color: AppColors.textOnPrimary.withValues(alpha: 0.85),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                              ],
+                              Text(
+                                'Payment Receipt',
+                                style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Bill payment confirmation',
+                                style: AppTextStyles.bodySmall.copyWith(
+                                  color: AppColors.textOnPrimary.withValues(alpha: 0.75),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          color: AppColors.surface,
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primarySurface,
+                                  borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+                                  border: Border.all(color: AppColors.border),
+                                ),
+                                child: Row(
                                   children: [
-                                    Text('Receipt No.', style: AppTextStyles.caption.copyWith(color: AppColors.textMuted)),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      _receiptNo(id),
-                                      style: AppTextStyles.labelLarge.copyWith(color: Theme.of(context).colorScheme.onSurface),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text('Receipt No.', style: AppTextStyles.caption.copyWith(color: AppColors.textMuted)),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            _receiptNo(id),
+                                            style: AppTextStyles.labelLarge.copyWith(
+                                              color: Theme.of(context).colorScheme.onSurface,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        Text('Amount', style: AppTextStyles.caption.copyWith(color: AppColors.textMuted)),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          currencyUi.format(amount),
+                                          style: AppTextStyles.h3.copyWith(color: AppColors.success),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
                               ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
+                              const SizedBox(height: 16),
+                              if ((title ?? '').isNotEmpty) infoRow('Title', title!),
+                              infoRow('Unit', unit?['fullCode']?.toString() ?? '—'),
+                              infoRow('Paid At', _fmtDateTime(paidAt)),
+                              infoRow('Payment Method', method.isNotEmpty ? method.replaceAll('_', ' ') : '—'),
+                              if (status.isNotEmpty) infoRow('Status', status),
+                              if (coverageFrom != null && coverageTo != null) infoRow('Coverage', '$coverageFrom to $coverageTo'),
+                              if (desc.isNotEmpty) infoRow('Details', desc),
+                              if (notes.isNotEmpty) infoRow('Notes', notes),
+                              const SizedBox(height: 18),
+                              Row(
                                 children: [
-                                  Text('Amount', style: AppTextStyles.caption.copyWith(color: AppColors.textMuted)),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    currencyUi.format(amount),
-                                    style: AppTextStyles.h3.copyWith(color: AppColors.success),
+                                  Expanded(
+                                    child: FilledButton.icon(
+                                      onPressed: () => _sharePdf(context, societyName),
+                                      icon: const Icon(Icons.download_rounded, size: 18),
+                                      label: const Text('Download / Share PDF'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  OutlinedButton.icon(
+                                    onPressed: () => _printPdf(context, societyName),
+                                    icon: const Icon(Icons.print_rounded, size: 18),
+                                    label: const Text('Print'),
                                   ),
                                 ],
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        infoRow('Donor', (donor?['name'] ?? '—').toString()),
-                        if ((donor?['phone'] ?? '').toString().trim().isNotEmpty)
-                          infoRow('Phone', (donor?['phone'] ?? '—').toString()),
-                        if (campaign != null && (campaign['title'] ?? '').toString().trim().isNotEmpty)
-                          infoRow('Campaign', (campaign['title'] ?? '—').toString()),
-                        infoRow('Paid At', _fmtDate(paidAt)),
-                        infoRow('Payment Method', method.isNotEmpty ? method.replaceAll('_', ' ') : '—'),
-                        if (note.isNotEmpty) infoRow('Note', note),
-                        const SizedBox(height: 18),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: FilledButton.icon(
-                                onPressed: () => _sharePdf(context, societyName),
-                                icon: const Icon(Icons.download_rounded, size: 18),
-                                label: const Text('Download / Share PDF'),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            OutlinedButton.icon(
-                              onPressed: () => _printPdf(context, societyName),
-                              icon: const Icon(Icons.print_rounded, size: 18),
-                              label: const Text('Print'),
-                            ),
-                          ],
+                        Container(
+                          color: AppColors.background,
+                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+                          child: Text(
+                            'Powered by Society Management System',
+                            style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  Container(
-                    color: AppColors.background,
-                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-                    child: Text(
-                      'Powered by Society Management System',
-                      style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ),
-        ),
             ),
           ),
         ],

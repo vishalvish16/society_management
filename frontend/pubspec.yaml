@@ -74,6 +74,8 @@ dependencies:
   open_filex: ^4.3.4
   connectivity_plus: ^6.1.4
   video_player: ^2.9.2
+  package_info_plus: ^8.0.0
+  flutter_html: ^3.0.0-beta.2
 
 dev_dependencies:
   flutter_test:

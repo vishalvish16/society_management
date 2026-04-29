@@ -21,9 +21,19 @@ async function start() {
     const server = http.createServer(app);
 
     // ── Socket.IO for real-time chat ─────────────────────────────────
+    const SOCKET_ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
+      .split(',').map(o => o.trim()).filter(Boolean);
+    if (process.env.NODE_ENV !== 'production') {
+      SOCKET_ALLOWED_ORIGINS.push('http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000');
+    }
+
     const io = new Server(server, {
       cors: {
-        origin: (origin, cb) => cb(null, true),
+        origin: (origin, cb) => {
+          // Native mobile apps send no origin — allow them
+          if (!origin || SOCKET_ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+          return cb(new Error('Socket origin not allowed'));
+        },
         credentials: true,
       },
     });
@@ -37,7 +47,8 @@ async function start() {
         socket.userId = payload.id;
         socket.societyId = payload.societyId;
         next();
-      } catch {
+      } catch (err) {
+        if (err.name === 'TokenExpiredError') return next(new Error('Token expired'));
         next(new Error('Invalid token'));
       }
     });

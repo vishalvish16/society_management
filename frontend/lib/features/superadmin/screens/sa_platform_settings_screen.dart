@@ -8,6 +8,50 @@ import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_loading_shimmer.dart';
 import '../providers/platform_settings_provider.dart';
 
+// ─── Section definitions ──────────────────────────────────────────────────────
+
+class _Section {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final List<String> keys;
+  const _Section({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.keys,
+  });
+}
+
+const _sections = [
+  _Section(
+    icon: Icons.info_outline_rounded,
+    title: 'App Info',
+    subtitle: 'Branding and contact details shown to users',
+    keys: ['app_name', 'app_tagline', 'app_support_email', 'app_support_phone'],
+  ),
+  _Section(
+    icon: Icons.system_update_rounded,
+    title: 'App Update',
+    subtitle: 'Force-update settings — users below min version must update',
+    keys: ['app_version', 'app_min_version', 'app_android_url', 'app_ios_url'],
+  ),
+  _Section(
+    icon: Icons.qr_code_2_rounded,
+    title: 'Visitor QR Settings',
+    subtitle: 'Control how long visitor QR codes remain valid',
+    keys: ['visitor_qr_max_hrs'],
+  ),
+  _Section(
+    icon: Icons.gavel_rounded,
+    title: 'Legal',
+    subtitle: 'Terms & conditions shown in the app',
+    keys: ['terms_and_conditions'],
+  ),
+];
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
+
 class SaPlatformSettingsScreen extends ConsumerWidget {
   const SaPlatformSettingsScreen({super.key});
 
@@ -22,7 +66,6 @@ class SaPlatformSettingsScreen extends ConsumerWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Page header ────────────────────────────────────────────
           if (!isMobile) ...[
             Container(
               width: double.infinity,
@@ -59,12 +102,10 @@ class SaPlatformSettingsScreen extends ConsumerWidget {
             ),
             const Divider(height: 1),
           ],
-
-          // ── Body ────────────────────────────────────────────────────
           Expanded(
             child: settingsAsync.when(
               loading: () =>
-                  const AppLoadingShimmer(itemCount: 3, itemHeight: 80),
+                  const AppLoadingShimmer(itemCount: 4, itemHeight: 80),
               error: (e, _) => _ErrorView(
                 message: e.toString(),
                 onRetry: () => ref.invalidate(platformSettingsProvider),
@@ -75,9 +116,37 @@ class SaPlatformSettingsScreen extends ConsumerWidget {
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.all(AppDimensions.xxl),
-                  child: isWeb
-                      ? _WebLayout(settings: settings)
-                      : _MobileLayout(settings: settings),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: _sections.map((section) {
+                      final sectionSettings = settings
+                          .where((s) => section.keys.contains(s.key))
+                          .toList()
+                        ..sort((a, b) => section.keys
+                            .indexOf(a.key)
+                            .compareTo(section.keys.indexOf(b.key)));
+
+                      if (sectionSettings.isEmpty) return const SizedBox.shrink();
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: AppDimensions.xl),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _SectionHeader(
+                              icon: section.icon,
+                              title: section.title,
+                              subtitle: section.subtitle,
+                            ),
+                            const SizedBox(height: AppDimensions.md),
+                            isWeb
+                                ? _WebSectionCard(settings: sectionSettings)
+                                : _MobileSectionCards(settings: sectionSettings),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
                 ),
               ),
             ),
@@ -88,123 +157,99 @@ class SaPlatformSettingsScreen extends ConsumerWidget {
   }
 }
 
-// ─── Web layout — card with table ─────────────────────────────────────────────
+// ─── Web section card — table rows ────────────────────────────────────────────
 
-class _WebLayout extends StatelessWidget {
+class _WebSectionCard extends StatelessWidget {
   final List<PlatformSetting> settings;
-  const _WebLayout({required this.settings});
+  const _WebSectionCard({required this.settings});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Section: Visitor settings
-        _SectionHeader(
-          icon: Icons.qr_code_2_rounded,
-          title: 'Visitor QR Settings',
-          subtitle: 'Control how long visitor QR codes remain valid',
-        ),
-        const SizedBox(height: AppDimensions.md),
-        AppCard(
-          child: Column(
-            children: [
-              // Table header
-              Container(
-                color: AppColors.background,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppDimensions.lg, vertical: AppDimensions.sm),
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: Text('Setting',
-                          style: AppTextStyles.labelSmall
-                              .copyWith(color: AppColors.textMuted)),
-                    ),
-                    Expanded(
-                      child: Text('Current Value',
-                          style: AppTextStyles.labelSmall
-                              .copyWith(color: AppColors.textMuted)),
-                    ),
-                    SizedBox(
-                      width: 180,
-                      child: Text('Update',
-                          style: AppTextStyles.labelSmall
-                              .copyWith(color: AppColors.textMuted)),
-                    ),
-                  ],
+    return AppCard(
+      child: Column(
+        children: [
+          Container(
+            color: AppColors.background,
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppDimensions.lg, vertical: AppDimensions.sm),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: Text('Setting',
+                      style: AppTextStyles.labelSmall
+                          .copyWith(color: AppColors.textMuted)),
                 ),
-              ),
-              // Rows
-              ...settings.asMap().entries.map((entry) {
-                final i = entry.key;
-                final s = entry.value;
-                return Container(
-                  decoration: BoxDecoration(
-                    border: i > 0
-                        ? const Border(
-                            top: BorderSide(color: AppColors.border))
-                        : null,
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: AppDimensions.lg,
-                      vertical: AppDimensions.md),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(s.label, style: AppTextStyles.bodyMedium),
-                            Text(s.key,
-                                style: AppTextStyles.caption
-                                    .copyWith(color: AppColors.textMuted)),
-                          ],
-                        ),
-                      ),
-                      Expanded(
-                        child: _ValueBadge(setting: s),
-                      ),
-                      SizedBox(
-                        width: 180,
-                        child: _InlineEditor(setting: s),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-            ],
+                Expanded(
+                  child: Text('Current Value',
+                      style: AppTextStyles.labelSmall
+                          .copyWith(color: AppColors.textMuted)),
+                ),
+                SizedBox(
+                  width: 180,
+                  child: Text('Update',
+                      style: AppTextStyles.labelSmall
+                          .copyWith(color: AppColors.textMuted)),
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+          ...settings.asMap().entries.map((entry) {
+            final i = entry.key;
+            final s = entry.value;
+            return Container(
+              decoration: BoxDecoration(
+                border: i > 0
+                    ? const Border(top: BorderSide(color: AppColors.border))
+                    : null,
+              ),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppDimensions.lg,
+                  vertical: AppDimensions.md),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(s.label, style: AppTextStyles.bodyMedium),
+                        Text(s.key,
+                            style: AppTextStyles.caption
+                                .copyWith(color: AppColors.textMuted)),
+                      ],
+                    ),
+                  ),
+                  Expanded(child: _ValueBadge(setting: s)),
+                  SizedBox(
+                    width: 180,
+                    child: _InlineEditor(setting: s),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 }
 
-// ─── Mobile layout — cards ────────────────────────────────────────────────────
+// ─── Mobile section cards ─────────────────────────────────────────────────────
 
-class _MobileLayout extends StatelessWidget {
+class _MobileSectionCards extends StatelessWidget {
   final List<PlatformSetting> settings;
-  const _MobileLayout({required this.settings});
+  const _MobileSectionCards({required this.settings});
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _SectionHeader(
-          icon: Icons.qr_code_2_rounded,
-          title: 'Visitor QR Settings',
-          subtitle: 'Control how long visitor QR codes remain valid',
-        ),
-        const SizedBox(height: AppDimensions.md),
-        ...settings.map((s) => Padding(
-              padding: const EdgeInsets.only(bottom: AppDimensions.md),
-              child: _SettingCard(setting: s),
-            )),
-      ],
+      children: settings
+          .map((s) => Padding(
+                padding: const EdgeInsets.only(bottom: AppDimensions.md),
+                child: _SettingCard(setting: s),
+              ))
+          .toList(),
     );
   }
 }
@@ -249,7 +294,7 @@ class _SettingCard extends StatelessWidget {
   }
 }
 
-// ─── Shared: current value badge ──────────────────────────────────────────────
+// ─── Current value badge ──────────────────────────────────────────────────────
 
 class _ValueBadge extends StatelessWidget {
   final PlatformSetting setting;
@@ -259,7 +304,7 @@ class _ValueBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final display = setting.dataType == 'number'
         ? '${setting.value} ${_unitFor(setting.key)}'
-        : setting.value;
+        : (setting.value.isEmpty ? '—' : setting.value);
 
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -269,6 +314,7 @@ class _ValueBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
       ),
       child: Text(display,
+          overflow: TextOverflow.ellipsis,
           style: AppTextStyles.labelMedium
               .copyWith(color: AppColors.primary, fontWeight: FontWeight.w700)),
     );
@@ -280,7 +326,7 @@ class _ValueBadge extends StatelessWidget {
   }
 }
 
-// ─── Shared: inline editor ────────────────────────────────────────────────────
+// ─── Inline editor ────────────────────────────────────────────────────────────
 
 class _InlineEditor extends ConsumerStatefulWidget {
   final PlatformSetting setting;
@@ -304,7 +350,6 @@ class _InlineEditorState extends ConsumerState<_InlineEditor> {
   @override
   void didUpdateWidget(_InlineEditor old) {
     super.didUpdateWidget(old);
-    // Sync if the value was updated externally (optimistic update rollback)
     if (old.setting.value != widget.setting.value && !_saving) {
       _ctrl.text = widget.setting.value;
     }
@@ -318,11 +363,11 @@ class _InlineEditorState extends ConsumerState<_InlineEditor> {
 
   Future<void> _save() async {
     final raw = _ctrl.text.trim();
-    if (raw.isEmpty) {
-      setState(() => _error = 'Cannot be empty');
-      return;
-    }
     if (widget.setting.dataType == 'number') {
+      if (raw.isEmpty) {
+        setState(() => _error = 'Cannot be empty');
+        return;
+      }
       final n = int.tryParse(raw);
       if (n == null || n < 1) {
         setState(() => _error = 'Must be a positive integer');
@@ -330,7 +375,10 @@ class _InlineEditorState extends ConsumerState<_InlineEditor> {
       }
     }
 
-    setState(() { _saving = true; _error = null; });
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
 
     final err = await ref
         .read(platformSettingsProvider.notifier)
@@ -343,7 +391,7 @@ class _InlineEditorState extends ConsumerState<_InlineEditor> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${widget.setting.label} updated to $raw'),
+            content: Text('${widget.setting.label} updated'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -354,6 +402,7 @@ class _InlineEditorState extends ConsumerState<_InlineEditor> {
   @override
   Widget build(BuildContext context) {
     final isNumber = widget.setting.dataType == 'number';
+    final isUrl = widget.setting.key.endsWith('_url');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -366,12 +415,14 @@ class _InlineEditorState extends ConsumerState<_InlineEditor> {
                 controller: _ctrl,
                 keyboardType: isNumber
                     ? TextInputType.number
-                    : TextInputType.text,
-                inputFormatters: isNumber
-                    ? [FilteringTextInputFormatter.digitsOnly]
-                    : null,
+                    : isUrl
+                        ? TextInputType.url
+                        : TextInputType.text,
+                inputFormatters:
+                    isNumber ? [FilteringTextInputFormatter.digitsOnly] : null,
                 decoration: InputDecoration(
                   isDense: true,
+                  hintText: isUrl ? 'https://' : null,
                   contentPadding: const EdgeInsets.symmetric(
                       horizontal: AppDimensions.md, vertical: 10),
                   border: OutlineInputBorder(
@@ -391,8 +442,8 @@ class _InlineEditorState extends ConsumerState<_InlineEditor> {
                   ),
                   errorText: _error,
                   suffixText: isNumber ? _unitFor(widget.setting.key) : null,
-                  suffixStyle: AppTextStyles.caption
-                      .copyWith(color: AppColors.textMuted),
+                  suffixStyle:
+                      AppTextStyles.caption.copyWith(color: AppColors.textMuted),
                 ),
                 onSubmitted: (_) => _save(),
               ),
@@ -406,8 +457,8 @@ class _InlineEditorState extends ConsumerState<_InlineEditor> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: AppColors.textOnPrimary,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: AppDimensions.md),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: AppDimensions.md),
                   shape: RoundedRectangleBorder(
                     borderRadius:
                         BorderRadius.circular(AppDimensions.radiusMd),

@@ -79,6 +79,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
               ),
             )
           : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: unitsAsync.when(
         loading: () => const AppLoadingShimmer(),
         error: (e, _) => Center(
@@ -123,6 +124,8 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
               subtitle: 'No units have been added yet.',
             );
           }
+          final bottomInset = MediaQuery.of(context).padding.bottom;
+          final extraBottomSpace = (canManage ? 104.0 : 24.0) + bottomInset;
           return RefreshIndicator(
             onRefresh: () async => ref.read(unitsProvider.notifier).fetchUnits(),
             child: NotificationListener<ScrollNotification>(
@@ -288,6 +291,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
                       ),
                     ),
                   ),
+                SliverToBoxAdapter(child: SizedBox(height: extraBottomSpace)),
               ],
             ),
           ),

@@ -10,6 +10,7 @@ import '../../features/dashboard/screens/dashboard_screen.dart';
 import '../../features/dashboard/screens/super_admin_dashboard.dart';
 import '../../features/superadmin/screens/sa_dashboard_screen.dart';
 import '../../features/superadmin/screens/sa_platform_settings_screen.dart';
+import '../../features/superadmin/screens/sa_app_info_screen.dart';
 import '../../features/members/screens/members_screen.dart';
 import '../../features/bills/screens/bills_screen.dart';
 import '../../features/bills/screens/bill_audit_logs_screen.dart';
@@ -192,6 +193,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/sa/subscriptions/report', builder: (c, s) => SubscriptionReportScreen()),
           GoRoute(path: '/sa/settings',          builder: (c, s) => SettingsScreen()),
           GoRoute(path: '/sa/platform-settings', builder: (c, s) => const SaPlatformSettingsScreen()),
+          GoRoute(path: '/sa/app-info',          builder: (c, s) => const SaAppInfoScreen()),
           GoRoute(path: '/superadmin',           builder: (c, s) => SuperAdminDashboard()),
         ],
       ),

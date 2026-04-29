@@ -45,4 +45,59 @@ const verifyOtpLimiter = rateLimit({
   },
 });
 
-module.exports = { loginLimiter, forgotPasswordLimiter, verifyOtpLimiter };
+/**
+ * General API limiter: 100 requests per 15 minutes per IP.
+ * Applied to all /api/* routes. Authenticated admin users get higher limits.
+ */
+const generalApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.user?.role === 'SUPER_ADMIN',
+  message: {
+    success: false,
+    data: null,
+    message: 'Too many requests. Please slow down and try again shortly.',
+  },
+});
+
+/**
+ * File upload limiter: max 20 uploads per 15 minutes per IP.
+ * Prevents DoS via large repeated uploads.
+ */
+const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    data: null,
+    message: 'Too many file uploads. Please try again later.',
+  },
+});
+
+/**
+ * Payment endpoint limiter: max 10 attempts per 15 minutes per IP.
+ */
+const paymentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    data: null,
+    message: 'Too many payment requests. Please try again later.',
+  },
+});
+
+module.exports = {
+  loginLimiter,
+  forgotPasswordLimiter,
+  verifyOtpLimiter,
+  generalApiLimiter,
+  uploadLimiter,
+  paymentLimiter,
+};

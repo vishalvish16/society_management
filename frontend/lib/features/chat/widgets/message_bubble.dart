@@ -165,6 +165,8 @@ class MessageBubble extends StatelessWidget {
   void _showDeleteMenu(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
+      enableDrag: true,
       builder: (_) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,

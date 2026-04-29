@@ -356,8 +356,10 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
   void _showVisitorDetails(BuildContext context, Map<String, dynamic> v) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
       ),
@@ -379,8 +381,10 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
     }
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
       ),
@@ -391,8 +395,10 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
   void _showLogDialog(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
         borderRadius:
             BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
@@ -404,8 +410,10 @@ class _VisitorsScreenState extends ConsumerState<VisitorsScreen> {
   void _showEditVisitorSheet(BuildContext context, Map<String, dynamic> visitor) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
       ),
@@ -1453,7 +1461,9 @@ class _LogVisitorFormState extends ConsumerState<_LogVisitorForm> {
   void _showPhotoOptions() {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       backgroundColor: AppColors.surface,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
       ),

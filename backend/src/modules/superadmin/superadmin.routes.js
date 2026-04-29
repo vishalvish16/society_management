@@ -17,4 +17,8 @@ router.get('/societies/recent', superadminController.getRecentSocieties);
 router.get('/settings', superadminController.getSettings);
 router.patch('/settings/:key', superadminController.updateSetting);
 
+// App info management
+router.get('/app-info', superadminController.getAppInfoSettings);
+router.patch('/app-info', superadminController.updateAppInfo);
+
 module.exports = router;

@@ -190,8 +190,10 @@ class _ParkingScreenState extends ConsumerState<ParkingScreen> {
   void _showSlotForm(BuildContext context, Map<String, dynamic>? existing) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
           borderRadius:
               BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl))),
@@ -218,8 +220,10 @@ class _ParkingScreenState extends ConsumerState<ParkingScreen> {
   void _showAllotmentForm(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
           borderRadius:
               BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl))),
@@ -243,8 +247,10 @@ class _ParkingScreenState extends ConsumerState<ParkingScreen> {
   void _showEntryForm(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
           borderRadius:
               BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl))),

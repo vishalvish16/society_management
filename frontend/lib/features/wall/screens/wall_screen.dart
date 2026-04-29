@@ -17,6 +17,7 @@ import '../../../shared/widgets/app_empty_state.dart';
 import '../../../shared/widgets/app_loading_shimmer.dart';
 import '../../../shared/widgets/mention_text_field.dart';
 import '../providers/wall_provider.dart';
+import '../../../shared/widgets/app_page_header.dart';
 
 // ── Wall Screen ───────────────────────────────────────────────────────────────
 
@@ -55,62 +56,91 @@ class _WallScreenState extends ConsumerState<WallScreen> {
     final user = ref.watch(authProvider).user;
     final myId = user?.id ?? '';
     final isAdmin = ref.read(wallProvider.notifier).isAdmin;
+    final isWide = MediaQuery.of(context).size.width >= 720;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        title: Text('Society Wall',
-            style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-            onPressed: () => ref.read(wallProvider.notifier).refresh(),
+      appBar: isWide
+          ? AppBar(
+              backgroundColor: AppColors.primary,
+              title: Text(
+                'Society Wall',
+                style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary),
+              ),
+              actions: [
+                IconButton(
+                  tooltip: 'Refresh',
+                  icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                  onPressed: () => ref.read(wallProvider.notifier).refresh(),
+                ),
+                const SizedBox(width: 4),
+              ],
+            )
+          : null,
+      body: Column(
+        children: [
+          AppPageHeader(
+            title: 'Society Wall',
+            icon: Icons.forum_rounded,
+            actions: [
+              IconButton(
+                tooltip: 'Refresh',
+                icon: const Icon(Icons.refresh_rounded),
+                onPressed: () => ref.read(wallProvider.notifier).refresh(),
+              ),
+            ],
           ),
-          const SizedBox(width: 4),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () => ref.read(wallProvider.notifier).refresh(),
+              child: st.isLoading
+                  ? const AppLoadingShimmer()
+                  : st.error != null && st.posts.isEmpty
+                      ? Center(
+                          child: AppCard(
+                            leftBorderColor: AppColors.danger,
+                            child: Text(
+                              st.error!,
+                              style: AppTextStyles.bodyMedium.copyWith(
+                                color: AppColors.danger,
+                              ),
+                            ),
+                          ),
+                        )
+                      : st.posts.isEmpty
+                          ? const AppEmptyState(
+                              emoji: '📋',
+                              title: 'Nothing posted yet',
+                              subtitle:
+                                  'Be the first to share something with your society!',
+                            )
+                          : ListView.builder(
+                              controller: _scrollController,
+                              padding: const EdgeInsets.symmetric(
+                                vertical: AppDimensions.md,
+                                horizontal: AppDimensions.sm,
+                              ),
+                              itemCount:
+                                  st.posts.length + (st.isLoadingMore ? 1 : 0),
+                              itemBuilder: (context, i) {
+                                if (i == st.posts.length) {
+                                  return const Padding(
+                                    padding: EdgeInsets.all(AppDimensions.md),
+                                    child: Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  );
+                                }
+                                return _PostCard(
+                                  post: st.posts[i],
+                                  myId: myId,
+                                  isAdmin: isAdmin,
+                                );
+                              },
+                            ),
+            ),
+          ),
         ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () => ref.read(wallProvider.notifier).refresh(),
-        child: st.isLoading
-            ? const AppLoadingShimmer()
-            : st.error != null && st.posts.isEmpty
-                ? Center(
-                    child: AppCard(
-                      leftBorderColor: AppColors.danger,
-                      child: Text(st.error!,
-                          style: AppTextStyles.bodyMedium
-                              .copyWith(color: AppColors.danger)),
-                    ),
-                  )
-                : st.posts.isEmpty
-                    ? const AppEmptyState(
-                        emoji: '📋',
-                        title: 'Nothing posted yet',
-                        subtitle:
-                            'Be the first to share something with your society!',
-                      )
-                    : ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.symmetric(
-                            vertical: AppDimensions.md,
-                            horizontal: AppDimensions.sm),
-                        itemCount:
-                            st.posts.length + (st.isLoadingMore ? 1 : 0),
-                        itemBuilder: (context, i) {
-                          if (i == st.posts.length) {
-                            return const Padding(
-                              padding: EdgeInsets.all(AppDimensions.md),
-                              child: Center(child: CircularProgressIndicator()),
-                            );
-                          }
-                          return _PostCard(
-                              post: st.posts[i],
-                              myId: myId,
-                              isAdmin: isAdmin);
-                        },
-                      ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: AppColors.primary,
@@ -119,8 +149,10 @@ class _WallScreenState extends ConsumerState<WallScreen> {
         label: const Text('New Post'),
         onPressed: () => showModalBottomSheet(
           context: context,
+          useRootNavigator: true,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
+          enableDrag: true,
           builder: (_) => const _CreatePostSheet(),
         ),
       ),
@@ -646,7 +678,9 @@ class _PostCard extends ConsumerWidget {
   void _showWhoLiked(BuildContext context, WidgetRef ref) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
+      enableDrag: true,
       builder: (_) =>
           _WhoLikedSheet(postId: post['id'] as String),
     );
@@ -655,8 +689,10 @@ class _PostCard extends ConsumerWidget {
   void _showComments(BuildContext context, WidgetRef ref) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      enableDrag: true,
       builder: (_) => _CommentsSheet(
         postId: post['id'] as String,
         isAdmin: isAdmin,
