@@ -181,8 +181,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = ref.watch(authProvider).user;
-    final photoUrl = AppConstants.uploadUrlFromPath(user?.profilePhotoUrl);
+    final authState = ref.watch(authProvider);
+    final user = authState.user;
+    final basePhotoUrl = AppConstants.uploadUrlFromPath(user?.profilePhotoUrl);
+    final photoUrl = basePhotoUrl != null ? '$basePhotoUrl?v=${authState.avatarRevision}' : null;
     final completeness = user?.profileCompletenessPercent ?? 0;
 
     return Scaffold(
