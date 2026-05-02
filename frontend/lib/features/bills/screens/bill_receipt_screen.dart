@@ -34,6 +34,12 @@ class BillReceiptScreen extends ConsumerWidget {
 
   double _amt(dynamic v) => (v is num) ? v.toDouble() : double.tryParse(v.toString()) ?? 0;
 
+  double _baseAmount(Map<String, dynamic> b) {
+    final amt = _amt(b['amount']);
+    final gst = _amt(b['gstAmount']);
+    return amt + gst;
+  }
+
   Future<Uint8List> _buildPdfBytes({
     required String societyName,
     required Map<String, dynamic> b,
@@ -48,6 +54,9 @@ class BillReceiptScreen extends ConsumerWidget {
     final paidAt = b['paidAt'];
     final method = (b['paymentMethod'] ?? '').toString();
     final amount = _amt(b['paidAmount']);
+    final totalDue = _amt(b['totalDue']);
+    final lateFee = _amt(b['lateFee']);
+    final base = _baseAmount(b);
     final desc = (b['description'] ?? '').toString().trim();
     final notes = (b['notes'] ?? '').toString().trim();
 
@@ -178,6 +187,9 @@ class BillReceiptScreen extends ConsumerWidget {
                     row('Paid At', _fmtDateTime(paidAt)),
                     row('Payment Method', method.isNotEmpty ? method.replaceAll('_', ' ') : '—'),
                     if (status.isNotEmpty) row('Status', status),
+                    row('Bill Amount', currency.format(base)),
+                    if (lateFee > 0) row('Late Fee', currency.format(lateFee)),
+                    if (totalDue > 0) row('Total Due', currency.format(totalDue)),
                     if (coverageFrom != null && coverageTo != null) row('Coverage', '$coverageFrom to $coverageTo'),
                     if (desc.isNotEmpty) row('Details', desc),
                     if (notes.isNotEmpty) row('Notes', notes),
@@ -259,6 +271,9 @@ class BillReceiptScreen extends ConsumerWidget {
     final unit = bill['unit'] as Map<String, dynamic>?;
     final id = (bill['id'] ?? '').toString();
     final amount = _amt(bill['paidAmount']);
+    final totalDue = _amt(bill['totalDue']);
+    final lateFee = _amt(bill['lateFee']);
+    final base = _baseAmount(bill);
     final currencyUi = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
 
     final paidAt = bill['paidAt'];
@@ -416,6 +431,9 @@ class BillReceiptScreen extends ConsumerWidget {
                               infoRow('Paid At', _fmtDateTime(paidAt)),
                               infoRow('Payment Method', method.isNotEmpty ? method.replaceAll('_', ' ') : '—'),
                               if (status.isNotEmpty) infoRow('Status', status),
+                              infoRow('Bill Amount', currencyUi.format(base)),
+                              if (lateFee > 0) infoRow('Late Fee', currencyUi.format(lateFee)),
+                              if (totalDue > 0) infoRow('Total Due', currencyUi.format(totalDue)),
                               if (coverageFrom != null && coverageTo != null) infoRow('Coverage', '$coverageFrom to $coverageTo'),
                               if (desc.isNotEmpty) infoRow('Details', desc),
                               if (notes.isNotEmpty) infoRow('Notes', notes),

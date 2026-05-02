@@ -19,6 +19,7 @@ import 'upi_pay_sheet.dart';
 import '../../settings/screens/bill_schedule_screen.dart';
 import '../../plans/screens/plans_screen.dart';
 import '../../../shared/widgets/app_page_header.dart';
+import '../../../shared/widgets/app_module_scaffold.dart';
 import 'bill_receipt_screen.dart';
 
 class BillsScreen extends ConsumerStatefulWidget {
@@ -74,159 +75,60 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
     final notifier = ref.read(billsProvider.notifier);
     final fmt = NumberFormat('#,##0');
 
-    final isWide = MediaQuery.of(context).size.width >= 768;
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: isWide
-          ? AppBar(
-              backgroundColor: AppColors.primary,
-              title: Text(
-                'Bills',
-                style: AppTextStyles.h2.copyWith(
-                  color: AppColors.textOnPrimary,
-                ),
-              ),
-              actions: isAdmin
-                  ? [
-                      IconButton(
-                        tooltip: 'Bill Audit Logs',
-                        onPressed: () => context.push('/bills/audit-logs'),
-                        icon: const Icon(
-                          Icons.history_rounded,
-                          color: AppColors.textOnPrimary,
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: hasBillSchedules
-                            ? 'Bill Schedule'
-                            : 'Bill Schedule (Premium)',
-                        onPressed: () {
-                          if (hasBillSchedules) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const BillScheduleScreen(),
-                              ),
-                            );
-                            return;
-                          }
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Bill Schedule is a Premium feature. Please upgrade to access it.',
-                              ),
-                            ),
-                          );
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const PlansScreen()),
-                          );
-                        },
-                        icon: Icon(
-                          hasBillSchedules
-                              ? Icons.schedule_rounded
-                              : Icons.lock_rounded,
-                          color: AppColors.textOnPrimary,
-                        ),
-                      ),
-                    ]
-                  : null,
-            )
-          : null,
-      floatingActionButton: isAdmin
-          ? Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (isWide) ...[
-                  FloatingActionButton.extended(
-                    heroTag: 'payAdvance',
-                    onPressed: () => _showPayAdvanceDialog(context, ref),
-                    backgroundColor: AppColors.success,
-                    icon: const Icon(
-                      Icons.account_balance_wallet_rounded,
-                      color: AppColors.textOnPrimary,
-                    ),
-                    label: Text(
-                      'Pay Advance',
-                      style: AppTextStyles.labelLarge.copyWith(
-                        color: AppColors.textOnPrimary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: AppDimensions.md),
-                  FloatingActionButton.extended(
-                    heroTag: 'generateBills',
-                    onPressed: () => _showGenerateDialog(context, ref),
-                    backgroundColor: AppColors.primary,
-                    icon: const Icon(Icons.add, color: AppColors.textOnPrimary),
-                    label: Text(
-                      'Generate',
-                      style: AppTextStyles.labelLarge.copyWith(
-                        color: AppColors.textOnPrimary,
-                      ),
-                    ),
-                  ),
-                ] else ...[
-                  FloatingActionButton(
-                    heroTag: 'payAdvance',
-                    onPressed: () => _showPayAdvanceDialog(context, ref),
-                    backgroundColor: AppColors.success,
-                    tooltip: 'Pay Advance',
-                    child: const Icon(
-                      Icons.account_balance_wallet_rounded,
-                      color: AppColors.textOnPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: AppDimensions.md),
-                  FloatingActionButton(
-                    heroTag: 'generateBills',
-                    onPressed: () => _showGenerateDialog(context, ref),
-                    backgroundColor: AppColors.primary,
-                    tooltip: 'Generate Bills',
-                    child: const Icon(Icons.add, color: AppColors.textOnPrimary),
-                  ),
-                ],
-              ],
-            )
-          : null,
-      body: Column(
-        children: [
-          AppPageHeader(
-            title: 'Bills',
-            icon: Icons.receipt_long_rounded,
-            actions: isAdmin
-                ? [
-                    IconButton(
-                      icon: const Icon(Icons.history_rounded),
-                      tooltip: 'Audit Logs',
-                      onPressed: () => context.push('/bills/audit-logs'),
-                    ),
-                    IconButton(
-                      icon: Icon(hasBillSchedules ? Icons.schedule_rounded : Icons.lock_rounded),
-                      tooltip: hasBillSchedules ? 'Bill Schedule' : 'Bill Schedule (Premium)',
-                      onPressed: () {
-                        if (hasBillSchedules) {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => const BillScheduleScreen()));
-                        } else {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => const PlansScreen()));
-                        }
-                      },
-                    ),
-                  ]
-                : [],
-            filterRow: AppFilterChipRow(
-              darkBackground: true,
-              selected: _statusFilter,
-              onSelected: (s) => setState(() => _statusFilter = s),
-              options: [
-                for (final s in ['all', 'pending', 'partial', 'paid', 'overdue'])
-                  FilterOption(s, s[0].toUpperCase() + s.substring(1)),
-              ],
+    final headerActions = isAdmin
+        ? [
+            IconButton(
+              icon: const Icon(Icons.history_rounded),
+              tooltip: 'Audit Logs',
+              onPressed: () => context.push('/bills/audit-logs'),
             ),
-          ),
-          Expanded(
-            child: billsAsync.when(
+            IconButton(
+              icon: Icon(hasBillSchedules ? Icons.schedule_rounded : Icons.lock_rounded),
+              tooltip: hasBillSchedules ? 'Bill Schedule' : 'Bill Schedule (Premium)',
+              onPressed: () {
+                if (hasBillSchedules) {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const BillScheduleScreen()));
+                } else {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const PlansScreen()));
+                }
+              },
+            ),
+          ]
+        : <Widget>[];
+
+    return AppModuleScaffold(
+      title: 'Bills',
+      icon: Icons.receipt_long_rounded,
+      headerActions: headerActions,
+      wideAppBarActions: isAdmin ? AppModuleScaffold.actionsForPrimaryAppBar(headerActions) : null,
+      filterRow: AppFilterChipRow(
+        darkBackground: true,
+        selected: _statusFilter,
+        onSelected: (s) => setState(() => _statusFilter = s),
+        options: [
+          for (final s in ['all', 'pending', 'partial', 'paid', 'overdue'])
+            FilterOption(s, s[0].toUpperCase() + s.substring(1)),
+        ],
+      ),
+      secondaryFab: isAdmin
+          ? ModuleFabConfig(
+              onPressed: () => _showPayAdvanceDialog(context, ref),
+              icon: Icons.account_balance_wallet_rounded,
+              backgroundColor: AppColors.success,
+              tooltip: 'Pay Advance',
+              wideExtendedLabel: 'Pay Advance',
+            )
+          : null,
+      primaryFab: isAdmin
+          ? ModuleFabConfig(
+              onPressed: () => _showGenerateDialog(context, ref),
+              icon: Icons.add,
+              tooltip: 'Generate Bills',
+              wideExtendedLabel: 'Generate',
+            )
+          : null,
+      fabHeroTagPrefix: 'bills',
+      child: billsAsync.when(
               loading: () => const AppLoadingShimmer(),
               error: (e, _) => Center(
                 child: Padding(
@@ -300,6 +202,9 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
                             bill['totalDue']?.toString() ?? '0',
                           ) ??
                           0;
+                      final lateFee =
+                          double.tryParse(bill['lateFee']?.toString() ?? '0') ??
+                              0;
                       final paidAmount =
                           double.tryParse(
                             bill['paidAmount']?.toString() ?? '0',
@@ -394,6 +299,13 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
                                       '₹${fmt.format(totalDue)}',
                                       style: AppTextStyles.h3,
                                     ),
+                                    if (lateFee > 0)
+                                      Text(
+                                        'Late fee: ₹${fmt.format(lateFee)}',
+                                        style: AppTextStyles.caption.copyWith(
+                                          color: AppColors.danger,
+                                        ),
+                                      ),
                                     if (paidAmount > 0)
                                       Text(
                                         'Paid: ₹${fmt.format(paidAmount)}',
@@ -504,9 +416,6 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
                 );
               },
             ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -579,6 +488,9 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
     DateTime selectedMonth = DateTime.now();
     DateTime dueDate = DateTime.now().add(const Duration(days: 10));
     int cycles = 1;
+    String billCategory = 'MAINTENANCE';
+    final hasParking =
+        ref.read(authProvider).user?.hasFeature('parking_management') ?? false;
     showAppSheet(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -604,19 +516,39 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
                 ),
               ),
               const SizedBox(height: AppDimensions.lg),
-              const Text(
-                'Generate Maintenance Bills',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+              Text(
+                billCategory == 'PARKING'
+                    ? 'Generate Parking Bills'
+                    : 'Generate Maintenance Bills',
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: AppDimensions.xs),
               Text(
-                'Only occupied units will receive bills.',
+                billCategory == 'PARKING'
+                    ? 'Each unit with an active parking allotment gets one bill for the selected month (same rules as Parking → Generate).'
+                    : 'Only occupied units will receive bills.',
                 style: AppTextStyles.caption.copyWith(
                   color: AppColors.textMuted,
                   fontStyle: FontStyle.italic,
                 ),
               ),
               const SizedBox(height: AppDimensions.lg),
+              AppSearchableDropdown<String>(
+                label: 'Bill Type',
+                value: billCategory,
+                items: [
+                  const AppDropdownItem(
+                    value: 'MAINTENANCE',
+                    label: 'Maintenance',
+                  ),
+                  if (hasParking)
+                    const AppDropdownItem(value: 'PARKING', label: 'Parking'),
+                ],
+                onChanged: (v) {
+                  if (v != null) setDlgState(() => billCategory = v);
+                },
+              ),
+              const SizedBox(height: AppDimensions.md),
               AppSearchableDropdown<int>(
                 label: 'Billing Cycle',
                 value: cycles,
@@ -635,7 +567,9 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
                 controller: amountController,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
-                  labelText: 'Amount per Month',
+                  labelText: billCategory == 'PARKING'
+                      ? 'Amount (per allotted unit)'
+                      : 'Amount per Month',
                   prefixText: '₹',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -692,6 +626,7 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
                           amount,
                           dueDate,
                           cycles: cycles,
+                          category: billCategory,
                         );
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(

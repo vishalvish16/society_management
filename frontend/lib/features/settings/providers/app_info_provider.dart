@@ -64,7 +64,8 @@ class AppInfoNotifier extends StateNotifier<AsyncValue<AppInfo>> {
     state = const AsyncValue.loading();
     try {
       final dio = _ref.read(dioProvider);
-      final response = await dio.get('app-info');
+      final response = await dio.get('app-info',
+          options: Options(receiveTimeout: const Duration(seconds: 10)));
       if (response.data['success'] == true) {
         state = AsyncValue.data(
             AppInfo.fromJson(response.data['data'] as Map<String, dynamic>));
@@ -100,7 +101,9 @@ class SaAppInfoNotifier extends StateNotifier<AsyncValue<AppInfo>> {
     state = const AsyncValue.loading();
     try {
       final dio = _ref.read(dioProvider);
-      final response = await dio.get('superadmin/app-info');
+      // Use the public endpoint for reading — SA auth is only needed for updates
+      final response = await dio.get('app-info',
+          options: Options(receiveTimeout: const Duration(seconds: 10)));
       if (response.data['success'] == true) {
         state = AsyncValue.data(
             AppInfo.fromJson(response.data['data'] as Map<String, dynamic>));

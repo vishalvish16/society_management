@@ -85,6 +85,17 @@ class PlansNotifier extends StateNotifier<PlansState> {
       return false;
     }
   }
+
+  /// Replace all tiers for a plan atomically.
+  Future<bool> saveTiers(String planId, List<Map<String, dynamic>> tiers) async {
+    try {
+      await _client.dio.put('/plans/$planId/tiers', data: {'tiers': tiers});
+      await loadPlans();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 }
 
 final plansProvider = StateNotifierProvider<PlansNotifier, PlansState>((ref) {

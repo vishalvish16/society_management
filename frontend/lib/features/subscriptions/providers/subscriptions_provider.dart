@@ -98,6 +98,28 @@ class SubscriptionsNotifier extends StateNotifier<SubscriptionsState> {
       return false;
     }
   }
+
+  Future<bool> suspendSociety(String societyId, String reason) async {
+    try {
+      await _client.dio.post('/subscriptions/society/$societyId/suspend', data: {'reason': reason});
+      await loadSubscriptions(page: state.page);
+      _invalidateDashboard();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> reactivateSociety(String societyId) async {
+    try {
+      await _client.dio.post('/subscriptions/society/$societyId/reactivate');
+      await loadSubscriptions(page: state.page);
+      _invalidateDashboard();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 }
 
 final subscriptionsProvider = StateNotifierProvider<SubscriptionsNotifier, SubscriptionsState>((ref) {

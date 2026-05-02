@@ -8,6 +8,21 @@ const { generalApiLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
 
+// ── Reverse proxy support (required for rate limiting) ─────────────
+// If you deploy behind a reverse proxy/load balancer that sets X-Forwarded-For,
+// Express must trust the proxy so express-rate-limit can identify clients.
+// Configure explicitly via TRUST_PROXY (recommended), otherwise default to 1 hop in production.
+const trustProxyEnv = process.env.TRUST_PROXY;
+if (typeof trustProxyEnv === 'string' && trustProxyEnv.trim() !== '') {
+  const v = trustProxyEnv.trim().toLowerCase();
+  if (v === 'true' || v === '1') app.set('trust proxy', 1);
+  else if (v === 'false' || v === '0') app.set('trust proxy', false);
+  else if (!Number.isNaN(Number(v))) app.set('trust proxy', Number(v));
+  else app.set('trust proxy', trustProxyEnv);
+} else if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // ── Security headers ──────────────────────────────────────────────
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'same-site' },
@@ -25,15 +40,34 @@ if (process.env.NODE_ENV !== 'production') {
   ALLOWED_ORIGINS.push('http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000');
 }
 
+function isDevLocalhostOrigin(origin) {
+  if (!origin) return false;
+  // Allow localhost origins in non-prod by default. In production, allow only if explicitly enabled.
+  const allowLocalhostInProd = String(process.env.ALLOW_LOCALHOST_ORIGINS || '').toLowerCase() === 'true';
+  if (process.env.NODE_ENV === 'production' && !allowLocalhostInProd) return false;
+  try {
+    const u = new URL(origin);
+    const isLocalHost = u.hostname === 'localhost' || u.hostname === '127.0.0.1';
+    const isHttp = u.protocol === 'http:' || u.protocol === 'https:';
+    return isHttp && isLocalHost;
+  } catch (_) {
+    return false;
+  }
+}
+
 app.use((req, res, next) => {
   const origin = req.headers.origin || '';
-  if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+  const allowed = !origin || ALLOWED_ORIGINS.includes(origin) || isDevLocalhostOrigin(origin);
+  if (allowed) {
     if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
-  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  if (req.method === 'OPTIONS') {
+    // Preflight must include CORS headers; otherwise browsers will block.
+    return allowed ? res.sendStatus(204) : res.sendStatus(403);
+  }
   next();
 });
 
@@ -46,6 +80,19 @@ app.use(bodyParser.urlencoded({ limit: '10kb', extended: false }));
 
 // ── Static public assets (non-sensitive) ─────────────────────────
 app.use(express.static(path.join(__dirname, '../public')));
+
+// ── Public uploads (images, receipts, attachments) ────────────────
+// Flutter Web image loading cannot attach Authorization headers, so
+// we must serve uploaded files via a public URL path.
+// DB stores paths like `/uploads/<folder>/<filename>`.
+app.use(
+  '/uploads',
+  express.static(path.join(__dirname, '../uploads'), {
+    fallthrough: false,
+    maxAge: process.env.NODE_ENV === 'production' ? '1h' : 0,
+    etag: true,
+  })
+);
 
 // ── Authenticated file serving ────────────────────────────────────
 // Uploads are NOT served statically — use /api/files/:folder/:filename
@@ -64,6 +111,18 @@ app.get('/api/files/:folder/:filename', authMiddleware, (req, res) => {
 
 // ── General API rate limiter (all routes) ─────────────────────────
 app.use('/api/', generalApiLimiter);
+
+// ── Suspension gate (all authenticated society-scoped routes) ─────
+// Auth-optional: if token is present, check society suspension status.
+// SUPER_ADMIN is always exempt. Public/auth routes are naturally exempt
+// because req.user is not set at that point.
+const checkSuspended = require('./middleware/checkSuspended');
+app.use('/api/', (req, res, next) => {
+  // Only activate when we have a decoded user (token already validated upstream per-route)
+  // We re-check lazily so public routes (/api/plans/public, /api/auth/*) are unaffected.
+  if (!req.user) return next();
+  return checkSuspended(req, res, next);
+});
 
 // ── Routes ────────────────────────────────────────────────────────
 app.use('/api/auth', require('./modules/auth/auth.routes'));
@@ -106,6 +165,7 @@ app.use('/api/rules',   require('./modules/rules/rules.routes'));
 app.use('/api/assets',  require('./modules/assets/assets.routes'));
 app.use('/api/wall',   require('./modules/wall/wall.routes'));
 app.use('/api/app-info', require('./modules/appinfo/appinfo.routes'));
+app.use('/api/estimates', require('./modules/estimates/estimates.routes'));
 
 // ── Health check ──────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ status: 'ok' }));

@@ -172,8 +172,8 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
                   onRenew: (id) => _confirmRenew(state.subscriptions[i]),
                   onCancel: (id) => _showCancelDialog(
                       id,
-                      (state.subscriptions[i]['society'] as Map?)?['name'] ??
-                          ''),
+                      (state.subscriptions[i]['society'] as Map?)?['name'] ?? ''),
+                  onSuspend: () => _showSuspendDialog(state.subscriptions[i]),
                 ),
               ),
             );
@@ -460,24 +460,40 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         OutlinedButton.icon(
-                                          onPressed: id.isEmpty
-                                              ? null
-                                              : () => _confirmRenew(sub),
+                                          onPressed: id.isEmpty ? null : () => _confirmRenew(sub),
                                           icon: const Icon(Icons.refresh_rounded, size: 16),
                                           label: const Text('Renew'),
                                         ),
-                                        const SizedBox(width: 8),
+                                        const SizedBox(width: 6),
                                         OutlinedButton.icon(
-                                          onPressed: id.isEmpty ||
-                                                  !(status == 'ACTIVE' ||
-                                                      status == 'TRIAL')
+                                          onPressed: id.isEmpty
                                               ? null
-                                              : () => _showCancelDialog(
-                                                  id, (society['name'] ?? '').toString()),
+                                              : () => _showSuspendDialog(sub),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: status == 'SUSPENDED'
+                                                ? AppColors.success
+                                                : const Color(0xFFD97706),
+                                            side: BorderSide(
+                                                color: status == 'SUSPENDED'
+                                                    ? AppColors.success
+                                                    : const Color(0xFFD97706)),
+                                          ),
+                                          icon: Icon(
+                                            status == 'SUSPENDED'
+                                                ? Icons.lock_open_rounded
+                                                : Icons.lock_outline_rounded,
+                                            size: 16,
+                                          ),
+                                          label: Text(status == 'SUSPENDED' ? 'Reactivate' : 'Suspend'),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        OutlinedButton.icon(
+                                          onPressed: id.isEmpty || !(status == 'ACTIVE' || status == 'TRIAL')
+                                              ? null
+                                              : () => _showCancelDialog(id, (society['name'] ?? '').toString()),
                                           style: OutlinedButton.styleFrom(
                                             foregroundColor: AppColors.danger,
-                                            side: const BorderSide(
-                                                color: AppColors.danger),
+                                            side: const BorderSide(color: AppColors.danger),
                                           ),
                                           icon: const Icon(Icons.cancel_outlined, size: 16),
                                           label: const Text('Cancel'),
@@ -921,6 +937,77 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
     );
   }
 
+  void _showSuspendDialog(Map<String, dynamic> sub) {
+    final society = sub['society'] as Map<String, dynamic>? ?? {};
+    final societyId = (society['id'] ?? sub['id'] ?? '').toString();
+    final societyName = (society['name'] ?? '').toString();
+    final societyStatus = (society['status'] ?? '').toString().toUpperCase();
+    final isSuspended = societyStatus == 'SUSPENDED';
+    final reasonC = TextEditingController();
+
+    showAppDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(isSuspended ? 'Reactivate Society' : 'Suspend Society', style: AppTextStyles.h1),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isSuspended
+                  ? 'Reactivate "$societyName"? All users will regain access immediately.'
+                  : 'Suspend "$societyName"? All users will be locked out and shown a recharge message.',
+              style: AppTextStyles.bodyMedium,
+            ),
+            if (!isSuspended) ...[
+              const SizedBox(height: AppDimensions.md),
+              TextField(
+                controller: reasonC,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Reason *',
+                  hintText: 'e.g. Non-payment, plan expired',
+                  alignLabelWithHint: true,
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Back', style: AppTextStyles.labelLarge.copyWith(color: AppColors.textMuted)),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: isSuspended ? AppColors.success : const Color(0xFFD97706),
+            ),
+            onPressed: () async {
+              if (!isSuspended && reasonC.text.trim().isEmpty) return;
+              Navigator.pop(ctx);
+              bool ok;
+              if (isSuspended) {
+                ok = await ref.read(subscriptionsProvider.notifier).reactivateSociety(societyId);
+              } else {
+                ok = await ref.read(subscriptionsProvider.notifier).suspendSociety(societyId, reasonC.text.trim());
+              }
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(ok
+                      ? (isSuspended ? 'Society reactivated' : 'Society suspended')
+                      : 'Action failed'),
+                  backgroundColor: ok ? AppColors.success : AppColors.danger,
+                ));
+              }
+            },
+            child: Text(isSuspended ? 'Reactivate' : 'Suspend'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showAssignDialog(BuildContext context) {
     String? selectedSocietyId;
     String planName = 'basic';
@@ -1058,6 +1145,7 @@ class _SubscriptionCard extends StatelessWidget {
   final DateFormat dateFormat;
   final void Function(String) onRenew;
   final void Function(String) onCancel;
+  final VoidCallback onSuspend;
 
   const _SubscriptionCard({
     required this.sub,
@@ -1066,6 +1154,7 @@ class _SubscriptionCard extends StatelessWidget {
     required this.dateFormat,
     required this.onRenew,
     required this.onCancel,
+    required this.onSuspend,
   });
 
   @override
@@ -1164,47 +1253,54 @@ class _SubscriptionCard extends StatelessWidget {
           ),
 
           // Actions
-          if (status == 'ACTIVE' || status == 'TRIAL' || status == 'EXPIRED') ...[
-            const SizedBox(height: AppDimensions.sm),
-            Row(
-              children: [
-                if (status == 'ACTIVE' || status == 'TRIAL' || status == 'EXPIRED')
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => onRenew(id),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.success,
-                        side: const BorderSide(color: AppColors.success),
-                        padding: const EdgeInsets.symmetric(vertical: AppDimensions.xs),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                        ),
-                      ),
-                      icon: const Icon(Icons.refresh_rounded, size: 16),
-                      label: Text('Renew', style: AppTextStyles.labelMedium),
-                    ),
+          const SizedBox(height: AppDimensions.sm),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => onRenew(id),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.success,
+                    side: const BorderSide(color: AppColors.success),
+                    padding: const EdgeInsets.symmetric(vertical: AppDimensions.xs),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
                   ),
-                if ((status == 'ACTIVE' || status == 'TRIAL') && id.isNotEmpty) ...[
-                  const SizedBox(width: AppDimensions.sm),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => onCancel(id),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.danger,
-                        side: const BorderSide(color: AppColors.danger),
-                        padding: const EdgeInsets.symmetric(vertical: AppDimensions.xs),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                        ),
-                      ),
-                      icon: const Icon(Icons.cancel_outlined, size: 16),
-                      label: Text('Cancel', style: AppTextStyles.labelMedium),
-                    ),
+                  icon: const Icon(Icons.refresh_rounded, size: 16),
+                  label: Text('Renew', style: AppTextStyles.labelMedium),
+                ),
+              ),
+              const SizedBox(width: AppDimensions.xs),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onSuspend,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: status == 'SUSPENDED' ? AppColors.success : const Color(0xFFD97706),
+                    side: BorderSide(color: status == 'SUSPENDED' ? AppColors.success : const Color(0xFFD97706)),
+                    padding: const EdgeInsets.symmetric(vertical: AppDimensions.xs),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
                   ),
-                ],
+                  icon: Icon(status == 'SUSPENDED' ? Icons.lock_open_rounded : Icons.lock_outline_rounded, size: 16),
+                  label: Text(status == 'SUSPENDED' ? 'Reactivate' : 'Suspend', style: AppTextStyles.labelMedium),
+                ),
+              ),
+              if ((status == 'ACTIVE' || status == 'TRIAL') && id.isNotEmpty) ...[
+                const SizedBox(width: AppDimensions.xs),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => onCancel(id),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.danger,
+                      side: const BorderSide(color: AppColors.danger),
+                      padding: const EdgeInsets.symmetric(vertical: AppDimensions.xs),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
+                    ),
+                    icon: const Icon(Icons.cancel_outlined, size: 16),
+                    label: Text('Cancel', style: AppTextStyles.labelMedium),
+                  ),
+                ),
               ],
-            ),
-          ],
+            ],
+          ),
         ],
       ),
     );

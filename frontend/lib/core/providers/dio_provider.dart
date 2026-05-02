@@ -28,8 +28,8 @@ final dioProvider = Provider<Dio>((ref) {
       },
       onError: (e, handler) {
         if (e.response?.statusCode == 401) {
-          // Token expired or invalid
-          ref.read(authProvider.notifier).logout();
+          // Token expired or invalid — allow biometric auto on login after this.
+          ref.read(authProvider.notifier).logout(suppressLoginBiometricAuto: false);
         }
         return handler.next(e);
       },

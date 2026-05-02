@@ -46,7 +46,7 @@ async function _validateSocietySettings(settings) {
 
 async function createSociety(req, res, next) {
   try {
-    const { name, address, city, contactPhone, contactEmail, planName, chairman, trialDays, settings } = req.body;
+    const { name, address, city, contactPhone, contactEmail, planName, chairman, trialDays, settings, estimateId } = req.body;
 
     if (!name) return sendError(res, 'Society name is required', 400);
 
@@ -66,6 +66,18 @@ async function createSociety(req, res, next) {
     const result = await societiesService.createSociety({
       name, address, city, contactPhone, contactEmail, planName, chairman, trialDays, settings,
     });
+
+    // If created from an estimate, link it (auto-accepts and records society link)
+    if (estimateId && result.society?.id) {
+      try {
+        const { linkEstimateToSociety } = require('../estimates/estimates.service');
+        await linkEstimateToSociety(estimateId, result.society.id);
+      } catch (linkErr) {
+        // Non-fatal: society already created; just log the link failure
+        console.error('[estimate-link]', linkErr.message);
+      }
+    }
+
     return sendSuccess(res, result, 'Society created successfully', 201);
   } catch (err) {
     if (err.code === 'P2002') {

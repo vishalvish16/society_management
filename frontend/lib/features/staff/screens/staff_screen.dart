@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimensions.dart';
@@ -63,6 +64,29 @@ class StaffScreen extends ConsumerWidget {
               backgroundColor: AppColors.primary,
               title: Text('Staff',
                   style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
+              actions: [
+                if (canManage)
+                  IconButton(
+                    tooltip: 'Attendance Summary',
+                    onPressed: () => context.push('/staff/attendance-summary'),
+                    icon: const Icon(Icons.summarize_rounded,
+                        color: AppColors.textOnPrimary),
+                  ),
+                if (canManage)
+                  IconButton(
+                    tooltip: 'Bulk Attendance',
+                    onPressed: () => context.push('/staff/attendance-bulk'),
+                    icon: const Icon(Icons.fact_check_rounded,
+                        color: AppColors.textOnPrimary),
+                  ),
+                if (canManage)
+                  IconButton(
+                    tooltip: 'Payment History',
+                    onPressed: () => context.push('/staff/payment-history'),
+                    icon: const Icon(Icons.payments_rounded,
+                        color: AppColors.textOnPrimary),
+                  ),
+              ],
             )
           : null,
       floatingActionButton: canManage
@@ -114,12 +138,41 @@ class StaffScreen extends ConsumerWidget {
             onRefresh: () => ref.read(staffProvider.notifier).loadStaff(),
             child: ListView.separated(
               padding: const EdgeInsets.all(AppDimensions.screenPadding),
-              itemCount: staff.length,
-              separatorBuilder: (_, _) =>
-                  const SizedBox(height: AppDimensions.sm),
+              itemCount: staff.length + (isWide ? 0 : 1),
+              separatorBuilder: (_, i) => i == 0 && !isWide
+                  ? const SizedBox(height: AppDimensions.md)
+                  : const SizedBox(height: AppDimensions.sm),
               itemBuilder: (_, i) {
-                final s = staff[i];
-                final attendanceStatus = s.lastAttendanceStatus;
+                if (!isWide && i == 0) {
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: Text('Staff', style: AppTextStyles.h2),
+                      ),
+                      if (canManage)
+                        Wrap(
+                          spacing: 10,
+                          children: [
+                            FilledButton.icon(
+                              onPressed: () => context.push('/staff/attendance-summary'),
+                              icon: const Icon(Icons.summarize_rounded, size: 18),
+                              label: const Text('Summary'),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: () => context.push('/staff/attendance-bulk'),
+                              icon: const Icon(Icons.fact_check_rounded, size: 18),
+                              label: const Text('Bulk'),
+                            ),
+                          ],
+                        ),
+                    ],
+                  );
+                }
+                final idx = i - (isWide ? 0 : 1);
+                final s = staff[idx];
+                final todayStatus = (s.lastAttendanceStatus == 'PRESENT')
+                    ? 'PRESENT'
+                    : 'ABSENT';
                 return AppCard(
                   padding: const EdgeInsets.all(AppDimensions.md),
                   leftBorderColor:
@@ -180,8 +233,7 @@ class StaffScreen extends ConsumerWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          if (attendanceStatus != null)
-                            AppStatusChip(status: attendanceStatus),
+                          AppStatusChip(status: todayStatus),
                           if (canManage) ...[
                             const SizedBox(height: AppDimensions.xs),
                             Row(
@@ -395,7 +447,7 @@ class StaffScreen extends ConsumerWidget {
                       child: LinearProgressIndicator(),
                     ),
                   DropdownButtonFormField<String>(
-                    value: _shiftFormValues.contains(shiftForm) ? shiftForm : 'full',
+                    initialValue: _shiftFormValues.contains(shiftForm) ? shiftForm : 'full',
                     decoration: const InputDecoration(labelText: 'Duty shift'),
                     items: const [
                       DropdownMenuItem(value: 'day', child: Text('Day shift')),
@@ -416,7 +468,7 @@ class StaffScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: AppDimensions.sm),
                   DropdownButtonFormField<String?>(
-                    value: gateIdVal != null &&
+                    initialValue: gateIdVal != null &&
                             gatesLoaded.any((g) => g['id']?.toString() == gateIdVal)
                         ? gateIdVal
                         : null,
@@ -685,7 +737,7 @@ class StaffScreen extends ConsumerWidget {
   }
 
   void _showAttendanceDialog(BuildContext context, WidgetRef ref, StaffMember staff) {
-    String status = staff.lastAttendanceStatus ?? 'present';
+    String status = (staff.lastAttendanceStatus ?? 'PRESENT').toLowerCase();
     final today = DateTime.now();
     final dateStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
 
@@ -714,7 +766,7 @@ class StaffScreen extends ConsumerWidget {
                 Text(dateStr, style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted)),
                 const SizedBox(height: AppDimensions.lg),
                 DropdownButtonFormField<String>(
-                  value: status,
+                  initialValue: status,
                   decoration: const InputDecoration(labelText: 'Status'),
                   items: _attendanceStatuses.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
                   onChanged: (v) => setDlgState(() => status = v ?? 'present'),

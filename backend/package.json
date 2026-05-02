@@ -4,7 +4,8 @@
   "description": "",
   "main": "src/server.js",
   "scripts": {
-    "dev": "npx prisma migrate dev --skip-generate && node src/server.js",
+    "postinstall": "prisma generate",
+    "dev": "npx prisma migrate dev && node src/server.js",
     "start": "node src/server.js",
     "pm2:start": "pm2 start ecosystem.config.js",
     "pm2:stop": "pm2 stop society-backend",

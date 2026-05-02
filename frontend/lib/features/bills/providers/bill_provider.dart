@@ -97,7 +97,13 @@ class BillsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
     await fetchBills(refresh: false);
   }
 
-  Future<String?> bulkGenerate(DateTime month, double amount, DateTime dueDate, {int cycles = 1}) async {
+  Future<String?> bulkGenerate(
+    DateTime month,
+    double amount,
+    DateTime dueDate, {
+    int cycles = 1,
+    String category = 'MAINTENANCE',
+  }) async {
     try {
       final dio = ref.read(dioProvider);
       final response = await dio.post('bills/generate', data: {
@@ -105,6 +111,7 @@ class BillsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
         'defaultAmount': amount,
         'dueDate': dueDate.toIso8601String(),
         'cycles': cycles,
+        'category': category,
       });
       if (response.data['success'] == true) {
         fetchBills();

@@ -23,6 +23,9 @@ import '../../features/notices/screens/notices_screen.dart';
 import '../../features/amenities/screens/amenities_screen.dart';
 import '../../features/notifications/screens/notifications_screen.dart';
 import '../../features/staff/screens/staff_screen.dart';
+import '../../features/staff/screens/staff_attendance_summary_screen.dart';
+import '../../features/staff/screens/staff_bulk_attendance_screen.dart';
+import '../../features/staff/screens/staff_payment_history_screen.dart';
 import '../../features/gatepasses/screens/gate_pass_screen.dart';
 import '../../features/domestichelp/screens/domestic_help_screen.dart';
 import '../../features/deliveries/screens/delivery_screen.dart';
@@ -54,6 +57,8 @@ import '../../features/sos/screens/sos_alert_screen.dart';
 import '../../features/wall/screens/wall_screen.dart';
 import '../widgets/sa_shell.dart';
 import '../widgets/sm_shell.dart';
+import '../../features/suspended/screens/subscription_suspended_screen.dart';
+import '../../features/estimates/screens/estimates_screen.dart';
 
 class _RouterNotifier extends ChangeNotifier {
   final Ref _ref;
@@ -77,6 +82,20 @@ class _RouterNotifier extends ChangeNotifier {
         state.matchedLocation == '/forgot';
 
     if (!isAuth) return isLoggingIn ? null : '/';
+
+    // Suspended societies: block all navigation, show suspension screen.
+    // SUPER_ADMIN is exempt — they need to access the subscriptions screen to reactivate.
+    if (authState.isSuspended &&
+        authState.user?.role != 'SUPER_ADMIN' &&
+        state.matchedLocation != '/suspended') {
+      return '/suspended';
+    }
+
+    // If on suspended screen but no longer suspended, redirect normally.
+    if (state.matchedLocation == '/suspended' && !authState.isSuspended) {
+      if (authState.user?.role == 'SUPER_ADMIN') return '/sa/dashboard';
+      return '/dashboard';
+    }
 
     if (isLoggingIn) {
       if (authState.user?.role == 'SUPER_ADMIN') return '/sa/dashboard';
@@ -181,6 +200,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/register', builder: (c, s) => RegisterScreen()),
       GoRoute(path: '/forgot',   builder: (c, s) => ForgotPasswordScreen()),
 
+      // ── Suspension wall — shown to all non-SUPER_ADMIN when suspended ─
+      GoRoute(path: '/suspended', builder: (c, s) => const SubscriptionSuspendedScreen()),
+
       // ── Super Admin routes (SAShell sidebar) ──────────────────────
       ShellRoute(
         builder: (context, state, child) => SAShell(child: child),
@@ -191,6 +213,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/sa/plans',         builder: (c, s) => PlansScreen()),
           GoRoute(path: '/sa/subscriptions', builder: (c, s) => SubscriptionsScreen()),
           GoRoute(path: '/sa/subscriptions/report', builder: (c, s) => SubscriptionReportScreen()),
+          GoRoute(path: '/sa/estimates', builder: (c, s) => const EstimatesScreen()),
           GoRoute(path: '/sa/settings',          builder: (c, s) => SettingsScreen()),
           GoRoute(path: '/sa/platform-settings', builder: (c, s) => const SaPlatformSettingsScreen()),
           GoRoute(path: '/sa/app-info',          builder: (c, s) => const SaAppInfoScreen()),
@@ -220,6 +243,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/amenities',     builder: (c, s) => AmenitiesScreen()),
           GoRoute(path: '/notifications', builder: (c, s) => NotificationsScreen()),
           GoRoute(path: '/staff',         builder: (c, s) => StaffScreen()),
+          GoRoute(path: '/staff/attendance-summary', builder: (c, s) => const StaffAttendanceSummaryScreen()),
+          GoRoute(path: '/staff/attendance-bulk', builder: (c, s) => const StaffBulkAttendanceScreen()),
+          GoRoute(path: '/staff/payment-history', builder: (c, s) => const StaffPaymentHistoryScreen()),
           GoRoute(path: '/gatepasses',    builder: (c, s) => GatePassScreen()),
           GoRoute(path: '/domestichelp',  builder: (c, s) => DomesticHelpScreen()),
           GoRoute(path: '/deliveries',    builder: (c, s) => DeliveryScreen()),

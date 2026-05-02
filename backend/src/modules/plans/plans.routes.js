@@ -20,4 +20,9 @@ router.post('/', plansController.createPlan);
 router.patch('/:id', plansController.updatePlan);
 router.delete('/:id', plansController.deactivatePlan);
 
+// Pricing tiers — PUT replaces all tiers for a plan atomically
+router.get('/:id/tiers', plansController.listPlanTiers);
+router.put('/:id/tiers', plansController.savePlanTiers);
+router.delete('/:id/tiers/:tierId', plansController.deletePlanTier);
+
 module.exports = router;

@@ -126,10 +126,16 @@ async function assignPlan({ societyId, planName, amount, paymentMethod, referenc
       );
     }
 
+    // Load tiers for accurate tiered pricing
+    const pricingTiers = await tx.pricingTier.findMany({
+      where: { planId: plan.id },
+      select: { minUnits: true, maxUnits: true, pricePerUnit: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+
     const now = new Date();
-    // Back-compat: accept billingCycle but store duration as Society.planDuration + SubscriptionPayment.duration
     const duration = normalizeDuration(billingCycle || 'MONTHLY');
-    const quote = computeSubscriptionAmount(plan, unitCount, duration);
+    const quote = computeSubscriptionAmount({ ...plan, pricingTiers }, unitCount, duration);
     let periodEnd;
     periodEnd = new Date(now.getFullYear(), now.getMonth() + quote.months, now.getDate());
 
@@ -223,24 +229,24 @@ async function renewSubscription(
     );
   }
 
+  // Load tiers for accurate tiered pricing
+  const pricingTiers = await prisma.pricingTier.findMany({
+    where: { planId: plan.id },
+    select: { minUnits: true, maxUnits: true, pricePerUnit: true },
+    orderBy: { sortOrder: 'asc' },
+  });
+  const planWithTiers = { ...plan, pricingTiers };
+
   // compute amount if not provided
   let computedAmount;
   if (amount !== undefined && amount !== null && amount !== '') {
     computedAmount = parseFloat(amount);
   } else {
-    // Primary pricing rule: unit-count * plan.pricePerUnit with duration discount.
-    // If discountPercent is explicitly passed, it overrides the duration default.
-    const q = computeSubscriptionAmount(plan, unitCount, duration);
     const overrideDisc = discountPercent !== undefined && discountPercent !== null && discountPercent !== ''
       ? Math.max(Math.min(parseFloat(discountPercent), 100), 0)
-      : null;
-
-    if (overrideDisc === null) {
-      computedAmount = q.amount * count;
-    } else {
-      const base = q.unitCount * q.perUnit * q.months;
-      computedAmount = (base * (1 - overrideDisc / 100)) * count;
-    }
+      : undefined;
+    const q = computeSubscriptionAmount(planWithTiers, unitCount, duration, overrideDisc);
+    computedAmount = q.amount * count;
   }
 
   computedAmount = Math.round(computedAmount * 100) / 100;
@@ -281,7 +287,64 @@ async function renewSubscription(
   return result;
 }
 
-module.exports = { listSubscriptions, getSubscriptionById, assignPlan, renewSubscription };
+/**
+ * Suspend a society — blocks all access until reactivated via renewal.
+ * @param {string} societyId
+ * @param {{ reason: string, suspendedById: string }} opts
+ */
+async function suspendSociety(societyId, { reason, suspendedById } = {}) {
+  const society = await prisma.society.findUnique({
+    where: { id: societyId },
+    select: { id: true, name: true, status: true },
+  });
+  if (!society) throw Object.assign(new Error('Society not found'), { status: 404 });
+  if (society.status === 'SUSPENDED') {
+    throw Object.assign(new Error('Society is already suspended'), { status: 409 });
+  }
+
+  await prisma.society.update({
+    where: { id: societyId },
+    data: { status: 'SUSPENDED' },
+  });
+
+  // Record audit trail as a subscription payment note with zero amount
+  await prisma.subscriptionPayment.create({
+    data: {
+      societyId,
+      planId: (await prisma.society.findUnique({ where: { id: societyId }, select: { planId: true } })).planId,
+      amount: 0,
+      periodStart: new Date(),
+      periodEnd: new Date(),
+      duration: 'MONTHLY',
+      unitCount: 0,
+      paymentMethod: null,
+      reference: null,
+      notes: `SUSPENDED: ${reason || 'No reason provided'}`,
+      recordedById: suspendedById || null,
+    },
+  });
+
+  return { societyId, status: 'SUSPENDED', reason: reason || null };
+}
+
+/**
+ * Reactivate a suspended society (used after payment/renewal).
+ * @param {string} societyId
+ */
+async function reactivateSociety(societyId) {
+  const society = await prisma.society.findUnique({
+    where: { id: societyId },
+    select: { id: true, status: true },
+  });
+  if (!society) throw Object.assign(new Error('Society not found'), { status: 404 });
+  if (society.status !== 'SUSPENDED') {
+    throw Object.assign(new Error('Society is not suspended'), { status: 409 });
+  }
+  await prisma.society.update({ where: { id: societyId }, data: { status: 'ACTIVE' } });
+  return { societyId, status: 'ACTIVE' };
+}
+
+module.exports = { listSubscriptions, getSubscriptionById, assignPlan, renewSubscription, suspendSociety, reactivateSociety };
 
 /**
  * Date-wise subscription payment report.

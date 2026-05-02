@@ -10,7 +10,7 @@ import '../../../shared/widgets/app_loading_shimmer.dart';
 import '../providers/notices_provider.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
 import '../../../shared/widgets/app_date_picker.dart';
-import '../../../shared/widgets/app_page_header.dart';
+import '../../../shared/widgets/app_module_scaffold.dart';
 
 class NoticesScreen extends ConsumerWidget {
   const NoticesScreen({super.key});
@@ -23,82 +23,56 @@ class NoticesScreen extends ConsumerWidget {
     final isAdmin = _adminRoles.contains(role);
     final state = ref.watch(noticesProvider);
 
-    final isWide = MediaQuery.of(context).size.width >= 768;
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: isWide
-          ? AppBar(
-              backgroundColor: AppColors.primary,
-              title: Text('Notices',
-                  style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
-            )
-          : null,
-      floatingActionButton: isAdmin
-          ? FloatingActionButton.extended(
+    return AppModuleScaffold(
+      title: 'Notices',
+      icon: Icons.campaign_rounded,
+      primaryFab: isAdmin
+          ? ModuleFabConfig(
               onPressed: () => _showNoticeSheet(context, ref, null),
-              backgroundColor: AppColors.primary,
-              icon: const Icon(Icons.add_rounded, color: AppColors.textOnPrimary),
-              label: Text('Post Notice',
-                  style: AppTextStyles.labelLarge.copyWith(color: AppColors.textOnPrimary)),
+              icon: Icons.add_rounded,
+              tooltip: 'Post notice',
+              wideExtendedLabel: 'Post Notice',
             )
           : null,
-      body: Column(
-        children: [
-          AppPageHeader(
-            title: 'Notices',
-            icon: Icons.campaign_rounded,
-            actions: isAdmin
-                ? [
-                    IconButton(
-                      icon: const Icon(Icons.add_rounded),
-                      tooltip: 'Post Notice',
-                      onPressed: () => _showNoticeSheet(context, ref, null),
+      fabHeroTagPrefix: 'notices',
+      child: state.isLoading
+          ? const AppLoadingShimmer()
+          : state.error != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppDimensions.screenPadding),
+                    child: AppCard(
+                      backgroundColor: AppColors.dangerSurface,
+                      child: Text('Error: ${state.error}',
+                          style: AppTextStyles.bodySmall
+                              .copyWith(color: AppColors.dangerText)),
                     ),
-                  ]
-                : [],
-          ),
-          Expanded(
-            child: state.isLoading
-                ? const AppLoadingShimmer()
-                : state.error != null
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(AppDimensions.screenPadding),
-                          child: AppCard(
-                            backgroundColor: AppColors.dangerSurface,
-                            child: Text('Error: ${state.error}',
-                                style: AppTextStyles.bodySmall
-                                    .copyWith(color: AppColors.dangerText)),
-                          ),
+                  ),
+                )
+              : state.notices.isEmpty
+                  ? const AppEmptyState(
+                      emoji: '📢',
+                      title: 'No Notices',
+                      subtitle: 'No notices have been posted yet.',
+                    )
+                  : RefreshIndicator(
+                      onRefresh: () =>
+                          ref.read(noticesProvider.notifier).loadNotices(),
+                      child: ListView.separated(
+                        padding: const EdgeInsets.all(AppDimensions.screenPadding),
+                        itemCount: state.notices.length,
+                        separatorBuilder: (_, i) =>
+                            const SizedBox(height: AppDimensions.sm),
+                        itemBuilder: (_, i) => _NoticeCard(
+                          notice: state.notices[i],
+                          isAdmin: isAdmin,
+                          onEdit: () =>
+                              _showNoticeSheet(context, ref, state.notices[i]),
+                          onDelete: () =>
+                              _confirmDelete(context, ref, state.notices[i]['id'] as String? ?? ''),
                         ),
-                      )
-                    : state.notices.isEmpty
-                        ? const AppEmptyState(
-                            emoji: '📢',
-                            title: 'No Notices',
-                            subtitle: 'No notices have been posted yet.',
-                          )
-                        : RefreshIndicator(
-                            onRefresh: () =>
-                                ref.read(noticesProvider.notifier).loadNotices(),
-                            child: ListView.separated(
-                              padding: const EdgeInsets.all(AppDimensions.screenPadding),
-                              itemCount: state.notices.length,
-                              separatorBuilder: (_, i) =>
-                                  const SizedBox(height: AppDimensions.sm),
-                              itemBuilder: (_, i) => _NoticeCard(
-                                notice: state.notices[i],
-                                isAdmin: isAdmin,
-                                onEdit: () =>
-                                    _showNoticeSheet(context, ref, state.notices[i]),
-                                onDelete: () =>
-                                    _confirmDelete(context, ref, state.notices[i]['id'] as String? ?? ''),
-                              ),
-                            ),
-                          ),
-          ),
-        ],
-      ),
+                      ),
+                    ),
     );
   }
 

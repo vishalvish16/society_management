@@ -269,13 +269,27 @@ async function bulkCreate(societyId, { wing, floor, startUnit, endUnit }) {
   const requestedCount = endUnit - startUnit + 1;
   const society = await prisma.society.findUnique({
     where: { id: societyId },
-    include: { plan: true },
+    select: {
+      maxUnits: true, // per-society override (null = use plan)
+      plan: { select: { maxUnits: true, displayName: true } },
+    },
   });
 
-  if (society && society.plan && society.plan.maxUnits !== -1) {
+  const max =
+    society?.maxUnits !== null && society?.maxUnits !== undefined
+      ? society.maxUnits
+      : society?.plan?.maxUnits;
+
+  if (max !== undefined && max !== null && max !== -1) {
     const currentCount = await prisma.unit.count({ where: { societyId, deletedAt: null } });
-    if (currentCount + requestedCount > society.plan.maxUnits) {
-      throw Object.assign(new Error(`Bulk create failed: adding ${requestedCount} units would exceed the maximum of ${society.plan.maxUnits} units allowed by ${society.plan.displayName}.`), { status: 403 });
+    if (currentCount + requestedCount > max) {
+      const planLabel = society?.plan?.displayName || 'your plan';
+      throw Object.assign(
+        new Error(
+          `Bulk create failed: adding ${requestedCount} units would exceed the maximum of ${max} units allowed by ${planLabel}.`,
+        ),
+        { status: 403 },
+      );
     }
   }
 

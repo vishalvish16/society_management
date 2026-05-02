@@ -13,6 +13,8 @@ import '../../../shared/widgets/app_loading_shimmer.dart';
 import '../../../shared/widgets/app_status_chip.dart';
 import '../providers/delivery_provider.dart';
 import '../../../shared/widgets/unit_picker_field.dart';
+import '../../../shared/widgets/app_page_header.dart';
+import '../../../shared/widgets/app_module_scaffold.dart';
 
 class DeliveryScreen extends ConsumerStatefulWidget {
   const DeliveryScreen({super.key});
@@ -66,6 +68,13 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
     return raw;
   }
 
+  String _deliveryFilterLabel(String s) {
+    if (s == 'all') return 'All';
+    if (s == 'at_gate') return 'Collected at Gate';
+    if (s == 'expired') return 'Stale / Expired';
+    return s[0].toUpperCase() + s.substring(1);
+  }
+
   @override
   Widget build(BuildContext context) {
     final deliveryState = ref.watch(deliveryProvider);
@@ -74,7 +83,6 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
     final isWatchman = role == 'WATCHMAN';
     final isResident = _residentRoles.contains(role);
 
-    final isWide = MediaQuery.of(context).size.width >= 768;
     final filterKeys = <String>[
       'all',
       'pending',
@@ -83,69 +91,25 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
       'returned',
       'expired',
     ];
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: isWide
-          ? AppBar(
-              backgroundColor: AppColors.primary,
-              title: Text(
-                'Deliveries',
-                style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary),
-              ),
-            )
-          : null,
-      floatingActionButton: (isStaff || isResident)
-          ? FloatingActionButton.extended(
+    return AppModuleScaffold(
+      title: 'Deliveries',
+      icon: Icons.local_shipping_rounded,
+      filterRow: AppFilterChipRow(
+        darkBackground: true,
+        selected: _filter,
+        onSelected: (s) => setState(() => _filter = s),
+        options: [for (final s in filterKeys) FilterOption(s, _deliveryFilterLabel(s))],
+      ),
+      primaryFab: (isStaff || isResident)
+          ? ModuleFabConfig(
               onPressed: () => _showLogDeliverySheet(context),
-              backgroundColor: AppColors.primary,
-              icon: const Icon(Icons.add_box_rounded, color: AppColors.textOnPrimary),
-              label: Text(
-                isStaff ? 'Log Delivery' : 'Add delivery',
-                style: AppTextStyles.labelLarge.copyWith(color: AppColors.textOnPrimary),
-              ),
+              icon: Icons.add_box_rounded,
+              tooltip: isStaff ? 'Log delivery' : 'Add delivery',
+              wideExtendedLabel: isStaff ? 'Log Delivery' : 'Add delivery',
             )
           : null,
-      body: Column(
-        children: [
-          // Filter chips
-          Container(
-            color: Theme.of(context).colorScheme.surface,
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppDimensions.screenPadding,
-              vertical: AppDimensions.sm,
-            ),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (final s in filterKeys)
-                    Padding(
-                      padding: const EdgeInsets.only(right: AppDimensions.sm),
-                      child: ChoiceChip(
-                        label: Text(
-                          s == 'all'
-                              ? 'All'
-                              : s == 'at_gate'
-                                  ? 'Collected at Gate'
-                              : s == 'expired'
-                                  ? 'Stale / Expired'
-                                  : s[0].toUpperCase() + s.substring(1),
-                        ),
-                        selected: _filter == s,
-                        selectedColor: AppColors.primarySurface,
-                        labelStyle: AppTextStyles.labelMedium.copyWith(
-                          color: _filter == s ? AppColors.primary : AppColors.textMuted,
-                        ),
-                        onSelected: (_) => setState(() => _filter = s),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          // Body
-          Expanded(
-            child: () {
+      fabHeroTagPrefix: 'deliveries',
+      child: () {
               if (deliveryState.isLoading) {
                 return const AppLoadingShimmer();
               }
@@ -472,9 +436,6 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
                 ),
               );
             }(),
-          ),
-        ],
-      ),
     );
   }
 

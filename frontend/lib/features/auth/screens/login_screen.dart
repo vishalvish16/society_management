@@ -54,11 +54,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     final storage = ref.read(authProvider.notifier).client.storage;
     final rememberStr = await storage.read(key: _kRememberMe);
     if (rememberStr == 'true') {
-      final identifier = await storage.read(key: _kRememberMeIdentifier);
+      final rememberedRaw = await storage.read(key: _kRememberMeIdentifier);
+      final lastLoginRaw =
+          await storage.read(key: kAuthStorageLastLoginIdentifier);
+      final remembered = rememberedRaw?.trim();
+      final lastLogin = lastLoginRaw?.trim();
+      // Last successful login always updates [kAuthStorageLastLoginIdentifier] in
+      // AuthNotifier, but "remember me" text was only updated on password sign-in.
+      // Prefer last login so switching accounts / biometrics does not show a stale ID.
+      final resolved = (lastLogin != null && lastLogin.isNotEmpty)
+          ? lastLogin
+          : remembered;
       if (mounted) {
         _rememberMe = true;
-        if (identifier != null) {
-          _identifierCtrl.text = identifier;
+        if (resolved != null && resolved.isNotEmpty) {
+          _identifierCtrl.text = resolved;
+        }
+        if (lastLogin != null &&
+            lastLogin.isNotEmpty &&
+            remembered != lastLogin) {
+          await storage.write(key: _kRememberMeIdentifier, value: lastLogin);
         }
       }
     }
@@ -160,6 +175,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   Future<void> _tryBiometricAuto() async {
+    if (authSuppressLoginBiometricAuto) return;
     final bio = ref.read(biometricProvider);
     if (!bio.isEnabled || bio.isChecking) return;
     await _doBiometricLogin();
@@ -172,7 +188,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     final success =
         await ref.read(authProvider.notifier).login(identifier, password);
     if (!mounted) return;
-    if (success) _onLoginComplete();
+    if (success) {
+      _identifierCtrl.text = identifier;
+      await _saveRememberMe(identifier);
+      if (!mounted) return;
+      _onLoginComplete();
+    }
   }
 
   @override

@@ -1,5 +1,64 @@
+const prisma = require('../../config/db');
 const billsService = require('./bills.service');
 const { sendSuccess, sendError } = require('../../utils/response');
+
+/**
+ * Same boolean feature rule as checkPlanLimit middleware (parking_management, etc.).
+ * @returns {Promise<boolean>} true if allowed; false after sendError.
+ */
+async function ensureBooleanPlanFeature(req, res, featureKey) {
+  if (req.user.role === 'SUPER_ADMIN') return true;
+  const societyId = req.user.societyId;
+  if (!societyId) {
+    sendError(res, 'No society associated with this account', 403);
+    return false;
+  }
+
+  const society = await prisma.society.findUnique({
+    where: { id: societyId },
+    select: {
+      status: true,
+      planRenewalDate: true,
+      plan: { select: { features: true, isActive: true, displayName: true } },
+    },
+  });
+
+  if (!society) {
+    sendError(res, 'Society not found.', 403);
+    return false;
+  }
+  if (society.status === 'SUSPENDED') {
+    sendError(res, 'Your subscription has been suspended. Please contact your administrator to reactivate.', 403);
+    return false;
+  }
+  if (society.status !== 'ACTIVE') {
+    sendError(res, 'Society is not active. Please contact your administrator.', 403);
+    return false;
+  }
+
+  const plan = society.plan;
+  if (!plan || !plan.isActive) {
+    sendError(res, 'No active plan assigned. Please contact your administrator.', 403);
+    return false;
+  }
+  if (society.planRenewalDate && new Date(society.planRenewalDate) < new Date()) {
+    sendError(res, 'Your plan has expired. Please renew to continue.', 403);
+    return false;
+  }
+
+  const features = plan.features || [];
+  const hasAccess = Array.isArray(features) ? features.includes(featureKey) : !!features[featureKey];
+  if (!hasAccess) {
+    const label = featureKey.replace(/_/g, ' ');
+    sendError(
+      res,
+      `"${label}" is not included in your ${plan.displayName}. Please upgrade to access this feature.`,
+      403,
+    );
+    return false;
+  }
+  return true;
+}
 
 /**
  * GET /api/v1/bills
@@ -38,8 +97,18 @@ async function getBillById(req, res) {
  */
 async function bulkGenerate(req, res) {
   try {
-    const { month, defaultAmount, dueDate, cycles = 1 } = req.body;
-    
+    const { month, defaultAmount, dueDate, cycles = 1, category: categoryRaw } = req.body;
+    const category = String(categoryRaw || 'MAINTENANCE').toUpperCase();
+
+    if (category !== 'MAINTENANCE' && category !== 'PARKING') {
+      return sendError(res, 'category must be MAINTENANCE or PARKING', 400);
+    }
+
+    if (category === 'PARKING') {
+      const allowed = await ensureBooleanPlanFeature(req, res, 'parking_management');
+      if (!allowed) return;
+    }
+
     if (!month || !defaultAmount || !dueDate) {
       return sendError(res, 'Month, defaultAmount, and dueDate are required', 400);
     }
@@ -53,17 +122,27 @@ async function bulkGenerate(req, res) {
       const currentDueDate = new Date(dueDate);
       currentDueDate.setMonth(currentDueDate.getMonth() + i);
 
-      const result = await billsService.bulkGenerateBills(
-        req.user.societyId,
-        currentMonth.toISOString(),
-        Number(defaultAmount),
-        currentDueDate,
-        req.user.id
-      );
+      const result =
+        category === 'PARKING'
+          ? await billsService.bulkGenerateParkingBills(
+              req.user.societyId,
+              currentMonth.toISOString(),
+              Number(defaultAmount),
+              currentDueDate,
+              req.user.id,
+            )
+          : await billsService.bulkGenerateBills(
+              req.user.societyId,
+              currentMonth.toISOString(),
+              Number(defaultAmount),
+              currentDueDate,
+              req.user.id,
+            );
       totalCreated += result.count;
     }
 
-    return sendSuccess(res, { count: totalCreated }, `Generated bills for ${cycles} month(s)`, 201);
+    const label = category === 'PARKING' ? 'parking' : 'maintenance';
+    return sendSuccess(res, { count: totalCreated }, `Generated ${label} bills for ${cycles} month(s)`, 201);
   } catch (error) {
     console.error('Bulk generate bills error:', error.message);
     return sendError(res, error.message, error.status || 500);
@@ -202,7 +281,13 @@ async function listSchedules(req, res) {
  */
 async function upsertSchedule(req, res) {
   try {
-    const { billingMonth, scheduledFor, defaultAmount, dueDate, isActive } = req.body || {};
+    const { billingMonth, scheduledFor, defaultAmount, dueDate, isActive, category } = req.body || {};
+    const cat = String(category || 'MAINTENANCE').toUpperCase();
+
+    if (cat === 'PARKING') {
+      const allowed = await ensureBooleanPlanFeature(req, res, 'parking_management');
+      if (!allowed) return;
+    }
 
     if (!billingMonth || !scheduledFor || !defaultAmount || !dueDate) {
       return sendError(res, 'billingMonth, scheduledFor, defaultAmount, and dueDate are required', 400);
@@ -210,7 +295,7 @@ async function upsertSchedule(req, res) {
 
     const schedule = await billsService.upsertMaintenanceBillSchedule(
       req.user.societyId,
-      { billingMonth, scheduledFor, defaultAmount, dueDate, isActive },
+      { billingMonth, scheduledFor, defaultAmount, dueDate, isActive, category: cat },
       req.user.id,
     );
 

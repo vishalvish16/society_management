@@ -13,6 +13,7 @@ import '../../bills/providers/bill_schedule_provider.dart';
 import '../../plans/screens/plans_screen.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../shared/widgets/app_page_header.dart';
+import '../../../shared/widgets/app_searchable_dropdown.dart';
 
 class BillScheduleScreen extends ConsumerWidget {
   const BillScheduleScreen({super.key});
@@ -162,6 +163,9 @@ class BillScheduleScreen extends ConsumerWidget {
                       final defaultAmount =
                           double.tryParse(s['defaultAmount']?.toString() ?? '') ??
                               0;
+                      final scheduleCategory =
+                          (s['category'] as String? ?? 'MAINTENANCE')
+                              .toUpperCase();
 
                       final monthLabel = billingMonth != null
                           ? DateFormat('MMM yyyy').format(billingMonth)
@@ -199,6 +203,12 @@ class BillScheduleScreen extends ConsumerWidget {
                               ],
                             ),
                             const SizedBox(height: AppDimensions.sm),
+                            _kv(
+                              'Type',
+                              scheduleCategory == 'PARKING'
+                                  ? 'Parking'
+                                  : 'Maintenance',
+                            ),
                             _kv('Schedule', scheduledLabel),
                             _kv('Amount', '₹${defaultAmount.toStringAsFixed(2)}'),
                             _kv('Due Date', dueLabel),
@@ -273,13 +283,18 @@ class BillScheduleScreen extends ConsumerWidget {
     final initialDueDate = _tryParseDate(initial?['dueDate']) ?? now.add(const Duration(days: 10));
     final initialAmount = double.tryParse(initial?['defaultAmount']?.toString() ?? '') ?? 1000;
     final initialActive = initial?['isActive'] == false ? false : true;
+    final rawCat = (initial?['category'] as String? ?? 'MAINTENANCE').toUpperCase();
+    final initialScheduleCategory = rawCat == 'PARKING' ? 'PARKING' : 'MAINTENANCE';
 
     final amountController = TextEditingController(text: initialAmount.toStringAsFixed(0));
     DateTime billingMonth = DateTime(initialBillingMonth.year, initialBillingMonth.month, 1);
     DateTime scheduledFor = initialScheduledFor;
     DateTime dueDate = initialDueDate;
     bool isActive = initialActive;
+    String scheduleCategory = initialScheduleCategory;
     bool isSaving = false;
+    final hasParking =
+        ref.read(authProvider).user?.hasFeature('parking_management') ?? false;
 
     await showAppSheet(
       context: context,
@@ -321,10 +336,28 @@ class BillScheduleScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: AppDimensions.xs),
                     Text(
-                      'Bills will be generated automatically for all occupied units.',
+                      scheduleCategory == 'PARKING'
+                          ? 'Parking: one bill per unit with an active parking allotment for the billing month.'
+                          : 'Maintenance: bills for all occupied units (same as manual generate).',
                       style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
                     ),
                     const SizedBox(height: AppDimensions.lg),
+                    AppSearchableDropdown<String>(
+                      label: 'Bill Type',
+                      value: scheduleCategory,
+                      items: [
+                        const AppDropdownItem(
+                          value: 'MAINTENANCE',
+                          label: 'Maintenance',
+                        ),
+                        if (hasParking || scheduleCategory == 'PARKING')
+                          const AppDropdownItem(value: 'PARKING', label: 'Parking'),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) setState(() => scheduleCategory = v);
+                      },
+                    ),
+                    const SizedBox(height: AppDimensions.md),
                     AppDateField(
                       label: 'Billing Month',
                       value: billingMonth,
@@ -450,6 +483,7 @@ class BillScheduleScreen extends ConsumerWidget {
                                 defaultAmount: amount,
                                 dueDate: dueDate,
                                 isActive: isActive,
+                                category: scheduleCategory,
                               );
                           if (ctx.mounted) {
                             setState(() => isSaving = false);

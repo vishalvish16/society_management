@@ -109,6 +109,93 @@ async function updatePaymentSettings(req, res) {
 }
 
 /**
+ * GET /api/settings/billing
+ * Billing settings for the caller's society (late fee policy, etc.).
+ * Accessible by all authenticated users.
+ */
+async function getBillingSettings(req, res) {
+  try {
+    const society = await prisma.society.findUnique({
+      where: { id: req.user.societyId },
+      select: { settings: true },
+    });
+    if (!society) return sendError(res, 'Society not found', 404);
+
+    const settings = society.settings || {};
+    const billing = {
+      lateFeeType: settings.late_fee_type || 'NONE', // NONE | FIXED | PER_DAY
+      lateFeeAmount: settings.late_fee_amount != null ? Number(settings.late_fee_amount) : 0,
+      lateFeeGraceDays: settings.late_fee_grace_days != null ? Number(settings.late_fee_grace_days) : 0,
+    };
+
+    return sendSuccess(res, billing, 'Billing settings retrieved');
+  } catch (err) {
+    return sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * PATCH /api/settings/billing
+ * Admin-only: update billing settings for the society.
+ * Body: { lateFeeType?, lateFeeAmount?, lateFeeGraceDays? }
+ */
+async function updateBillingSettings(req, res) {
+  try {
+    const { lateFeeType, lateFeeAmount, lateFeeGraceDays } = req.body || {};
+
+    const society = await prisma.society.findUnique({
+      where: { id: req.user.societyId },
+      select: { settings: true },
+    });
+    if (!society) return sendError(res, 'Society not found', 404);
+
+    const currentSettings = society.settings || {};
+    const updatedSettings = { ...currentSettings };
+
+    if (lateFeeType !== undefined) {
+      const t = String(lateFeeType || '').toUpperCase();
+      const allowed = new Set(['NONE', 'FIXED', 'PER_DAY']);
+      if (!allowed.has(t)) {
+        return sendError(res, 'lateFeeType must be one of NONE, FIXED, PER_DAY', 400);
+      }
+      updatedSettings.late_fee_type = t === 'NONE' ? null : t;
+    }
+
+    if (lateFeeGraceDays !== undefined) {
+      const n = Number(lateFeeGraceDays);
+      if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) {
+        return sendError(res, 'lateFeeGraceDays must be a non-negative integer', 400);
+      }
+      updatedSettings.late_fee_grace_days = n;
+    }
+
+    if (lateFeeAmount !== undefined) {
+      const n = Number(lateFeeAmount);
+      if (!Number.isFinite(n) || n < 0) {
+        return sendError(res, 'lateFeeAmount must be a non-negative number', 400);
+      }
+      updatedSettings.late_fee_amount = n;
+    }
+
+    // If late fee type is NONE, keep amount/graceDays but treat as disabled.
+    await prisma.society.update({
+      where: { id: req.user.societyId },
+      data: { settings: updatedSettings },
+    });
+
+    const billing = {
+      lateFeeType: updatedSettings.late_fee_type || 'NONE',
+      lateFeeAmount: updatedSettings.late_fee_amount != null ? Number(updatedSettings.late_fee_amount) : 0,
+      lateFeeGraceDays: updatedSettings.late_fee_grace_days != null ? Number(updatedSettings.late_fee_grace_days) : 0,
+    };
+
+    return sendSuccess(res, billing, 'Billing settings updated');
+  } catch (err) {
+    return sendError(res, err.message, 500);
+  }
+}
+
+/**
  * GET /api/settings/permissions
  */
 async function getRolePermissions(req, res) {
@@ -207,6 +294,8 @@ async function updateRolePermissions(req, res) {
 module.exports = {
   getPaymentSettings,
   updatePaymentSettings,
+  getBillingSettings,
+  updateBillingSettings,
   getRolePermissions,
   updateRolePermissions,
 };

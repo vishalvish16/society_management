@@ -4,13 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
-import '../../../core/providers/dio_provider.dart';
 import '../providers/societies_provider.dart';
 import '../../visitors/providers/visitor_config_provider.dart';
 import '../../plans/providers/plans_provider.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
 import '../../../shared/widgets/show_app_dialog.dart';
+import '../../estimates/providers/estimates_provider.dart';
 
 class SocietiesScreen extends ConsumerStatefulWidget {
   const SocietiesScreen({super.key});
@@ -72,9 +72,7 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header - desktop only
-            if (isMobile)
-              const SizedBox.shrink()
-            else
+            if (!isMobile)
               Row(
                 children: [
                   Expanded(
@@ -572,12 +570,12 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
     final nameCtrl = TextEditingController(text: currentChairmanName);
     String mode = 'auto'; // auto | manual
     bool obscure = true;
+    String? errorMsg;
+    bool saving = false;
     showAppDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) {
-          String? errorMsg;
-          bool saving = false;
           return AlertDialog(
             title: const Text('Reset Admin Password'),
             content: Column(
@@ -692,7 +690,7 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                 if (errorMsg != null) ...[
                   const SizedBox(height: 16),
                   Text(
-                    errorMsg!,
+                    errorMsg ?? '',
                     style: AppTextStyles.bodySmall.copyWith(
                       color: AppColors.danger,
                     ),
@@ -782,6 +780,8 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
     final cityC = TextEditingController(text: society?['city'] ?? '');
     final phoneC = TextEditingController(text: society?['contactPhone'] ?? '');
     final emailC = TextEditingController(text: society?['contactEmail'] ?? '');
+    final maxUnitsC = TextEditingController(text: society?['maxUnits']?.toString() ?? '');
+    final maxUsersC = TextEditingController(text: society?['maxUsers']?.toString() ?? '');
     final existingPlanName = society?['plan']?['name'] as String?;
     String selectedPlan = (existingPlanName ?? 'basic').toLowerCase();
     String selectedDuration = society?['planDuration'] ?? 'MONTHLY';
@@ -792,14 +792,13 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
     final pPhoneC = TextEditingController();
     final pEmailC = TextEditingController();
     final pPassC = TextEditingController();
+    String? errorMsg;
+    bool saving = false;
 
     showAppDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) {
-          String? errorMsg;
-          bool saving = false;
-
           return AlertDialog(
             title: Text(isEdit ? 'Edit Society' : 'Create New Society'),
             content: SizedBox(
@@ -863,6 +862,15 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                           (p) => p['name'].toString().toLowerCase() == selectedPlan.toLowerCase(),
                           orElse: () => {},
                         );
+                        final currentUnits = (society?['unitCount'] ?? 0) as int;
+                        final planMax = currentPlan['maxUnits'];
+                        final overrideUnits = int.tryParse(maxUnitsC.text.trim());
+                        final overrideUsers = int.tryParse(maxUsersC.text.trim());
+                        final effectiveMax = overrideUnits ?? planMax;
+                        final effectiveMaxUsers = overrideUsers ?? currentPlan['maxUsers'];
+                        final atLimit = effectiveMax != null &&
+                            effectiveMax != -1 &&
+                            currentUnits >= (effectiveMax as num).toInt();
 
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -897,11 +905,57 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                                     Row(
                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
-                                        _planInfoItem('Units', currentPlan['maxUnits'] == -1 ? 'Unlimited' : '${currentPlan['maxUnits']}'),
-                                        _planInfoItem('Users', currentPlan['maxUsers'] == -1 ? 'Unlimited' : '${currentPlan['maxUsers']}'),
+                                        _planInfoItem('Max Units', effectiveMax == -1 ? 'Unlimited' : '$effectiveMax'),
+                                        if (isEdit) _planInfoItem('Current', '$currentUnits'),
+                                        _planInfoItem('Max Users', effectiveMaxUsers == -1 ? 'Unlimited' : '$effectiveMaxUsers'),
                                         _planInfoItem('Rate', '₹${currentPlan['pricePerUnit']}/unit'),
                                       ],
                                     ),
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: TextField(
+                                            controller: maxUnitsC,
+                                            keyboardType: TextInputType.number,
+                                            decoration: const InputDecoration(
+                                              labelText: 'Max Units override',
+                                              hintText: 'Blank = use plan',
+                                              isDense: true,
+                                            ),
+                                            onChanged: (_) => setS(() {}),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: TextField(
+                                            controller: maxUsersC,
+                                            keyboardType: TextInputType.number,
+                                            decoration: const InputDecoration(
+                                              labelText: 'Max Users override',
+                                              hintText: 'Blank = use plan',
+                                              isDense: true,
+                                            ),
+                                            onChanged: (_) => setS(() {}),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (isEdit && effectiveMax != -1) ...[
+                                      const SizedBox(height: 8),
+                                      Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: Text(
+                                          atLimit
+                                              ? 'Unit limit reached. You can’t create more units unless you upgrade/raise Max Units.'
+                                              : 'Remaining units: ${(effectiveMax as num).toInt() - currentUnits}',
+                                          style: AppTextStyles.caption.copyWith(
+                                            color: atLimit ? AppColors.danger : AppColors.textMuted,
+                                            fontWeight: atLimit ? FontWeight.w600 : FontWeight.w400,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                     const SizedBox(height: 10),
                                     Row(
                                       children: [
@@ -994,7 +1048,7 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                           ),
                         ),
                         child: Text(
-                          errorMsg!,
+                          errorMsg ?? '',
                           style: AppTextStyles.bodySmall.copyWith(
                             color: AppColors.danger,
                           ),
@@ -1047,6 +1101,10 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                           data['planName'] = selectedPlan;
                           data['planDuration'] = selectedDuration;
                         }
+
+                        // Super Admin overrides (blank => null => use plan limit)
+                        data['maxUnits'] = maxUnitsC.text.trim().isEmpty ? null : int.tryParse(maxUnitsC.text.trim());
+                        data['maxUsers'] = maxUsersC.text.trim().isEmpty ? null : int.tryParse(maxUsersC.text.trim());
 
                         if (!isEdit) {
                           data['chairman'] = {
@@ -1421,6 +1479,10 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
     final adminPassErr = ValueNotifier<String?>(null);
     final trialDaysErr = ValueNotifier<String?>(null);
 
+    // Estimate linkage — set when user imports from an accepted estimate
+    String? linkedEstimateId;
+    String? linkedEstimateNumber;
+
     int step = 0;
     bool saving = false;
     String? societyId;
@@ -1480,6 +1542,122 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (step == 0) ...[
+                            // ── Estimate picker ───────────────────────────
+                            if (linkedEstimateNumber != null)
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: AppColors.successSurface,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: AppColors.success.withValues(alpha: 0.4)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.link_rounded, size: 16, color: AppColors.success),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Linked to estimate $linkedEstimateNumber',
+                                        style: AppTextStyles.bodySmall.copyWith(
+                                          color: AppColors.successText,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                    GestureDetector(
+                                      onTap: () => setSheetState(() {
+                                        linkedEstimateId = null;
+                                        linkedEstimateNumber = null;
+                                      }),
+                                      child: const Icon(Icons.close, size: 16, color: AppColors.success),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            OutlinedButton.icon(
+                              onPressed: () async {
+                                final result = await ref
+                                    .read(estimatesProvider.notifier)
+                                    .fetchAcceptedUnlinked();
+                                if (!context.mounted) return;
+                                if (result.error != null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(result.error!)),
+                                  );
+                                  return;
+                                }
+                                final estimates = result.estimates;
+                                if (estimates.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('No accepted estimates available')),
+                                  );
+                                  return;
+                                }
+                                // Show picker dialog
+                                final picked = await showDialog<Map<String, dynamic>>(
+                                  context: context,
+                                  builder: (dCtx) => AlertDialog(
+                                    title: Text('Select Estimate', style: AppTextStyles.h2),
+                                    content: SizedBox(
+                                      width: 380,
+                                      child: ListView.separated(
+                                        shrinkWrap: true,
+                                        itemCount: estimates.length,
+                                        separatorBuilder: (_, _) => const Divider(height: 1),
+                                        itemBuilder: (_, i) {
+                                          final e = estimates[i];
+                                          final planLabel = e['plan']?['displayName'] ?? e['plan']?['name'] ?? '';
+                                          return ListTile(
+                                            title: Text(e['societyName'] ?? '', style: AppTextStyles.bodyMedium),
+                                            subtitle: Text(
+                                              '${e['estimateNumber']} • ${e['unitCount']} units • $planLabel',
+                                              style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                                            ),
+                                            trailing: Text(
+                                              '₹${e['totalAmount']}',
+                                              style: AppTextStyles.labelLarge.copyWith(color: AppColors.primary),
+                                            ),
+                                            onTap: () => Navigator.pop(dCtx, e),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(dCtx),
+                                        child: const Text('Cancel'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (picked == null) return;
+                                // Auto-fill form from estimate
+                                setSheetState(() {
+                                  linkedEstimateId = picked['id'] as String?;
+                                  linkedEstimateNumber = picked['estimateNumber'] as String?;
+                                  nameC.text = picked['societyName'] ?? '';
+                                  cityC.text = picked['city'] ?? '';
+                                  phoneC.text = picked['contactPhone'] ?? '';
+                                  emailC.text = picked['contactEmail'] ?? '';
+                                  unitsC.text = (picked['unitCount'] ?? '').toString();
+                                  // Pre-select plan from estimate
+                                  final planName = picked['plan']?['name']?.toString().toLowerCase() ?? 'standard';
+                                  if (['basic', 'standard', 'premium'].contains(planName)) {
+                                    selectedPlan = planName;
+                                  }
+                                  final dur = picked['duration']?.toString() ?? 'MONTHLY';
+                                  selectedDuration = dur;
+                                });
+                              },
+                              icon: const Icon(Icons.description_outlined, size: 16),
+                              label: const Text('Import from Estimate'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.primary,
+                                minimumSize: const Size(double.infinity, 42),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
                             ValueListenableBuilder<String?>(
                               valueListenable: nameErr,
                               builder: (_, err, __) => TextField(
@@ -1809,6 +1987,7 @@ class _SocietiesScreenState extends ConsumerState<SocietiesScreen> {
                                           'city': city,
                                           'contactPhone': phoneC.text.trim(),
                                           'contactEmail': emailC.text.trim(),
+                                          if (linkedEstimateId case final eid?) 'estimateId': eid,
                                           'settings': {
                                             if (wingsC.text.trim().isNotEmpty)
                                               'wings':

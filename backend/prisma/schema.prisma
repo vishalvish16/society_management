@@ -315,8 +315,28 @@ model Plan {
   societies    Society[]
 
   subscriptionPayments SubscriptionPayment[]
+  pricingTiers         PricingTier[]
+  estimates            Estimate[]
 
   @@map("plans")
+}
+
+/// Tiered per-unit pricing rules for a plan.
+/// When pricing a subscription, the tier whose minUnits <= unitCount <= maxUnits applies.
+/// maxUnits = -1 means "no upper bound" (i.e. this tier is the ceiling).
+model PricingTier {
+  id           String   @id @default(uuid())
+  planId       String
+  plan         Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  minUnits     Int // e.g. 150
+  maxUnits     Int // e.g. -1 for "150+"
+  pricePerUnit Decimal  @db.Decimal(10, 2)
+  label        String? // e.g. "150+ units"
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("pricing_tiers")
 }
 
 model Society {
@@ -332,8 +352,8 @@ model Society {
   planStartDate   DateTime
   planRenewalDate DateTime
   planDuration    String?       @default("MONTHLY") // MONTHLY, THREE_MONTHS, SIX_MONTHS, YEARLY
-  maxUnits        Int?          // per-society override; null = use plan limit
-  maxUsers        Int?          // per-society override; null = use plan limit
+  maxUnits        Int? // per-society override; null = use plan limit
+  maxUsers        Int? // per-society override; null = use plan limit
   status          SocietyStatus @default(ACTIVE)
   settings        Json?
   // settings shape: { late_fee_type, late_fee_amount, due_day, qr_expiry_mins,
@@ -352,6 +372,7 @@ model Society {
   complaints               Complaint[]
   suggestions              Suggestion[]
   staff                    Staff[]
+  staffSalaryPayments      StaffSalaryPayment[]
   subscriptionPayments     SubscriptionPayment[]
   domesticHelps            DomesticHelp[]
   deliveries               Delivery[]
@@ -475,29 +496,29 @@ model DomesticHelpLog {
 }
 
 model Delivery {
-  id          String         @id @default(uuid())
-  societyId   String
-  society     Society        @relation(fields: [societyId], references: [id])
-  unitId      String
-  unit        Unit           @relation(fields: [unitId], references: [id])
-  loggedById  String
-  agentName   String
-  company     String?
-  description String?
-  status      DeliveryStatus @default(PENDING)
-  notifiedAt  DateTime?
-  respondedAt DateTime?
-  respondedBy String?
-  collectedAt DateTime?
-  collectedBy String?
-  receivedAt  DateTime?
-  receivedBy  String?
+  id               String         @id @default(uuid())
+  societyId        String
+  society          Society        @relation(fields: [societyId], references: [id])
+  unitId           String
+  unit             Unit           @relation(fields: [unitId], references: [id])
+  loggedById       String
+  agentName        String
+  company          String?
+  description      String?
+  status           DeliveryStatus @default(PENDING)
+  notifiedAt       DateTime?
+  respondedAt      DateTime?
+  respondedBy      String?
+  collectedAt      DateTime?
+  collectedBy      String?
+  receivedAt       DateTime?
+  receivedBy       String?
   receivedPhotoUrl String?
-  returnedAt  DateTime?
-  photoUrl    String?
-  droppedAt   DateTime?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  returnedAt       DateTime?
+  photoUrl         String?
+  droppedAt        DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
   @@index([societyId])
   @@index([status])
@@ -769,26 +790,26 @@ model AmenityBooking {
 }
 
 model GatePass {
-  id              String         @id @default(uuid())
+  id              String            @id @default(uuid())
   societyId       String
-  society         Society        @relation(fields: [societyId], references: [id])
+  society         Society           @relation(fields: [societyId], references: [id])
   unitId          String
-  unit            Unit           @relation(fields: [unitId], references: [id])
+  unit            Unit              @relation(fields: [unitId], references: [id])
   createdById     String
-  createdBy       User           @relation("CreatedGatePasses", fields: [createdById], references: [id])
-  passCode        String         @unique // 8-char readable alphanumeric
+  createdBy       User              @relation("CreatedGatePasses", fields: [createdById], references: [id])
+  passCode        String            @unique // 8-char readable alphanumeric
   itemDescription String
   reason          String?
   validFrom       DateTime
   validTo         DateTime
-  status          GatePassStatus @default(ACTIVE)
+  status          GatePassStatus    @default(ACTIVE)
   scannedById     String?
-  scannedBy       User?          @relation("ScannedGatePasses", fields: [scannedById], references: [id], onDelete: SetNull)
+  scannedBy       User?             @relation("ScannedGatePasses", fields: [scannedById], references: [id], onDelete: SetNull)
   scannedAt       DateTime?
   decision        GatePassDecision?
   decisionNote    String?
   notes           String?
-  createdAt       DateTime       @default(now())
+  createdAt       DateTime          @default(now())
   logs            GatePassLog[]
 
   @@index([societyId])
@@ -797,15 +818,15 @@ model GatePass {
 }
 
 model GatePassLog {
-  id         String           @id @default(uuid())
-  gatePassId String
-  gatePass   GatePass         @relation(fields: [gatePassId], references: [id], onDelete: Cascade)
+  id          String            @id @default(uuid())
+  gatePassId  String
+  gatePass    GatePass          @relation(fields: [gatePassId], references: [id], onDelete: Cascade)
   scannedById String?
-  scannedBy  User?            @relation(fields: [scannedById], references: [id], onDelete: SetNull)
-  result     String           // VALID | EXPIRED | USED | CANCELLED | NOT_YET_VALID | INVALID
-  decision   GatePassDecision?
-  note       String?
-  scannedAt  DateTime         @default(now())
+  scannedBy   User?             @relation(fields: [scannedById], references: [id], onDelete: SetNull)
+  result      String // VALID | EXPIRED | USED | CANCELLED | NOT_YET_VALID | INVALID
+  decision    GatePassDecision?
+  note        String?
+  scannedAt   DateTime          @default(now())
 
   @@index([gatePassId])
   @@index([scannedById])
@@ -836,58 +857,60 @@ model User {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  unitResidents        UnitResident[]
-  bills                MaintenanceBill[]
-  generatedBills       MaintenanceBill[]         @relation("GeneratedBills")
-  deletedBills         MaintenanceBill[]         @relation("DeletedBills")
-  billAuditLogs        BillAuditLog[]
-  raisedComplaints     Complaint[]               @relation("RaisedBy")
-  assignedComplaints   Complaint[]               @relation("AssignedTo")
-  updatedComplaints    Complaint[]               @relation("ComplaintUpdatedBy")
-  deletedComplaints    Complaint[]               @relation("ComplaintDeletedBy")
-  raisedSuggestions    Suggestion[]              @relation("RaisedSuggestions")
-  assignedSuggestions  Suggestion[]              @relation("AssignedSuggestions")
-  updatedSuggestions   Suggestion[]              @relation("SuggestionUpdatedBy")
-  deletedSuggestions   Suggestion[]              @relation("SuggestionDeletedBy")
-  markedAttendance     StaffAttendance[]
-  refreshTokens        RefreshToken[]
-  submittedExpenses    Expense[]                 @relation("SubmittedExpenses")
-  approvedExpenses     Expense[]                 @relation("ApprovedExpenses")
-  invitedVisitors      Visitor[]                 @relation("InvitedVisitors")
-  scannedLogs          VisitorLog[]              @relation("scannedLogs")
-  createdGatePasses    GatePass[]                @relation("CreatedGatePasses")
-  scannedGatePasses    GatePass[]                @relation("ScannedGatePasses")
-  gatePassLogs         GatePassLog[]
-  sentNotifications    Notification[]            @relation("sentNotifications")
-  createdNotices       Notice[]                  @relation("createdNotices")
-  staffProfile         Staff?
-  donations            Donation[]                @relation("MadeDonations")
-  amenityBookings      AmenityBooking[]          @relation("AmenityBookings")
-  createdBillSchedules MaintenanceBillSchedule[]
-  createdLedgerEntries LedgerEntry[]             @relation("LedgerEntryCreatedBy")
-  chatMemberships      ChatRoomMember[]          @relation("ChatMemberships")
-  sentMessages         ChatMessage[]             @relation("SentMessages")
-  createdPolls         Poll[]                    @relation("CreatedPolls")
-  pollRecipients       PollRecipient[]           @relation("PollRecipients")
-  pollVotes            PollVote[]                @relation("PollVotes")
-  createdEvents        Event[]                   @relation("CreatedEvents")
-  eventRegistrations   EventRegistration[]       @relation("EventRegistrations")
-  ownedRentals         RentalRecord[]            @relation("RentalOwner")
-  tenantRentals        RentalRecord[]            @relation("RentalTenant")
-  createdTasks         Task[]                    @relation("CreatedTasks")
-  assignedTasks        TaskAssignee[]            @relation("TaskAssignees")
-  taskComments         TaskComment[]             @relation("TaskComments")
-  societyRulesCreated  SocietyRule[]             @relation("SocietyRuleCreator")
-  createdAssets        Asset[]                   @relation("CreatedAssets")
-  assetMaintenanceLogs AssetMaintenanceLog[]     @relation("AssetMaintenanceLogs")
-  wallPosts            WallPost[]                @relation("WallPostAuthor")
-  wallComments         WallComment[]             @relation("WallCommentAuthor")
-  wallPostLikes        WallPostLike[]            @relation("WallPostLikes")
-  householdMembers     HouseholdMember[]
+  unitResidents                UnitResident[]
+  bills                        MaintenanceBill[]
+  generatedBills               MaintenanceBill[]         @relation("GeneratedBills")
+  deletedBills                 MaintenanceBill[]         @relation("DeletedBills")
+  billAuditLogs                BillAuditLog[]
+  raisedComplaints             Complaint[]               @relation("RaisedBy")
+  assignedComplaints           Complaint[]               @relation("AssignedTo")
+  updatedComplaints            Complaint[]               @relation("ComplaintUpdatedBy")
+  deletedComplaints            Complaint[]               @relation("ComplaintDeletedBy")
+  raisedSuggestions            Suggestion[]              @relation("RaisedSuggestions")
+  assignedSuggestions          Suggestion[]              @relation("AssignedSuggestions")
+  updatedSuggestions           Suggestion[]              @relation("SuggestionUpdatedBy")
+  deletedSuggestions           Suggestion[]              @relation("SuggestionDeletedBy")
+  markedAttendance             StaffAttendance[]
+  staffSalaryPaymentsPaid      StaffSalaryPayment[]      @relation("StaffSalaryPaymentsPaidBy")
+  staffSalaryPaymentsCancelled StaffSalaryPayment[]      @relation("StaffSalaryPaymentsCancelledBy")
+  refreshTokens                RefreshToken[]
+  submittedExpenses            Expense[]                 @relation("SubmittedExpenses")
+  approvedExpenses             Expense[]                 @relation("ApprovedExpenses")
+  invitedVisitors              Visitor[]                 @relation("InvitedVisitors")
+  scannedLogs                  VisitorLog[]              @relation("scannedLogs")
+  createdGatePasses            GatePass[]                @relation("CreatedGatePasses")
+  scannedGatePasses            GatePass[]                @relation("ScannedGatePasses")
+  gatePassLogs                 GatePassLog[]
+  sentNotifications            Notification[]            @relation("sentNotifications")
+  createdNotices               Notice[]                  @relation("createdNotices")
+  staffProfile                 Staff?
+  donations                    Donation[]                @relation("MadeDonations")
+  amenityBookings              AmenityBooking[]          @relation("AmenityBookings")
+  createdBillSchedules         MaintenanceBillSchedule[]
+  createdLedgerEntries         LedgerEntry[]             @relation("LedgerEntryCreatedBy")
+  chatMemberships              ChatRoomMember[]          @relation("ChatMemberships")
+  sentMessages                 ChatMessage[]             @relation("SentMessages")
+  createdPolls                 Poll[]                    @relation("CreatedPolls")
+  pollRecipients               PollRecipient[]           @relation("PollRecipients")
+  pollVotes                    PollVote[]                @relation("PollVotes")
+  createdEvents                Event[]                   @relation("CreatedEvents")
+  eventRegistrations           EventRegistration[]       @relation("EventRegistrations")
+  ownedRentals                 RentalRecord[]            @relation("RentalOwner")
+  tenantRentals                RentalRecord[]            @relation("RentalTenant")
+  createdTasks                 Task[]                    @relation("CreatedTasks")
+  assignedTasks                TaskAssignee[]            @relation("TaskAssignees")
+  taskComments                 TaskComment[]             @relation("TaskComments")
+  societyRulesCreated          SocietyRule[]             @relation("SocietyRuleCreator")
+  createdAssets                Asset[]                   @relation("CreatedAssets")
+  assetMaintenanceLogs         AssetMaintenanceLog[]     @relation("AssetMaintenanceLogs")
+  wallPosts                    WallPost[]                @relation("WallPostAuthor")
+  wallComments                 WallComment[]             @relation("WallCommentAuthor")
+  wallPostLikes                WallPostLike[]            @relation("WallPostLikes")
+  householdMembers             HouseholdMember[]
 
-  registeredVehicles Vehicle[] @relation("RegisteredVehicles")
-  updatedVehicles    Vehicle[] @relation("UpdatedVehicles")
-  removedVehicles    Vehicle[] @relation("RemovedVehicles")
+  registeredVehicles Vehicle[]         @relation("RegisteredVehicles")
+  updatedVehicles    Vehicle[]         @relation("UpdatedVehicles")
+  removedVehicles    Vehicle[]         @relation("RemovedVehicles")
   vehicleAuditLogs   VehicleAuditLog[]
 
   @@map("users")
@@ -898,9 +921,9 @@ model HouseholdMember {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name      String
-  relation  String   // SPOUSE, CHILD, FATHER, MOTHER, PARENT, SIBLING, OTHER
+  relation  String // SPOUSE, CHILD, FATHER, MOTHER, PARENT, SIBLING, OTHER
   age       Int?
-  gender    String?  // MALE, FEMALE, OTHER
+  gender    String? // MALE, FEMALE, OTHER
   phone     String?
   isAdult   Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -1041,9 +1064,9 @@ model RentalMember {
   rentalRecordId String
   rentalRecord   RentalRecord @relation(fields: [rentalRecordId], references: [id], onDelete: Cascade)
   name           String
-  relation       String       // SELF, SPOUSE, CHILD, PARENT, SIBLING, OTHER
+  relation       String // SELF, SPOUSE, CHILD, PARENT, SIBLING, OTHER
   age            Int?
-  gender         String?      // MALE, FEMALE, OTHER
+  gender         String? // MALE, FEMALE, OTHER
   phone          String?
   isAdult        Boolean      @default(true)
   aadhaarNumber  String?
@@ -1133,6 +1156,9 @@ model MaintenanceBillSchedule {
   /// Due date assigned to generated bills.
   dueDate DateTime
 
+  /// MAINTENANCE | PARKING — which generator runMaintenanceBillScheduleSweep invokes.
+  category String @default("MAINTENANCE")
+
   isActive   Boolean   @default(true)
   lastRunAt  DateTime?
   executedAt DateTime?
@@ -1143,7 +1169,7 @@ model MaintenanceBillSchedule {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([societyId, billingMonth])
+  @@unique([societyId, billingMonth, category])
   @@index([societyId, isActive])
   @@index([scheduledFor])
   @@map("maintenance_bill_schedules")
@@ -1167,7 +1193,7 @@ model Expense {
   rejectionReason String?
   /// How the expense was paid (drives cash vs bank reports). Set on approval.
   paymentMethod   PaymentMethod?
-  referenceId     String?         // Transaction ref, check number, etc.
+  referenceId     String? // Transaction ref, check number, etc.
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
@@ -1342,12 +1368,12 @@ model Complaint {
   transactionId String?
   paidAt        DateTime?
 
-  updatedById   String?
-  updatedBy     User?     @relation("ComplaintUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
-  updatedAt     DateTime  @updatedAt
-  deletedById   String?
-  deletedBy     User?     @relation("ComplaintDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
-  createdAt     DateTime  @default(now())
+  updatedById String?
+  updatedBy   User?    @relation("ComplaintUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedAt   DateTime @updatedAt
+  deletedById String?
+  deletedBy   User?    @relation("ComplaintDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
 
   @@index([societyId])
   @@index([status])
@@ -1419,24 +1445,25 @@ model SuggestionAttachment {
 }
 
 model Staff {
-  id                String            @id @default(uuid())
+  id                String               @id @default(uuid())
   societyId         String
-  society           Society           @relation(fields: [societyId], references: [id])
+  society           Society              @relation(fields: [societyId], references: [id])
   name              String
   role              String
   phone             String?
-  salary            Decimal           @db.Decimal(10, 2)
+  salary            Decimal              @db.Decimal(10, 2)
   joiningDate       DateTime?
-  isActive          Boolean           @default(true)
-  createdAt         DateTime          @default(now())
+  isActive          Boolean              @default(true)
+  createdAt         DateTime             @default(now())
   attendance        StaffAttendance[]
+  salaryPayments    StaffSalaryPayment[]
   /// Linked User account (only for watchman — gives them app login access)
-  userId            String?           @unique
-  user              User?             @relation(fields: [userId], references: [id])
+  userId            String?              @unique
+  user              User?                @relation(fields: [userId], references: [id])
   /// Primary posting: one gate at a time (optional).
   gateId            String?
-  gate              SocietyGate?      @relation(fields: [gateId], references: [id], onDelete: SetNull)
-  shift             StaffShift        @default(FULL)
+  gate              SocietyGate?         @relation(fields: [gateId], references: [id], onDelete: SetNull)
+  shift             StaffShift           @default(FULL)
   /// Wings this staff covers (e.g. maintenance for A+B). Empty/null = society-wide / not wing-specific.
   assignedWingCodes Json?
 
@@ -1457,6 +1484,43 @@ model StaffAttendance {
 
   @@unique([staffId, date])
   @@map("staff_attendance")
+}
+
+/// Records salary payouts for a staff member for a specific period.
+/// This powers "Paid/Unpaid" status in payroll summary and prevents double-paying.
+model StaffSalaryPayment {
+  id        String  @id @default(uuid())
+  societyId String
+  society   Society @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  staffId   String
+  staff     Staff   @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  periodFrom  DateTime @db.Date
+  periodTo    DateTime @db.Date
+  divisorDays Int
+  rules       Json? // snapshot: paidLeave, halfDayFactor, divisorMode, holidays, etc.
+
+  amount        Decimal       @db.Decimal(10, 2)
+  paymentMethod PaymentMethod @default(CASH)
+  note          String?
+
+  paidAt   DateTime @default(now())
+  paidById String?
+  paidBy   User?    @relation("StaffSalaryPaymentsPaidBy", fields: [paidById], references: [id], onDelete: SetNull)
+
+  cancelledAt   DateTime?
+  cancelledById String?
+  cancelledBy   User?     @relation("StaffSalaryPaymentsCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  cancelReason  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([societyId, staffId, periodFrom, periodTo])
+  @@index([societyId, periodFrom, periodTo])
+  @@index([staffId])
+  @@index([societyId, cancelledAt])
+  @@map("staff_salary_payments")
 }
 
 model SubscriptionPayment {
@@ -1937,19 +2001,19 @@ model SocietyRule {
 // ─── Society Wall ─────────────────────────────────────────────────────────────
 
 model WallPost {
-  id          String            @id @default(uuid())
-  societyId   String
-  society     Society           @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  authorId    String
-  author      User              @relation("WallPostAuthor", fields: [authorId], references: [id])
-  body        String?           // text content (optional if media present)
-  isHidden    Boolean           @default(false)
-  deletedAt   DateTime?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  media       WallPostMedia[]
-  comments    WallComment[]
-  likes       WallPostLike[]
+  id        String          @id @default(uuid())
+  societyId String
+  society   Society         @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User            @relation("WallPostAuthor", fields: [authorId], references: [id])
+  body      String? // text content (optional if media present)
+  isHidden  Boolean         @default(false)
+  deletedAt DateTime?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  media     WallPostMedia[]
+  comments  WallComment[]
+  likes     WallPostLike[]
 
   @@index([societyId, deletedAt, isHidden, createdAt(sort: Desc)])
   @@index([authorId])
@@ -1957,14 +2021,14 @@ model WallPost {
 }
 
 model WallPostMedia {
-  id        String    @id @default(uuid())
+  id        String   @id @default(uuid())
   postId    String
-  post      WallPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post      WallPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   url       String
-  mediaType String    // IMAGE | VIDEO
+  mediaType String // IMAGE | VIDEO
   fileName  String
   fileSize  Int
-  sortOrder Int       @default(0)
+  sortOrder Int      @default(0)
 
   @@index([postId])
   @@map("wall_post_media")
@@ -1997,4 +2061,49 @@ model WallComment {
   @@index([postId, deletedAt, createdAt])
   @@index([authorId])
   @@map("wall_comments")
+}
+
+// ─── Estimates ────────────────────────────────────────────────────────
+
+enum EstimateStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  CLOSED
+}
+
+/// Pre-sales estimate shared with a prospective society.
+/// On acceptance, the estimate is linked to the created society.
+model Estimate {
+  id              String         @id @default(uuid())
+  estimateNumber  String         @unique // e.g. EST-2024-0001
+  societyName     String
+  contactPerson   String?
+  contactPhone    String?
+  contactEmail    String?
+  city            String?
+  unitCount       Int
+  planId          String
+  plan            Plan           @relation(fields: [planId], references: [id])
+  duration        String         @default("MONTHLY") // MONTHLY, THREE_MONTHS, SIX_MONTHS, YEARLY
+  pricePerUnit    Decimal        @db.Decimal(10, 2)
+  subtotal        Decimal        @db.Decimal(10, 2)
+  discountPercent Decimal        @default(0) @db.Decimal(5, 2)
+  discountAmount  Decimal        @default(0) @db.Decimal(10, 2)
+  totalAmount     Decimal        @db.Decimal(10, 2)
+  requirements    Json? // free-form feature notes / checklist
+  notes           String?
+  status          EstimateStatus @default(DRAFT)
+  closeReason     String? // filled when CLOSED/REJECTED
+  sentAt          DateTime?
+  acceptedAt      DateTime?
+  linkedSocietyId String? // set when society is created from this estimate
+  createdById     String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([status])
+  @@index([linkedSocietyId])
+  @@map("estimates")
 }

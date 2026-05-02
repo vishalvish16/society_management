@@ -6,14 +6,22 @@ class AppConstants {
   // For Flutter web (browser), use localhost.
   // static const String apiBaseUrl = 'http://localhost:3001/api/';
   static const String apiBaseUrl =
-      'https://treasury-praise-theatre-orientation.trycloudflare.com/api/';
+      'https://appendix-meat-operators-protocols.trycloudflare.com/api/';
 
-  /// Server root for static `/uploads/...` paths returned by the API.
+  /// Server root (scheme+host) derived from `apiBaseUrl`.
   static String get uploadsBaseUrl => apiBaseUrl.replaceAll('/api/', '');
 
   static String? uploadUrlFromPath(String? relative) {
     if (relative == null || relative.isEmpty) return null;
     if (relative.startsWith('http')) return relative;
-    return '$uploadsBaseUrl$relative';
+
+    final r = relative.trim();
+    // DB stores `/uploads/...` and backend serves it publicly.
+    if (r.startsWith('/uploads/')) return '$uploadsBaseUrl$r';
+
+    // Already an API path (or absolute-from-root path).
+    if (r.startsWith('/api/')) return '$uploadsBaseUrl$r';
+    if (r.startsWith('/')) return '$uploadsBaseUrl$r';
+    return '$uploadsBaseUrl/$r';
   }
 }

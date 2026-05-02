@@ -22,7 +22,6 @@ class SMShell extends ConsumerStatefulWidget {
 
 class _SMShellState extends ConsumerState<SMShell> {
   int _selectedIndex = 0;
-  final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   // Backend configurable roles: only these should be affected by Settings -> Permissions toggles.
   // Matches backend `CONFIGURABLE_ROLES` list in `settings.controller.js`.
@@ -188,12 +187,17 @@ class _SMShellState extends ConsumerState<SMShell> {
     context.go(path);
   }
 
-  void _onMobileBottomTap(int index, List<_NavItem> navItems, [List<_NavItem>? bottomItems]) {
+  void _onMobileBottomTap(
+    BuildContext ctx,
+    int index,
+    List<_NavItem> navItems, [
+    List<_NavItem>? bottomItems,
+  ]) {
     final items = bottomItems ?? _mobileBottomItems;
     if (index >= items.length) return;
     final item = items[index];
     if (item.path == '__menu__') {
-      _scaffoldKey.currentState?.openDrawer();
+      Scaffold.of(ctx).openDrawer();
       return;
     }
     final mainIndex = navItems.indexWhere((n) => n.path == item.path);
@@ -292,7 +296,6 @@ class _SMShellState extends ConsumerState<SMShell> {
     }
 
     return Scaffold(
-      key: _scaffoldKey,
       drawer: isWide ? null : _buildDrawer(authState, navItems, isUnitLocked),
       // Mobile top app bar with hamburger
       appBar: isWide
@@ -307,18 +310,20 @@ class _SMShellState extends ConsumerState<SMShell> {
                 color: Theme.of(context).colorScheme.onSurface,
               ),
               elevation: 0,
-              leading: IconButton(
-                icon: Icon(
-                  isSubPage ? Icons.arrow_back_rounded : Icons.menu_rounded,
-                  color: Theme.of(context).colorScheme.onSurface,
+              leading: Builder(
+                builder: (ctx) => IconButton(
+                  icon: Icon(
+                    isSubPage ? Icons.arrow_back_rounded : Icons.menu_rounded,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  onPressed: () {
+                    if (isSubPage) {
+                      context.go(moduleRoot);
+                      return;
+                    }
+                    Scaffold.of(ctx).openDrawer();
+                  },
                 ),
-                onPressed: () {
-                  if (isSubPage) {
-                    context.go(moduleRoot);
-                    return;
-                  }
-                  _scaffoldKey.currentState?.openDrawer();
-                },
               ),
               title: Row(
                 children: [
@@ -407,16 +412,18 @@ class _SMShellState extends ConsumerState<SMShell> {
       ),
       bottomNavigationBar: isWide
           ? null
-          : NavigationBar(
-              selectedIndex: _mobileBottomIndex(navItems, bottomItems),
-              onDestinationSelected: (i) => _onMobileBottomTap(i, navItems, bottomItems),
-              height: 64,
-              destinations: bottomItems
-                  .map((item) => NavigationDestination(
-                        icon: Icon(item.icon),
-                        label: item.label,
-                      ))
-                  .toList(),
+          : Builder(
+              builder: (ctx) => NavigationBar(
+                selectedIndex: _mobileBottomIndex(navItems, bottomItems),
+                onDestinationSelected: (i) => _onMobileBottomTap(ctx, i, navItems, bottomItems),
+                height: 64,
+                destinations: bottomItems
+                    .map((item) => NavigationDestination(
+                          icon: Icon(item.icon),
+                          label: item.label,
+                        ))
+                    .toList(),
+              ),
             ),
     );
   }

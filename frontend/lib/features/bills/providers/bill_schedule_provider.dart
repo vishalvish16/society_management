@@ -46,6 +46,7 @@ class BillSchedulesNotifier
     required double defaultAmount,
     required DateTime dueDate,
     bool isActive = true,
+    String category = 'MAINTENANCE',
   }) async {
     try {
       final dio = ref.read(dioProvider);
@@ -55,6 +56,7 @@ class BillSchedulesNotifier
         'defaultAmount': defaultAmount,
         'dueDate': dueDate.toIso8601String(),
         'isActive': isActive,
+        'category': category,
       });
 
       if (response.data['success'] == true) {

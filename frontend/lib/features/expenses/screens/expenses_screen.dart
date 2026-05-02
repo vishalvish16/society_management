@@ -18,6 +18,8 @@ import '../../../shared/widgets/app_status_chip.dart';
 import '../providers/expense_provider.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
+import '../../../shared/widgets/app_page_header.dart';
+import '../../../shared/widgets/app_module_scaffold.dart';
 
 class ExpensesScreen extends ConsumerStatefulWidget {
   const ExpensesScreen({super.key});
@@ -72,68 +74,31 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
     final notifier = ref.read(expensesProvider.notifier);
     final fmt = NumberFormat('#,##0');
 
-    final isWide = MediaQuery.of(context).size.width >= 768;
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: isWide
-          ? AppBar(
-              backgroundColor: AppColors.primary,
-              title: Text(
-                'Expenses',
-                style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary),
-              ),
-            )
-          : null,
-      floatingActionButton: isAdmin
-          ? FloatingActionButton.extended(
+    return AppModuleScaffold(
+      title: 'Expenses',
+      icon: Icons.account_balance_wallet_rounded,
+      filterRow: AppFilterChipRow(
+        darkBackground: true,
+        selected: _statusFilter,
+        onSelected: (s) => setState(() => _statusFilter = s),
+        options: [
+          for (final s in ['all', 'pending', 'approved', 'rejected'])
+            FilterOption(
+              s,
+              s == 'all' ? 'All' : s[0].toUpperCase() + s.substring(1),
+            ),
+        ],
+      ),
+      primaryFab: isAdmin
+          ? ModuleFabConfig(
               onPressed: () => _showAddDialog(context),
-              backgroundColor: AppColors.primary,
-              icon: const Icon(Icons.add, color: AppColors.textOnPrimary),
-              label: Text(
-                'Add Expense',
-                style: AppTextStyles.labelLarge.copyWith(
-                  color: AppColors.textOnPrimary,
-                ),
-              ),
+              icon: Icons.add,
+              tooltip: 'Add expense',
+              wideExtendedLabel: 'Add Expense',
             )
           : null,
-      body: Column(
-        children: [
-          Container(
-            color: AppColors.surface,
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppDimensions.screenPadding,
-              vertical: AppDimensions.sm,
-            ),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (final s in ['all', 'pending', 'approved', 'rejected'])
-                    Padding(
-                      padding: const EdgeInsets.only(right: AppDimensions.sm),
-                      child: ChoiceChip(
-                        label: Text(
-                          s == 'all'
-                              ? 'All'
-                              : s[0].toUpperCase() + s.substring(1),
-                        ),
-                        selected: _statusFilter == s,
-                        selectedColor: AppColors.primarySurface,
-                        labelStyle: AppTextStyles.labelMedium.copyWith(
-                          color: _statusFilter == s
-                              ? AppColors.primary
-                              : AppColors.textMuted,
-                        ),
-                        onSelected: (_) => setState(() => _statusFilter = s),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          Expanded(
-            child: expensesAsync.when(
+      fabHeroTagPrefix: 'expenses',
+      child: expensesAsync.when(
               loading: () => const AppLoadingShimmer(),
               error: (e, _) => Center(
                 child: Padding(
@@ -396,9 +361,6 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                 );
               },
             ),
-          ),
-        ],
-      ),
     );
   }
 

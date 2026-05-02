@@ -106,10 +106,36 @@ async function getSubscriptionReport(req, res, next) {
   }
 }
 
+async function suspendSociety(req, res, next) {
+  try {
+    const { reason } = req.body;
+    const result = await subscriptionsService.suspendSociety(req.params.societyId, {
+      reason,
+      suspendedById: req.user?.id,
+    });
+    return sendSuccess(res, result, 'Society suspended');
+  } catch (err) {
+    if (err.status) return sendError(res, err.message, err.status);
+    next(err);
+  }
+}
+
+async function reactivateSociety(req, res, next) {
+  try {
+    const result = await subscriptionsService.reactivateSociety(req.params.societyId);
+    return sendSuccess(res, result, 'Society reactivated');
+  } catch (err) {
+    if (err.status) return sendError(res, err.message, err.status);
+    next(err);
+  }
+}
+
 module.exports = {
   listSubscriptions,
   getSubscription,
   assignPlan,
   renewSubscription,
   getSubscriptionReport,
+  suspendSociety,
+  reactivateSociety,
 };

@@ -16,6 +16,7 @@ import '../providers/complaints_provider.dart';
 import '../../../shared/widgets/unit_picker_field.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
 import '../../../shared/widgets/app_page_header.dart';
+import '../../../shared/widgets/app_module_scaffold.dart';
 import '../../../shared/utils/pick_camera_photo.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
 import '../../members/providers/members_provider.dart';
@@ -94,59 +95,38 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
       });
     }
 
-    final isWide = MediaQuery.of(context).size.width >= 768;
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: isWide
-          ? AppBar(
-              backgroundColor: AppColors.primary,
-              title: Text('Complaints',
-                  style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.refresh_rounded, color: AppColors.textOnPrimary),
-                  onPressed: () => ref.read(complaintsProvider.notifier).loadComplaints(
-                      status: _filter == 'all' ? null : statusMap[_filter]),
-                ),
-              ],
-            )
-          : null,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showRaiseSheet(context),
-        backgroundColor: AppColors.primary,
-        icon: const Icon(Icons.add_rounded, color: AppColors.textOnPrimary),
-        label: Text('Raise Complaint',
-            style: AppTextStyles.labelLarge.copyWith(color: AppColors.textOnPrimary)),
+    return AppModuleScaffold(
+      title: 'Complaints',
+      icon: Icons.report_problem_rounded,
+      headerActions: [
+        IconButton(
+          icon: const Icon(Icons.refresh_rounded),
+          tooltip: 'Refresh',
+          onPressed: () => ref.read(complaintsProvider.notifier).loadComplaints(
+              status: _filter == 'all' ? null : statusMap[_filter]),
+        ),
+      ],
+      filterRow: AppFilterChipRow(
+        darkBackground: true,
+        selected: _filter,
+        onSelected: (s) {
+          setState(() => _filter = s);
+          ref.read(complaintsProvider.notifier).loadComplaints(
+              status: s == 'all' ? null : statusMap[s]);
+        },
+        options: [
+          for (final s in statusMap.keys)
+            FilterOption(s, s == 'all' ? 'All' : s.replaceAll('_', ' ').toUpperCase()),
+        ],
       ),
-      body: Column(
-        children: [
-          AppPageHeader(
-            title: 'Complaints',
-            icon: Icons.report_problem_rounded,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.refresh_rounded),
-                tooltip: 'Refresh',
-                onPressed: () => ref.read(complaintsProvider.notifier).loadComplaints(
-                    status: _filter == 'all' ? null : statusMap[_filter]),
-              ),
-            ],
-            filterRow: AppFilterChipRow(
-              darkBackground: true,
-              selected: _filter,
-              onSelected: (s) {
-                setState(() => _filter = s);
-                ref.read(complaintsProvider.notifier).loadComplaints(
-                    status: s == 'all' ? null : statusMap[s]);
-              },
-              options: [
-                for (final s in statusMap.keys)
-                  FilterOption(s, s == 'all' ? 'All' : s.replaceAll('_', ' ').toUpperCase()),
-              ],
-            ),
-          ),
-          Expanded(
-            child: RefreshIndicator(
+      primaryFab: ModuleFabConfig(
+        onPressed: () => _showRaiseSheet(context),
+        icon: Icons.add_rounded,
+        tooltip: 'Raise complaint',
+        wideExtendedLabel: 'Raise Complaint',
+      ),
+      fabHeroTagPrefix: 'complaints',
+      child: RefreshIndicator(
               onRefresh: () => ref
                   .read(complaintsProvider.notifier)
                   .loadComplaints(status: _filter == 'all' ? null : statusMap[_filter]),
@@ -193,9 +173,6 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
                               ),
                             ),
             ),
-          ),
-        ],
-      ),
     );
   }
 

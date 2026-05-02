@@ -93,6 +93,14 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
     return total - paid;
   }
 
+  double get _baseAmount {
+    final amt = double.tryParse(widget.bill['amount']?.toString() ?? '0') ?? 0;
+    final gst = double.tryParse(widget.bill['gstAmount']?.toString() ?? '0') ?? 0;
+    return amt + gst;
+  }
+
+  double get _lateFee => double.tryParse(widget.bill['lateFee']?.toString() ?? '0') ?? 0;
+
   String get _billingMonth {
     final raw = widget.bill['billingMonth'];
     if (raw == null) return '';
@@ -509,6 +517,20 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
                 ),
               ],
             ),
+            const SizedBox(height: AppDimensions.md),
+            AppCard(
+              backgroundColor: AppColors.primarySurface,
+              child: Column(
+                children: [
+                  _kv('Bill Amount', '₹${fmt.format(_baseAmount)}'),
+                  if (_lateFee > 0) _kv('Late Fee', '₹${fmt.format(_lateFee)}', valueColor: AppColors.danger),
+                  const Divider(height: 16),
+                  _kv('Total Due', '₹${fmt.format(double.tryParse(widget.bill["totalDue"]?.toString() ?? "0") ?? 0)}'),
+                  _kv('Paid', '₹${fmt.format(double.tryParse(widget.bill["paidAmount"]?.toString() ?? "0") ?? 0)}', valueColor: AppColors.success),
+                  _kv('Outstanding', '₹${fmt.format(_remaining)}', valueColor: AppColors.danger),
+                ],
+              ),
+            ),
             const SizedBox(height: AppDimensions.lg),
 
             // ════════════════════════════════════════════════════════
@@ -903,6 +925,30 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
       ],
     );
   }
+}
+
+Widget _kv(String k, String v, {Color? valueColor}) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            k,
+            style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          v,
+          style: AppTextStyles.bodyMedium.copyWith(
+            fontWeight: FontWeight.w700,
+            color: valueColor,
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 // ─── Razorpay pay button ──────────────────────────────────────────────────────

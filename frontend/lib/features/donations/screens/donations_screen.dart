@@ -12,7 +12,7 @@ import '../../../shared/widgets/app_empty_state.dart';
 import '../../../shared/widgets/app_loading_shimmer.dart';
 import '../providers/donation_provider.dart';
 import 'donate_sheet.dart';
-import '../../../shared/widgets/app_page_header.dart';
+import '../../../shared/widgets/app_module_scaffold.dart';
 
 class DonationsScreen extends ConsumerStatefulWidget {
   const DonationsScreen({super.key});
@@ -56,74 +56,53 @@ class _DonationsScreenState extends ConsumerState<DonationsScreen>
 
   @override
   Widget build(BuildContext context) {
-    final isWide = MediaQuery.of(context).size.width >= 720;
-    return Scaffold(
-      appBar: isWide
-          ? AppBar(
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.textOnPrimary,
-              title: const Text('Donations'),
-              bottom: TabBar(
-                controller: _tab,
-                labelColor: Colors.white,
-                unselectedLabelColor: Colors.white70,
-                indicatorColor: Colors.white,
-                tabs: const [Tab(text: 'Campaigns'), Tab(text: 'All Donations')],
-              ),
-              actions: [
-                if (_isAdmin)
-                  IconButton(
-                    icon: const Icon(Icons.add),
-                    onPressed: _showCreateCampaignSheet,
-                    tooltip: 'New Campaign',
-                  ),
-              ],
-            )
+    TabBar donationTabBar({required bool onDarkHeader}) => TabBar(
+          controller: _tab,
+          tabs: const [Tab(text: 'Campaigns'), Tab(text: 'All Donations')],
+          indicatorColor: Colors.white,
+          labelColor: Colors.white,
+          unselectedLabelColor: onDarkHeader
+              ? Colors.white.withValues(alpha: 0.65)
+              : Colors.white70,
+          dividerColor: Colors.transparent,
+          padding: const EdgeInsets.symmetric(horizontal: AppDimensions.sm),
+        );
+    final headerActions = <Widget>[
+      if (_isAdmin)
+        IconButton(
+          tooltip: 'New Campaign',
+          icon: const Icon(Icons.add_rounded),
+          onPressed: _showCreateCampaignSheet,
+        ),
+    ];
+    return AppModuleScaffold(
+      title: 'Donations',
+      icon: Icons.volunteer_activism_rounded,
+      headerActions: headerActions,
+      wideAppBarBottom: donationTabBar(onDarkHeader: false),
+      wideAppBarActions: _isAdmin
+          ? AppModuleScaffold.actionsForPrimaryAppBar(headerActions)
           : null,
-      floatingActionButton: FloatingActionButton.extended(
+      filterRow: donationTabBar(onDarkHeader: true),
+      primaryFab: ModuleFabConfig(
         onPressed: () => showDonateSheet(context),
-        icon: const Icon(Icons.volunteer_activism),
-        label: const Text('Donate'),
+        icon: Icons.volunteer_activism_rounded,
+        tooltip: 'Donate',
+        wideExtendedLabel: 'Donate',
       ),
-      body: Column(
+      fabHeroTagPrefix: 'donations',
+      child: TabBarView(
+        controller: _tab,
         children: [
-          AppPageHeader(
-            title: 'Donations',
-            icon: Icons.volunteer_activism_rounded,
-            actions: [
-              if (_isAdmin)
-                IconButton(
-                  tooltip: 'New Campaign',
-                  icon: const Icon(Icons.add_rounded),
-                  onPressed: _showCreateCampaignSheet,
-                ),
-            ],
-            filterRow: TabBar(
-              controller: _tab,
-              tabs: const [Tab(text: 'Campaigns'), Tab(text: 'All Donations')],
-              indicatorColor: Colors.white,
-              labelColor: Colors.white,
-              unselectedLabelColor: Colors.white.withValues(alpha: 0.65),
-              dividerColor: Colors.transparent,
-              padding: const EdgeInsets.symmetric(horizontal: AppDimensions.sm),
+          _CampaignsList(
+            onDonate: ({campaignId, campaignTitle}) => showDonateSheet(
+              context,
+              campaignId: campaignId,
+              campaignTitle: campaignTitle,
             ),
+            fmt: _fmt,
           ),
-          Expanded(
-            child: TabBarView(
-              controller: _tab,
-              children: [
-                _CampaignsList(
-                  onDonate: ({campaignId, campaignTitle}) => showDonateSheet(
-                    context,
-                    campaignId: campaignId,
-                    campaignTitle: campaignTitle,
-                  ),
-                  fmt: _fmt,
-                ),
-                _DonationsList(campaignId: _selectedCampaignId, fmt: _fmt),
-              ],
-            ),
-          ),
+          _DonationsList(campaignId: _selectedCampaignId, fmt: _fmt),
         ],
       ),
     );

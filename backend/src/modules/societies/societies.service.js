@@ -15,6 +15,8 @@ const SOCIETY_SELECT = {
   planId: true,
   planStartDate: true,
   planRenewalDate: true,
+  maxUnits: true,
+  maxUsers: true,
   settings: true,
   createdAt: true,
   updatedAt: true,
@@ -105,7 +107,7 @@ async function getSocietyById(id) {
  * @param {{ name: string, address?: string, city?: string, contactPhone?: string, contactEmail?: string, planName?: string, trialDays?: number, settings?: any, chairman?: { name: string, phone: string, email?: string, password: string } }} data
  */
 async function createSociety(data) {
-  const { name, address, city, contactPhone, contactEmail, planName, chairman, trialDays, settings } = data;
+  const { name, address, city, contactPhone, contactEmail, planName, chairman, trialDays, settings, maxUnits, maxUsers } = data;
 
   return prisma.$transaction(async (tx) => {
     // Find plan
@@ -137,6 +139,8 @@ async function createSociety(data) {
         planStartDate: now,
         planRenewalDate: renewalDate,
         status: 'ACTIVE',
+        maxUnits: maxUnits !== undefined ? maxUnits : undefined,
+        maxUsers: maxUsers !== undefined ? maxUsers : undefined,
         settings: settings ?? undefined,
       },
       select: { ...SOCIETY_SELECT, plan: { select: { id: true, name: true, displayName: true } } },
@@ -169,7 +173,7 @@ async function createSociety(data) {
  * @param {object} data
  */
 async function updateSociety(id, data) {
-  const allowed = ['name', 'address', 'city', 'contactPhone', 'contactEmail', 'status', 'logoUrl', 'settings'];
+  const allowed = ['name', 'address', 'city', 'contactPhone', 'contactEmail', 'status', 'logoUrl', 'settings', 'maxUnits', 'maxUsers'];
   const updateData = {};
   for (const key of allowed) {
     if (data[key] !== undefined) updateData[key] = data[key];
@@ -179,14 +183,25 @@ async function updateSociety(id, data) {
 
   // Handle plan change
   if (data.planName) {
+    const existingSociety = await prisma.society.findUnique({
+      where: { id },
+      select: { maxUnits: true, maxUsers: true },
+    });
     const plan = await prisma.plan.findUnique({ where: { name: String(data.planName).toLowerCase().trim() } });
     if (!plan) throw Object.assign(new Error(`Plan '${data.planName}' not found.`), { status: 400 });
     if (!plan.isActive) throw Object.assign(new Error(`Plan '${plan.displayName}' is not active.`), { status: 400 });
     
     // Check if society's current unit count fits in new plan
     const unitCount = await prisma.unit.count({ where: { societyId: id, deletedAt: null } });
-    if (plan.maxUnits !== -1 && unitCount > plan.maxUnits) {
-      throw Object.assign(new Error(`Cannot downgrade to ${plan.displayName}: Society has ${unitCount} units, but plan maximum is ${plan.maxUnits}.`), { status: 400 });
+    const effectiveMaxUnits =
+      (data.maxUnits !== undefined ? data.maxUnits : existingSociety?.maxUnits) ?? plan.maxUnits;
+    if (effectiveMaxUnits !== -1 && unitCount > effectiveMaxUnits) {
+      throw Object.assign(
+        new Error(
+          `Cannot set plan ${plan.displayName}: Society has ${unitCount} units, but maximum allowed is ${effectiveMaxUnits}.`,
+        ),
+        { status: 400 },
+      );
     }
 
     updateData.planId = plan.id;

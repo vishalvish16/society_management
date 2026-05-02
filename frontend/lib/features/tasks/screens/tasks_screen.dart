@@ -8,7 +8,7 @@ import '../models/task_models.dart';
 import 'task_form_sheet.dart';
 import 'task_detail_screen.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
-import '../../../shared/widgets/app_page_header.dart';
+import '../../../shared/widgets/app_module_scaffold.dart';
 
 class TasksScreen extends ConsumerStatefulWidget {
   const TasksScreen({super.key});
@@ -69,57 +69,39 @@ class _TasksScreenState extends ConsumerState<TasksScreen> with SingleTickerProv
     final isAdmin = ['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'MANAGER'].contains(roleUpper);
     final name = (user?.name ?? '').trim();
     final avatarLetter = name.isNotEmpty ? name[0].toUpperCase() : 'U';
-    final isWide = MediaQuery.of(context).size.width >= 720;
-
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: isWide
-          ? AppBar(
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.textOnPrimary,
-              title: const Text('Tasks'),
-              actions: [
-                Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: CircleAvatar(
-                    radius: 16,
-                    backgroundColor: Colors.white.withValues(alpha: 0.18),
-                    foregroundColor: Colors.white,
-                    child: Text(
-                      avatarLetter,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+    return AppModuleScaffold(
+      title: 'Tasks',
+      icon: Icons.task_alt_rounded,
+      wideAppBarActions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: CircleAvatar(
+            radius: 16,
+            backgroundColor: Colors.white.withValues(alpha: 0.18),
+            foregroundColor: Colors.white,
+            child: Text(
+              avatarLetter,
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ),
+      ],
+      belowHeader: _buildHeaderCard(state),
+      primaryFab: isAdmin
+          ? ModuleFabConfig(
+              onPressed: _openCreateTask,
+              icon: Icons.add_rounded,
+              tooltip: 'New task',
+              wideExtendedLabel: 'New Task',
             )
           : null,
-      body: Column(
-        children: [
-          const AppPageHeader(
-            title: 'Tasks',
-            icon: Icons.task_alt_rounded,
-          ),
-          _buildHeaderCard(state),
-          Expanded(
-            child: state.isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _buildTabContent(state),
-          ),
-        ],
-      ),
-      floatingActionButton: isAdmin
-          ? FloatingActionButton.extended(
-              onPressed: () => _openCreateTask(),
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('New Task'),
-            )
-          : null,
+      fabHeroTagPrefix: 'tasks',
+      child: state.isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _buildTabContent(state),
     );
   }
 
@@ -150,21 +132,6 @@ class _TasksScreenState extends ConsumerState<TasksScreen> with SingleTickerProv
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Icon(Icons.task_alt_rounded, color: AppColors.primary, size: 28),
-                  SizedBox(width: 10),
-                  Text(
-                    'Tasks',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
               Wrap(
                 spacing: 14,
                 runSpacing: 8,

@@ -15,7 +15,7 @@ import '../../../shared/widgets/app_loading_shimmer.dart';
 import '../../../shared/widgets/app_status_chip.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
 import '../providers/assets_provider.dart';
-import '../../../shared/widgets/app_page_header.dart';
+import '../../../shared/widgets/app_module_scaffold.dart';
 
 const _categories = [
   'FURNITURE', 'ELECTRONICS', 'PLUMBING', 'ELECTRICAL', 'SECURITY',
@@ -88,96 +88,80 @@ class _AssetsScreenState extends ConsumerState<AssetsScreen> {
     final role = ref.watch(authProvider).user?.role;
     final isAdmin = _isAdmin(role);
     final st = ref.watch(assetsProvider);
-    final isWide = MediaQuery.of(context).size.width >= 720;
+    final headerActions = <Widget>[
+      IconButton(
+        tooltip: 'Refresh',
+        icon: const Icon(Icons.refresh_rounded),
+        onPressed: _applyFilters,
+      ),
+    ];
 
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: isWide
-          ? AppBar(
-              backgroundColor: AppColors.primary,
-              title: const Text('Assets', style: TextStyle(color: Colors.white)),
-              actions: [
-                IconButton(
-                  tooltip: 'Refresh',
-                  onPressed: _applyFilters,
-                  icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-                ),
-                if (isAdmin)
-                  IconButton(
-                    tooltip: 'Add asset',
-                    onPressed: () => _showAssetSheet(context, ref),
-                    icon: const Icon(Icons.add_rounded, color: Colors.white),
-                  ),
-                const SizedBox(width: 8),
-              ],
+    return AppModuleScaffold(
+      title: 'Assets',
+      icon: Icons.inventory_2_rounded,
+      headerActions: headerActions,
+      wideAppBarActions: [
+        ...AppModuleScaffold.actionsForPrimaryAppBar(headerActions),
+        if (isAdmin)
+          IconButton(
+            tooltip: 'Add asset',
+            onPressed: () => _showAssetSheet(context, ref),
+            icon: const Icon(Icons.add_rounded, color: AppColors.textOnPrimary),
+          ),
+        const SizedBox(width: 8),
+      ],
+      primaryFab: isAdmin
+          ? ModuleFabConfig(
+              onPressed: () => _showAssetSheet(context, ref),
+              icon: Icons.add_rounded,
+              tooltip: 'Add asset',
+              wideExtendedLabel: 'Add asset',
             )
           : null,
-      body: Column(
-        children: [
-          AppPageHeader(
-            title: 'Assets',
-            icon: Icons.inventory_2_rounded,
-            actions: [
-              IconButton(
-                tooltip: 'Refresh',
-                icon: const Icon(Icons.refresh_rounded),
-                onPressed: _applyFilters,
-              ),
-              if (isAdmin)
-                IconButton(
-                  tooltip: 'Add asset',
-                  icon: const Icon(Icons.add_rounded),
-                  onPressed: () => _showAssetSheet(context, ref),
+      fabHeroTagPrefix: 'assets',
+      child: RefreshIndicator(
+        onRefresh: () => ref.read(assetsProvider.notifier).refresh(),
+        child: ListView(
+          padding: const EdgeInsets.all(AppDimensions.screenPadding),
+          children: [
+            if (isAdmin && st.summary != null) _buildSummary(st.summary!),
+            if (isAdmin && st.summary != null)
+              const SizedBox(height: AppDimensions.lg),
+            _buildFilters(),
+            const SizedBox(height: AppDimensions.lg),
+            if (st.isLoading)
+              const AppLoadingShimmer()
+            else if (st.error != null)
+              Center(
+                child: Text(
+                  st.error!,
+                  style: TextStyle(color: AppColors.danger),
                 ),
-            ],
-          ),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: () => ref.read(assetsProvider.notifier).refresh(),
-              child: ListView(
-                padding: const EdgeInsets.all(AppDimensions.screenPadding),
-                children: [
-                  if (isAdmin && st.summary != null) _buildSummary(st.summary!),
-                  if (isAdmin && st.summary != null)
-                    const SizedBox(height: AppDimensions.lg),
-                  _buildFilters(),
-                  const SizedBox(height: AppDimensions.lg),
-                  if (st.isLoading)
-                    const AppLoadingShimmer()
-                  else if (st.error != null)
-                    Center(
-                      child: Text(
-                        st.error!,
-                        style: TextStyle(color: AppColors.danger),
-                      ),
-                    )
-                  else if (st.assets.isEmpty)
-                    AppEmptyState(
-                      emoji: '\u{1F4E6}',
-                      title: 'No assets found',
-                      subtitle: isAdmin
-                          ? 'Add your first society asset to start tracking.'
-                          : 'No assets have been registered yet.',
-                      actionLabel: isAdmin ? 'Add Asset' : null,
-                      onAction:
-                          isAdmin ? () => _showAssetSheet(context, ref) : null,
-                    )
-                  else
-                    ...st.assets.map(
-                      (a) => Padding(
-                        padding: const EdgeInsets.only(bottom: AppDimensions.md),
-                        child: _AssetCard(
-                          asset: a,
-                          isAdmin: isAdmin,
-                          onTap: () => _showDetailSheet(context, ref, a['id']),
-                        ),
-                      ),
-                    ),
-                ],
+              )
+            else if (st.assets.isEmpty)
+              AppEmptyState(
+                emoji: '\u{1F4E6}',
+                title: 'No assets found',
+                subtitle: isAdmin
+                    ? 'Add your first society asset to start tracking.'
+                    : 'No assets have been registered yet.',
+                actionLabel: isAdmin ? 'Add Asset' : null,
+                onAction:
+                    isAdmin ? () => _showAssetSheet(context, ref) : null,
+              )
+            else
+              ...st.assets.map(
+                (a) => Padding(
+                  padding: const EdgeInsets.only(bottom: AppDimensions.md),
+                  child: _AssetCard(
+                    asset: a,
+                    isAdmin: isAdmin,
+                    onTap: () => _showDetailSheet(context, ref, a['id']),
+                  ),
+                ),
               ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

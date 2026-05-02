@@ -12,6 +12,7 @@ import '../../../shared/widgets/app_text_field.dart';
 import '../providers/unit_provider.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
 import '../../../shared/widgets/app_status_chip.dart';
+import '../../../shared/widgets/app_page_header.dart';
 
 class UnitsScreen extends ConsumerStatefulWidget {
   const UnitsScreen({super.key});
@@ -23,6 +24,7 @@ class UnitsScreen extends ConsumerStatefulWidget {
 class _UnitsScreenState extends ConsumerState<UnitsScreen> {
   final ScrollController _scrollController = ScrollController();
   String? _handledFocusId;
+  String _statusFilter = 'all';
 
   @override
   void initState() {
@@ -80,80 +82,110 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
             )
           : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      body: unitsAsync.when(
-        loading: () => const AppLoadingShimmer(),
-        error: (e, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(AppDimensions.screenPadding),
-            child: AppCard(
-              backgroundColor: AppColors.dangerSurface,
-              child: Row(
-                children: [
-                  const Icon(Icons.error_outline, color: AppColors.danger),
-                  const SizedBox(width: AppDimensions.sm),
-                  Expanded(
-                    child: Text(
-                      'Error: $e',
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.dangerText,
-                      ),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () =>
-                        ref.read(unitsProvider.notifier).fetchUnits(),
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
+      body: Column(
+        children: [
+          AppPageHeader(
+            title: 'Units',
+            icon: Icons.apartment_rounded,
+            filterRow: AppFilterChipRow(
+              darkBackground: true,
+              selected: _statusFilter,
+              onSelected: (s) => setState(() => _statusFilter = s),
+              options: const [
+                FilterOption('all', 'All'),
+                FilterOption('vacant', 'Vacant'),
+                FilterOption('occupied', 'Occupied'),
+                FilterOption('rented', 'Rented'),
+              ],
             ),
           ),
-        ),
-        data: (units) {
-          if (focusId != null && focusId.isNotEmpty && _handledFocusId != focusId) {
-            WidgetsBinding.instance.addPostFrameCallback((_) async {
-              if (!mounted) return;
-              await _focusUnitById(focusId);
-              if (mounted) setState(() => _handledFocusId = focusId);
-            });
-          }
-          if (units.isEmpty) {
-            return const AppEmptyState(
-              emoji: '🏠',
-              title: 'No Units',
-              subtitle: 'No units have been added yet.',
-            );
-          }
-          final bottomInset = MediaQuery.of(context).padding.bottom;
-          final extraBottomSpace = (canManage ? 104.0 : 24.0) + bottomInset;
-          return RefreshIndicator(
-            onRefresh: () async => ref.read(unitsProvider.notifier).fetchUnits(),
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (notification) {
-                if (notification is ScrollEndNotification) {
-                  // If we are at the bottom or the content is smaller than screen
-                  if (_scrollController.position.extentAfter < 500) {
-                    ref.read(unitsProvider.notifier).fetchNextPage();
-                  }
-                }
-                return false;
-              },
-              child: CustomScrollView(
-                controller: _scrollController,
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
-                SliverPadding(
-                  padding: const EdgeInsets.all(AppDimensions.lg),
-                  sliver: SliverGrid(
-                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 140,
-                      mainAxisSpacing: AppDimensions.md,
-                      crossAxisSpacing: AppDimensions.md,
-                      childAspectRatio: 0.9,
+          Expanded(
+            child: unitsAsync.when(
+              loading: () => const AppLoadingShimmer(),
+              error: (e, _) => Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppDimensions.screenPadding),
+                  child: AppCard(
+                    backgroundColor: AppColors.dangerSurface,
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline, color: AppColors.danger),
+                        const SizedBox(width: AppDimensions.sm),
+                        Expanded(
+                          child: Text(
+                            'Error: $e',
+                            style: AppTextStyles.bodySmall.copyWith(
+                              color: AppColors.dangerText,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () =>
+                              ref.read(unitsProvider.notifier).fetchUnits(),
+                          child: const Text('Retry'),
+                        ),
+                      ],
                     ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, i) {
-                        final u = units[i] as Map<String, dynamic>;
+                  ),
+                ),
+              ),
+              data: (units) {
+                if (focusId != null &&
+                    focusId.isNotEmpty &&
+                    _handledFocusId != focusId) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) async {
+                    if (!mounted) return;
+                    await _focusUnitById(focusId);
+                    if (mounted) setState(() => _handledFocusId = focusId);
+                  });
+                }
+                if (units.isEmpty) {
+                  return const AppEmptyState(
+                    emoji: '🏠',
+                    title: 'No Units',
+                    subtitle: 'No units have been added yet.',
+                  );
+                }
+                final filtered = _filteredUnits(units, _statusFilter);
+                if (filtered.isEmpty) {
+                  return const AppEmptyState(
+                    emoji: '🏠',
+                    title: 'No Units Found',
+                    subtitle: 'No units match the selected filter.',
+                  );
+                }
+                final bottomInset = MediaQuery.of(context).padding.bottom;
+                final extraBottomSpace =
+                    (canManage ? 104.0 : 24.0) + bottomInset;
+                return RefreshIndicator(
+                  onRefresh: () async =>
+                      ref.read(unitsProvider.notifier).fetchUnits(),
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: (notification) {
+                      if (notification is ScrollEndNotification) {
+                        if (_scrollController.position.extentAfter < 500) {
+                          ref.read(unitsProvider.notifier).fetchNextPage();
+                        }
+                      }
+                      return false;
+                    },
+                    child: CustomScrollView(
+                      controller: _scrollController,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      slivers: [
+                        SliverPadding(
+                          padding: const EdgeInsets.all(AppDimensions.lg),
+                          sliver: SliverGrid(
+                            gridDelegate:
+                                const SliverGridDelegateWithMaxCrossAxisExtent(
+                              maxCrossAxisExtent: 140,
+                              mainAxisSpacing: AppDimensions.md,
+                              crossAxisSpacing: AppDimensions.md,
+                              childAspectRatio: 0.9,
+                            ),
+                            delegate: SliverChildBuilderDelegate(
+                              (context, i) {
+                        final u = filtered[i];
                         final status = (u['status'] as String? ?? 'VACANT').toUpperCase();
                         final occupancy = (u['occupancyType'] as String? ?? 'OWNER_OCCUPIED').toUpperCase();
                         final residents = (u['residents'] as List? ?? u['unitResidents'] as List? ?? []);
@@ -276,7 +308,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
                           ),
                         );
                       },
-                      childCount: units.length,
+                      childCount: filtered.length,
                     ),
                   ),
                 ),
@@ -295,10 +327,40 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
               ],
             ),
           ),
-        );
-        },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  List<Map<String, dynamic>> _filteredUnits(List<dynamic> units, String filter) {
+    if (filter == 'all') {
+      return units.cast<Map<String, dynamic>>();
+    }
+    return units
+        .map((e) => e as Map<String, dynamic>)
+        .where((u) {
+          final status = (u['status'] as String? ?? 'VACANT').toLowerCase();
+          final occupancy =
+              (u['occupancyType'] as String? ?? 'OWNER_OCCUPIED').toUpperCase();
+          final isRented = occupancy == 'RENTED' ||
+              occupancy == 'LEASED' ||
+              occupancy == 'PARTIALLY_RENTED';
+          switch (filter) {
+            case 'vacant':
+              return status == 'vacant';
+            case 'occupied':
+              return status == 'occupied';
+            case 'rented':
+              return status != 'vacant' && isRented;
+            default:
+              return true;
+          }
+        })
+        .toList();
   }
 
   void _confirmDelete(

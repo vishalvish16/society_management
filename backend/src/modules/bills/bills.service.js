@@ -1,6 +1,114 @@
 const prisma = require('../../config/db');
 const notificationsService = require('../notifications/notifications.service');
 
+function startOfDay(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function wholeDaysBetween(from, to) {
+  const a = startOfDay(from).getTime();
+  const b = startOfDay(to).getTime();
+  return Math.max(0, Math.floor((b - a) / (24 * 60 * 60 * 1000)));
+}
+
+async function getSocietyLateFeePolicy(societyId) {
+  const society = await prisma.society.findUnique({
+    where: { id: societyId },
+    select: { settings: true },
+  });
+  const settings = society?.settings || {};
+  const type = String(settings.late_fee_type || '').toUpperCase(); // FIXED | PER_DAY | ''
+  const graceDays = Number(settings.late_fee_grace_days || 0);
+  const amount = Number(settings.late_fee_amount || 0);
+
+  return {
+    type: type === 'FIXED' || type === 'PER_DAY' ? type : 'NONE',
+    graceDays: Number.isFinite(graceDays) && graceDays > 0 ? Math.floor(graceDays) : 0,
+    amount: Number.isFinite(amount) && amount > 0 ? amount : 0,
+  };
+}
+
+function computeLateFeeForBill(policy, bill, asOf = new Date()) {
+  if (!policy || policy.type === 'NONE') return 0;
+  if (policy.amount <= 0) return 0;
+  if (!bill?.dueDate) return 0;
+  if (String(bill.category || '').toUpperCase() !== 'MAINTENANCE') return 0;
+  if (String(bill.status || '').toUpperCase() === 'PAID') return Number(bill.lateFee || 0);
+
+  const daysLate = wholeDaysBetween(new Date(bill.dueDate), asOf);
+  const effectiveDays = Math.max(0, daysLate - (policy.graceDays || 0));
+  if (effectiveDays <= 0) return 0;
+
+  if (policy.type === 'FIXED') return policy.amount;
+  if (policy.type === 'PER_DAY') return Number((effectiveDays * policy.amount).toFixed(2));
+  return 0;
+}
+
+function recomputeTotalsForBill(bill, lateFee) {
+  const amount = Number(bill.amount || 0);
+  const gstAmount = Number(bill.gstAmount || 0);
+  const nextLateFee = Number(lateFee || 0);
+  const total = Number((amount + gstAmount + nextLateFee).toFixed(2));
+  return {
+    lateFee: nextLateFee,
+    totalDue: total,
+  };
+}
+
+async function ensureLateFeeUpToDate(billId, societyId, asOf = new Date()) {
+  const bill = await prisma.maintenanceBill.findUnique({ where: { id: billId } });
+  if (!bill || bill.deletedAt) {
+    throw Object.assign(new Error('Bill not found'), { status: 404 });
+  }
+  if (bill.societyId !== societyId) {
+    throw Object.assign(new Error('Cannot access bills outside your society'), { status: 403 });
+  }
+
+  const policy = await getSocietyLateFeePolicy(societyId);
+  const nextLateFee = computeLateFeeForBill(policy, bill, asOf);
+  const { lateFee, totalDue } = recomputeTotalsForBill(bill, nextLateFee);
+
+  const prevLate = Number(bill.lateFee || 0);
+  const prevTotal = Number(bill.totalDue || 0);
+  const changed =
+    Math.abs(prevLate - lateFee) > 0.0001 || Math.abs(prevTotal - totalDue) > 0.0001;
+
+  if (!changed) return bill;
+
+  const updated = await prisma.maintenanceBill.update({
+    where: { id: billId },
+    data: {
+      lateFee,
+      totalDue,
+      ...(bill.status === 'PENDING' || bill.status === 'PARTIAL' || bill.status === 'OVERDUE'
+        ? { status: new Date(bill.dueDate) < asOf ? 'OVERDUE' : bill.status }
+        : {}),
+    },
+  });
+
+  // Audit for traceability in admin logs.
+  await createBillAuditLog(prisma, {
+    billId: updated.id,
+    societyId: updated.societyId,
+    unitId: updated.unitId,
+    actorId: null,
+    action: 'LATE_FEE_RECALCULATED',
+    note: `Late fee recalculated as of ${asOf.toISOString()}`,
+    metadata: {
+      lateFeePolicy: policy,
+      lateFeeBefore: prevLate,
+      lateFeeAfter: lateFee,
+      totalDueBefore: prevTotal,
+      totalDueAfter: totalDue,
+      dueDate: bill.dueDate,
+    },
+  });
+
+  return updated;
+}
+
 function getMonthStart(input = new Date()) {
   const date = new Date(input);
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -97,7 +205,7 @@ async function listBills(societyId, filters = {}) {
     where.billingMonth = { gte: startOfMonth, lte: endOfMonth };
   }
 
-  const [bills, total] = await Promise.all([
+  const [bills, total, policy] = await Promise.all([
     prisma.maintenanceBill.findMany({
       where,
       include: {
@@ -115,9 +223,17 @@ async function listBills(societyId, filters = {}) {
       orderBy: [{ billingMonth: 'desc' }, { createdAt: 'desc' }],
     }),
     prisma.maintenanceBill.count({ where }),
+    getSocietyLateFeePolicy(societyId),
   ]);
 
-  return { bills, total, page: parseInt(page, 10), limit: parseInt(limit, 10) };
+  const now = new Date();
+  const normalizedBills = bills.map((bill) => {
+    const lateFee = computeLateFeeForBill(policy, bill, now);
+    const totals = recomputeTotalsForBill(bill, lateFee);
+    return { ...bill, ...totals };
+  });
+
+  return { bills: normalizedBills, total, page: parseInt(page, 10), limit: parseInt(limit, 10) };
 }
 
 /**
@@ -211,6 +327,7 @@ async function bulkGenerateBills(societyId, month, defaultAmount, dueDate, gener
           createdById: generatedById,
           billingMonth,
           amount: finalAmount,
+          lateFee: 0,
           totalDue: finalAmount,
           paidAmount,
           status,
@@ -255,6 +372,110 @@ async function bulkGenerateBills(societyId, month, defaultAmount, dueDate, gener
   }
 
   return { count: createdCount, skippedPrepaidCount, skippedAdvanceCount };
+}
+
+/**
+ * Monthly parking bills for units with at least one ACTIVE parking allotment.
+ * At most one PARKING bill per unit per billing month (same rule as POST /parking/charges/generate).
+ */
+async function bulkGenerateParkingBills(
+  societyId,
+  month,
+  amount,
+  dueDate,
+  generatedById = null,
+  options = {},
+) {
+  const billingMonth = getMonthStart(month);
+  const monthEnd = getMonthEnd(billingMonth);
+  const defaultAmount = Number(amount);
+  if (!defaultAmount || defaultAmount <= 0) {
+    throw Object.assign(new Error('Amount must be greater than zero'), { status: 400 });
+  }
+
+  const activeAllotments = await prisma.parkingAllotment.findMany({
+    where: { societyId, status: 'ACTIVE' },
+    include: {
+      unit: { select: { id: true, fullCode: true } },
+      slot: { select: { slotNumber: true } },
+    },
+  });
+
+  if (activeAllotments.length === 0) {
+    throw Object.assign(new Error('No active parking allotments found'), { status: 404 });
+  }
+
+  const unitIds = [...new Set(activeAllotments.map((a) => a.unitId))];
+
+  const existingBills = await prisma.maintenanceBill.findMany({
+    where: {
+      societyId,
+      category: 'PARKING',
+      billingMonth: { gte: billingMonth, lte: monthEnd },
+      deletedAt: null,
+      unitId: { in: unitIds },
+    },
+    select: { unitId: true },
+  });
+  const alreadyBilledUnits = new Set(existingBills.map((b) => b.unitId));
+
+  const monthLabel = formatMonthLabel(billingMonth);
+  const descriptionOverride = options.description;
+
+  const billsToCreate = [];
+  const allotmentChosenByUnit = new Map();
+
+  for (const a of activeAllotments) {
+    if (alreadyBilledUnits.has(a.unitId)) continue;
+    if (allotmentChosenByUnit.has(a.unitId)) continue;
+    allotmentChosenByUnit.set(a.unitId, a);
+    billsToCreate.push({
+      societyId,
+      unitId: a.unitId,
+      createdById: generatedById || null,
+      billingMonth,
+      amount: defaultAmount,
+      lateFee: 0,
+      totalDue: defaultAmount,
+      status: 'PENDING',
+      dueDate: new Date(dueDate),
+      title: 'Parking Charge',
+      description:
+        descriptionOverride ||
+        `Monthly parking charge — Slot ${a.slot.slotNumber} — ${monthLabel}`,
+      category: 'PARKING',
+    });
+  }
+
+  if (billsToCreate.length === 0) {
+    throw Object.assign(
+      new Error('Parking bills already generated for all allotted units for this month'),
+      { status: 400 },
+    );
+  }
+
+  const result = await prisma.maintenanceBill.createMany({ data: billsToCreate });
+
+  setImmediate(() => {
+    for (const row of billsToCreate) {
+      const allot = allotmentChosenByUnit.get(row.unitId);
+      if (!allot) continue;
+      notificationsService.sendNotification(generatedById, societyId, {
+        targetType: 'unit',
+        targetId: row.unitId,
+        title: '🅿️ Parking Charge',
+        body: `A parking charge of ₹${defaultAmount.toFixed(0)} for slot ${allot.slot.slotNumber} is now due.`,
+        type: 'BILL',
+        route: '/bills',
+        excludeUserId: generatedById,
+      });
+    }
+  });
+
+  return {
+    count: result.count,
+    skippedExistingUnits: alreadyBilledUnits.size,
+  };
 }
 
 /**
@@ -478,9 +699,8 @@ async function getResidentUnitIds(userId, societyId, activeUnitId = null) {
 }
 
 async function recordPayment(billId, paymentData, societyId, allowedUnitIds = null) {
-  const bill = await prisma.maintenanceBill.findUnique({
-    where: { id: billId },
-  });
+  // Ensure late fee is up-to-date before accepting payment amount.
+  const bill = await ensureLateFeeUpToDate(billId, societyId, new Date());
 
   if (!bill || bill.deletedAt) {
     throw Object.assign(new Error('Bill not found'), { status: 404 });
@@ -555,6 +775,8 @@ async function recordPayment(billId, paymentData, societyId, allowedUnitIds = nu
 }
 
 async function getBill(billId, societyId) {
+  await ensureLateFeeUpToDate(billId, societyId, new Date());
+
   const bill = await prisma.maintenanceBill.findUnique({
     where: { id: billId },
     include: {
@@ -726,7 +948,7 @@ async function getMyBills(userId, societyId, filters = {}, activeUnitId = null) 
   const where = { societyId, unitId: { in: unitIds }, deletedAt: null };
   if (status) where.status = status.toUpperCase();
 
-  const [bills, total] = await Promise.all([
+  const [bills, total, policy] = await Promise.all([
     prisma.maintenanceBill.findMany({
       where,
       include: {
@@ -744,9 +966,17 @@ async function getMyBills(userId, societyId, filters = {}, activeUnitId = null) 
       orderBy: [{ billingMonth: 'desc' }, { createdAt: 'desc' }],
     }),
     prisma.maintenanceBill.count({ where }),
+    getSocietyLateFeePolicy(societyId),
   ]);
 
-  return { bills, total, page: parseInt(page, 10), limit: parseInt(limit, 10) };
+  const now = new Date();
+  const normalizedBills = bills.map((bill) => {
+    const lateFee = computeLateFeeForBill(policy, bill, now);
+    const totals = recomputeTotalsForBill(bill, lateFee);
+    return { ...bill, ...totals };
+  });
+
+  return { bills: normalizedBills, total, page: parseInt(page, 10), limit: parseInt(limit, 10) };
 }
 
 async function getDefaulters(societyId, filters = {}) {
@@ -760,7 +990,7 @@ async function getDefaulters(societyId, filters = {}) {
     category: 'MAINTENANCE',
   };
 
-  const [bills, total] = await Promise.all([
+  const [bills, total, policy] = await Promise.all([
     prisma.maintenanceBill.findMany({
       where,
       include: {
@@ -782,9 +1012,17 @@ async function getDefaulters(societyId, filters = {}) {
       orderBy: { dueDate: 'asc' },
     }),
     prisma.maintenanceBill.count({ where }),
+    getSocietyLateFeePolicy(societyId),
   ]);
 
-  return { bills, total, page: parseInt(page, 10), limit: parseInt(limit, 10) };
+  const now = new Date();
+  const normalizedBills = bills.map((bill) => {
+    const lateFee = computeLateFeeForBill(policy, bill, now);
+    const totals = recomputeTotalsForBill(bill, lateFee);
+    return { ...bill, ...totals };
+  });
+
+  return { bills: normalizedBills, total, page: parseInt(page, 10), limit: parseInt(limit, 10) };
 }
 
 async function runOverdueReminderSweep() {
@@ -813,6 +1051,31 @@ async function runOverdueReminderSweep() {
     },
     orderBy: { billingMonth: 'asc' },
   });
+
+  // Opportunistically update late fees for overdue bills once per sweep.
+  // Keeps totals aligned even if nobody opens the bill screen.
+  try {
+    if (unpaidBills.length === 0) {
+      // nothing to update
+    } else {
+      const policy = await getSocietyLateFeePolicy(unpaidBills[0].societyId);
+    if (policy.type !== 'NONE') {
+      for (const bill of unpaidBills) {
+        const nextLateFee = computeLateFeeForBill(policy, bill, todayStart);
+        const { lateFee, totalDue } = recomputeTotalsForBill(bill, nextLateFee);
+        const prevLate = Number(bill.lateFee || 0);
+        const prevTotal = Number(bill.totalDue || 0);
+        if (Math.abs(prevLate - lateFee) < 0.0001 && Math.abs(prevTotal - totalDue) < 0.0001) continue;
+        await prisma.maintenanceBill.update({
+          where: { id: bill.id },
+          data: { lateFee, totalDue, status: 'OVERDUE' },
+        });
+      }
+    }
+    }
+  } catch (e) {
+    console.error('[billing-jobs] late fee sweep failed:', e.message);
+  }
 
   const byUnit = new Map();
   for (const bill of unpaidBills) {
@@ -870,6 +1133,11 @@ async function upsertMaintenanceBillSchedule(societyId, scheduleInput, actorId) 
   const scheduledFor = new Date(scheduleInput.scheduledFor);
   const dueDate = new Date(scheduleInput.dueDate);
   const defaultAmount = Number(scheduleInput.defaultAmount);
+  const category = String(scheduleInput.category || 'MAINTENANCE').toUpperCase();
+
+  if (category !== 'MAINTENANCE' && category !== 'PARKING') {
+    throw Object.assign(new Error('category must be MAINTENANCE or PARKING'), { status: 400 });
+  }
 
   if (Number.isNaN(billingMonth.getTime())) {
     throw Object.assign(new Error('billingMonth must be a valid date'), { status: 400 });
@@ -886,14 +1154,16 @@ async function upsertMaintenanceBillSchedule(societyId, scheduleInput, actorId) 
 
   return prisma.maintenanceBillSchedule.upsert({
     where: {
-      societyId_billingMonth: {
+      societyId_billingMonth_category: {
         societyId,
         billingMonth,
+        category,
       },
     },
     create: {
       societyId,
       billingMonth,
+      category,
       scheduledFor,
       defaultAmount,
       dueDate,
@@ -944,13 +1214,23 @@ async function runMaintenanceBillScheduleSweep() {
 
       if (claim.count === 0) continue;
 
-      const result = await bulkGenerateBills(
-        schedule.societyId,
-        schedule.billingMonth,
-        Number(schedule.defaultAmount),
-        schedule.dueDate,
-        null,
-      );
+      const cat = String(schedule.category || 'MAINTENANCE').toUpperCase();
+      const result =
+        cat === 'PARKING'
+          ? await bulkGenerateParkingBills(
+              schedule.societyId,
+              schedule.billingMonth,
+              Number(schedule.defaultAmount),
+              schedule.dueDate,
+              null,
+            )
+          : await bulkGenerateBills(
+              schedule.societyId,
+              schedule.billingMonth,
+              Number(schedule.defaultAmount),
+              schedule.dueDate,
+              null,
+            );
 
       schedulesRun += 1;
       billsCreated += result.count;
@@ -970,6 +1250,7 @@ async function runMaintenanceBillScheduleSweep() {
 module.exports = {
   listBills,
   bulkGenerateBills,
+  bulkGenerateParkingBills,
   payAdvance,
   splitExpenseAmongUnits,
   undoSplitExpenseAmongUnits,

@@ -13,6 +13,15 @@ const PLAN_SELECT = {
   updatedAt: true,
 };
 
+const TIER_SELECT = {
+  id: true,
+  minUnits: true,
+  maxUnits: true,
+  pricePerUnit: true,
+  label: true,
+  sortOrder: true,
+};
+
 /**
  * List all plans (active + inactive for admin, active-only for public).
  * @param {{ activeOnly?: boolean }} options
@@ -24,6 +33,7 @@ async function listPlans({ activeOnly = false } = {}) {
     select: {
       ...PLAN_SELECT,
       _count: { select: { societies: true } },
+      pricingTiers: { select: TIER_SELECT, orderBy: { sortOrder: 'asc' } },
     },
     orderBy: { pricePerUnit: 'asc' },
   });
@@ -31,7 +41,7 @@ async function listPlans({ activeOnly = false } = {}) {
 }
 
 /**
- * Get plan by ID with subscriber count.
+ * Get plan by ID with subscriber count and tiers.
  * @param {string} id
  */
 async function getPlanById(id) {
@@ -40,6 +50,7 @@ async function getPlanById(id) {
     select: {
       ...PLAN_SELECT,
       _count: { select: { societies: true } },
+      pricingTiers: { select: TIER_SELECT, orderBy: { sortOrder: 'asc' } },
       societies: {
         where: { status: 'ACTIVE' },
         select: { id: true, name: true, status: true },
@@ -49,6 +60,39 @@ async function getPlanById(id) {
   });
   if (!plan) return null;
   return { ...plan, societyCount: plan._count.societies, _count: undefined };
+}
+
+// ── Pricing Tier CRUD ─────────────────────────────────────────────────
+
+async function listTiers(planId) {
+  return prisma.pricingTier.findMany({
+    where: { planId },
+    select: { ...TIER_SELECT, planId: true },
+    orderBy: { sortOrder: 'asc' },
+  });
+}
+
+async function upsertTiers(planId, tiers) {
+  // Replace all tiers for this plan atomically
+  return prisma.$transaction(async (tx) => {
+    await tx.pricingTier.deleteMany({ where: { planId } });
+    if (!tiers || tiers.length === 0) return [];
+    await tx.pricingTier.createMany({
+      data: tiers.map((t, i) => ({
+        planId,
+        minUnits:     parseInt(t.minUnits, 10),
+        maxUnits:     parseInt(t.maxUnits, 10),  // -1 = no upper bound
+        pricePerUnit: parseFloat(t.pricePerUnit),
+        label:        t.label || null,
+        sortOrder:    t.sortOrder !== undefined ? parseInt(t.sortOrder, 10) : i + 1,
+      })),
+    });
+    return tx.pricingTier.findMany({ where: { planId }, select: TIER_SELECT, orderBy: { sortOrder: 'asc' } });
+  });
+}
+
+async function deleteTier(tierId) {
+  return prisma.pricingTier.delete({ where: { id: tierId } });
 }
 
 /**
@@ -63,7 +107,7 @@ async function createPlan(data) {
     pricePerUnit: pricePerUnit ?? 0,
     maxUnits: maxUnits !== undefined ? maxUnits : -1,
     maxUsers: maxUsers !== undefined ? maxUsers : -1,
-    features: features || [],
+    features: features ?? {},
     isActive: isActive !== undefined ? isActive : true,
   };
 
@@ -191,4 +235,4 @@ async function cleanupDuplicatePlans() {
   });
 }
 
-module.exports = { listPlans, getPlanById, createPlan, updatePlan, deactivatePlan, cleanupDuplicatePlans };
+module.exports = { listPlans, getPlanById, createPlan, updatePlan, deactivatePlan, cleanupDuplicatePlans, listTiers, upsertTiers, deleteTier };

@@ -20,7 +20,7 @@ const DEFAULTS = {
   app_ios_url:           { value: '', label: 'iOS App Store URL', dataType: 'string' },
   app_support_email:     { value: '', label: 'Support Email', dataType: 'string' },
   app_support_phone:     { value: '', label: 'Support Phone', dataType: 'string' },
-  terms_and_conditions:  { value: '', label: 'Terms & Conditions (HTML)', dataType: 'html' },
+  terms_and_conditions:  { value: '', label: 'Terms & Conditions (HTML)', dataType: 'string' },
 };
 
 /**

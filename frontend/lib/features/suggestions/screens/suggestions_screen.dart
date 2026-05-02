@@ -15,6 +15,8 @@ import '../../../shared/widgets/unit_picker_field.dart';
 import '../../../shared/widgets/app_searchable_dropdown.dart';
 import '../../../shared/utils/pick_camera_photo.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
+import '../../../shared/widgets/app_page_header.dart';
+import '../../../shared/widgets/app_module_scaffold.dart';
 import '../../members/providers/members_provider.dart';
 import '../providers/suggestions_provider.dart';
 import 'pay_suggestion_sheet.dart';
@@ -90,111 +92,83 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
       });
     }
 
-    final isWide = MediaQuery.of(context).size.width >= 768;
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: isWide
-          ? AppBar(
-              backgroundColor: AppColors.primary,
-              title: Text('Suggestions',
-                  style: AppTextStyles.h2.copyWith(color: AppColors.textOnPrimary)),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.refresh_rounded, color: AppColors.textOnPrimary),
-                  onPressed: () => ref.read(suggestionsProvider.notifier).loadSuggestions(
-                      status: _filter == 'all' ? null : statusMap[_filter]),
-                ),
-              ],
-            )
-          : null,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showRaiseSheet(context),
-        backgroundColor: AppColors.primary,
-        icon: const Icon(Icons.add_rounded, color: AppColors.textOnPrimary),
-        label: Text('New Suggestion',
-            style: AppTextStyles.labelLarge.copyWith(color: AppColors.textOnPrimary)),
-      ),
-      body: Column(
-        children: [
-          Container(
-            color: AppColors.surface,
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppDimensions.screenPadding, vertical: AppDimensions.sm),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (final s in statusMap.keys)
-                    Padding(
-                      padding: const EdgeInsets.only(right: AppDimensions.sm),
-                      child: ChoiceChip(
-                        label: Text(s == 'all' ? 'All' : s.replaceAll('_', ' ').toUpperCase()),
-                        selected: _filter == s,
-                        selectedColor: AppColors.primarySurface,
-                        labelStyle: AppTextStyles.labelMedium.copyWith(
-                          color: _filter == s ? AppColors.primary : AppColors.textMuted,
-                        ),
-                        onSelected: (_) {
-                          setState(() => _filter = s);
-                          ref.read(suggestionsProvider.notifier).loadSuggestions(
-                              status: s == 'all' ? null : statusMap[s]);
-                        },
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: () => ref
-                  .read(suggestionsProvider.notifier)
-                  .loadSuggestions(status: _filter == 'all' ? null : statusMap[_filter]),
-              child: state.isLoading
-                  ? const AppLoadingShimmer()
-                  : state.error != null
-                      ? ListView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.all(AppDimensions.screenPadding),
-                              child: AppCard(
-                                backgroundColor: AppColors.dangerSurface,
-                                child: Text('Error: ${state.error}',
-                                    style: AppTextStyles.bodySmall
-                                        .copyWith(color: AppColors.dangerText)),
-                              ),
-                            ),
-                          ],
-                        )
-                      : filtered.isEmpty
-                          ? ListView(
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              children: const [
-                                AppEmptyState(
-                                  emoji: '💡',
-                                  title: 'No Suggestions',
-                                  subtitle: 'No suggestions match the selected filter.',
-                                ),
-                              ],
-                            )
-                          : ListView.separated(
-                              controller: _scrollController,
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              padding: const EdgeInsets.all(AppDimensions.screenPadding),
-                              itemCount: filtered.length,
-                              separatorBuilder: (_, i) =>
-                                  const SizedBox(height: AppDimensions.sm),
-                              itemBuilder: (_, i) => _SuggestionCard(
-                                suggestion: filtered[i],
-                                borderColor:
-                                    _borderColor(filtered[i]['status'] as String? ?? ''),
-                                isAdmin: _isAdmin,
-                              ),
-                            ),
-            ),
-          ),
+    return AppModuleScaffold(
+      title: 'Suggestions',
+      icon: Icons.lightbulb_rounded,
+      headerActions: [
+        IconButton(
+          icon: const Icon(Icons.refresh_rounded),
+          tooltip: 'Refresh',
+          onPressed: () => ref.read(suggestionsProvider.notifier).loadSuggestions(
+              status: _filter == 'all' ? null : statusMap[_filter]),
+        ),
+      ],
+      filterRow: AppFilterChipRow(
+        darkBackground: true,
+        selected: _filter,
+        onSelected: (s) {
+          setState(() => _filter = s);
+          ref.read(suggestionsProvider.notifier).loadSuggestions(
+              status: s == 'all' ? null : statusMap[s]);
+        },
+        options: [
+          for (final s in statusMap.keys)
+            FilterOption(s, s == 'all' ? 'All' : s.replaceAll('_', ' ').toUpperCase()),
         ],
+      ),
+      primaryFab: ModuleFabConfig(
+        onPressed: () => _showRaiseSheet(context),
+        icon: Icons.add_rounded,
+        tooltip: 'New suggestion',
+        wideExtendedLabel: 'New Suggestion',
+      ),
+      fabHeroTagPrefix: 'suggestions',
+      child: RefreshIndicator(
+        onRefresh: () => ref
+            .read(suggestionsProvider.notifier)
+            .loadSuggestions(status: _filter == 'all' ? null : statusMap[_filter]),
+        child: state.isLoading
+            ? const AppLoadingShimmer()
+            : state.error != null
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(AppDimensions.screenPadding),
+                        child: AppCard(
+                          backgroundColor: AppColors.dangerSurface,
+                          child: Text('Error: ${state.error}',
+                              style: AppTextStyles.bodySmall
+                                  .copyWith(color: AppColors.dangerText)),
+                        ),
+                      ),
+                    ],
+                  )
+                : filtered.isEmpty
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: const [
+                          AppEmptyState(
+                            emoji: '💡',
+                            title: 'No Suggestions',
+                            subtitle: 'No suggestions match the selected filter.',
+                          ),
+                        ],
+                      )
+                    : ListView.separated(
+                        controller: _scrollController,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(AppDimensions.screenPadding),
+                        itemCount: filtered.length,
+                        separatorBuilder: (_, i) =>
+                            const SizedBox(height: AppDimensions.sm),
+                        itemBuilder: (_, i) => _SuggestionCard(
+                          suggestion: filtered[i],
+                          borderColor:
+                              _borderColor(filtered[i]['status'] as String? ?? ''),
+                          isAdmin: _isAdmin,
+                        ),
+                      ),
       ),
     );
   }

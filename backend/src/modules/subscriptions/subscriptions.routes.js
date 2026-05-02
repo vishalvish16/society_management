@@ -14,5 +14,8 @@ router.get('/report', subscriptionsController.getSubscriptionReport);
 router.get('/:id', subscriptionsController.getSubscription);
 router.post('/', subscriptionsController.assignPlan);
 router.post('/:id/renew', subscriptionsController.renewSubscription);
+// Suspend / reactivate by societyId
+router.post('/society/:societyId/suspend', subscriptionsController.suspendSociety);
+router.post('/society/:societyId/reactivate', subscriptionsController.reactivateSociety);
 
 module.exports = router;

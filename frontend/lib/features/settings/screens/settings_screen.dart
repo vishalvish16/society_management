@@ -15,6 +15,7 @@ import 'payment_settings_screen.dart';
 import 'profile_screen.dart';
 import '../../../shared/widgets/show_app_sheet.dart';
 import 'bill_schedule_screen.dart';
+import 'billing_settings_screen.dart';
 import '../../plans/screens/plans_screen.dart';
 import '../../parking/screens/parking_screen.dart';
 import 'app_info_screen.dart';
@@ -310,6 +311,23 @@ class SettingsScreen extends ConsumerWidget {
                         indent: AppDimensions.lg,
                         endIndent: AppDimensions.lg),
                     ListTile(
+                      leading: const Icon(Icons.receipt_long_rounded, color: AppColors.primary),
+                      title: Text('Billing Settings', style: AppTextStyles.bodyMedium),
+                      subtitle: Text(
+                        'Late fee policy & billing rules',
+                        style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const BillingSettingsScreen()),
+                      ),
+                    ),
+                    const Divider(
+                        height: 1,
+                        indent: AppDimensions.lg,
+                        endIndent: AppDimensions.lg),
+                    ListTile(
                       leading: const Icon(Icons.local_parking_rounded,
                           color: AppColors.primary),
                       title: Text('Parking Management',
@@ -446,7 +464,7 @@ class SettingsScreen extends ConsumerWidget {
     // Prefer the identifier actually used to login (email/phone format matters).
     final storage = ref.read(authProvider.notifier).client.storage;
     final lastIdentifier =
-        (await storage.read(key: 'last_login_identifier'))?.trim();
+        (await storage.read(key: kAuthStorageLastLoginIdentifier))?.trim();
     final identifier = (lastIdentifier != null && lastIdentifier.isNotEmpty)
         ? lastIdentifier
         : (user.email?.trim().isNotEmpty == true ? user.email!.trim() : user.phone);

@@ -29,6 +29,8 @@ function checkPlanLimit(feature) {
         select: {
           status: true,
           planRenewalDate: true,
+          maxUnits: true,   // per-society override (null = use plan limit)
+          maxUsers: true,   // per-society override (null = use plan limit)
           plan: {
             select: {
               maxUnits: true,
@@ -41,7 +43,15 @@ function checkPlanLimit(feature) {
         },
       });
 
-      if (!society || society.status !== 'ACTIVE') {
+      if (!society) {
+        return sendError(res, 'Society not found.', 403);
+      }
+
+      if (society.status === 'SUSPENDED') {
+        return sendError(res, 'Your subscription has been suspended. Please contact your administrator to reactivate.', 403);
+      }
+
+      if (society.status !== 'ACTIVE') {
         return sendError(res, 'Society is not active. Please contact your administrator.', 403);
       }
 
@@ -55,10 +65,13 @@ function checkPlanLimit(feature) {
       }
 
       // ── Count-based caps ──────────────────────────────────────────────
+      // Per-society override wins over plan-level limit when set.
 
       if (feature === 'units') {
         const count = await prisma.unit.count({ where: { societyId, deletedAt: null } });
-        const max = plan.maxUnits;
+        const max = society.maxUnits !== null && society.maxUnits !== undefined
+          ? society.maxUnits
+          : plan.maxUnits;
         if (max !== -1 && count >= max) {
           return sendError(res, `Unit limit reached (${count}/${max}). Upgrade your plan to add more.`, 403);
         }
@@ -66,10 +79,10 @@ function checkPlanLimit(feature) {
       }
 
       if (feature === 'users' || ['RESIDENT', 'WATCHMAN', 'SECRETARY', 'MEMBER'].includes(feature)) {
-        const count = await prisma.user.count({
-          where: { societyId, deletedAt: null },
-        });
-        const max = plan.maxUsers;
+        const count = await prisma.user.count({ where: { societyId, deletedAt: null } });
+        const max = society.maxUsers !== null && society.maxUsers !== undefined
+          ? society.maxUsers
+          : plan.maxUsers;
         if (max !== -1 && count >= max) {
           return sendError(res, `User limit reached (${count}/${max}). Upgrade your plan to add more.`, 403);
         }

@@ -2,6 +2,7 @@ const prisma = require('../../config/db');
 const { sendSuccess, sendError } = require('../../utils/response');
 const parkingNotify = require('./parking.notifications');
 const notificationsService = require('../notifications/notifications.service');
+const billsService = require('../bills/bills.service');
 
 const ADMIN_ROLES = ['PRAMUKH', 'CHAIRMAN', 'SECRETARY', 'VICE_CHAIRMAN', 'ASSISTANT_SECRETARY'];
 
@@ -828,77 +829,27 @@ exports.createCharge = async (req, res) => {
 exports.generateMonthlyCharges = async (req, res) => {
   try {
     const { societyId, id: createdById } = req.user;
-    const { amount, dueDate, description } = req.body;
+    const { amount, dueDate, description, month } = req.body;
 
     if (!amount || !dueDate) return sendError(res, 'amount and dueDate are required', 400);
 
-    const activeAllotments = await prisma.parkingAllotment.findMany({
-      where: { societyId, status: 'ACTIVE' },
-      include: {
-        unit: { select: { id: true, fullCode: true } },
-        slot: { select: { slotNumber: true } },
-      },
-    });
+    const billingMonthInput = month ? new Date(month) : new Date();
+    const result = await billsService.bulkGenerateParkingBills(
+      societyId,
+      billingMonthInput.toISOString(),
+      parseFloat(amount),
+      new Date(dueDate),
+      createdById,
+      description ? { description } : {},
+    );
 
-    if (activeAllotments.length === 0) return sendError(res, 'No active allotments found', 404);
-
-    const billingMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    const monthLabel = new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric' }).format(billingMonth);
-
-    // Check for already-generated parking bills this month for these units
-    const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59, 999);
-    const existingBills = await prisma.maintenanceBill.findMany({
-      where: {
-        societyId,
-        category: 'PARKING',
-        billingMonth: { gte: billingMonth, lte: monthEnd },
-        deletedAt: null,
-        unitId: { in: activeAllotments.map(a => a.unitId) },
-      },
-      select: { unitId: true },
-    });
-    const alreadyBilledUnits = new Set(existingBills.map(b => b.unitId));
-
-    const billsToCreate = activeAllotments
-      .filter(a => !alreadyBilledUnits.has(a.unitId))
-      .map(a => ({
-        societyId,
-        unitId: a.unitId,
-        createdById,
-        billingMonth,
-        amount: parseFloat(amount),
-        totalDue: parseFloat(amount),
-        status: 'PENDING',
-        dueDate: new Date(dueDate),
-        title: 'Parking Charge',
-        description: description || `Monthly parking charge — Slot ${a.slot.slotNumber} — ${monthLabel}`,
-        category: 'PARKING',
-      }));
-
-    if (billsToCreate.length === 0) {
-      return sendError(res, 'Parking bills already generated for all allotted units this month', 400);
-    }
-
-    const result = await prisma.maintenanceBill.createMany({ data: billsToCreate });
-
-    // Send notifications
-    setImmediate(() => {
-      for (const a of activeAllotments.filter(a => !alreadyBilledUnits.has(a.unitId))) {
-        notificationsService.sendNotification(createdById, societyId, {
-          targetType: 'unit',
-          targetId: a.unitId,
-          title: '🅿️ Parking Charge',
-          body: `A parking charge of ₹${parseFloat(amount).toFixed(0)} for slot ${a.slot.slotNumber} is now due.`,
-          type: 'BILL',
-          route: '/bills',
-          excludeUserId: createdById,
-        });
-      }
-    });
-
-    return sendSuccess(res, { generated: result.count, skipped: alreadyBilledUnits.size }, 'Monthly parking charges generated');
+    return sendSuccess(
+      res,
+      { generated: result.count, skipped: result.skippedExistingUnits },
+      'Monthly parking charges generated',
+    );
   } catch (error) {
-    return sendError(res, error.message, 500);
+    return sendError(res, error.message, error.status || 500);
   }
 };
 

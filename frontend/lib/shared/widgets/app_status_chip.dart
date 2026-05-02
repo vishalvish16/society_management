@@ -42,9 +42,11 @@ class AppStatusChip extends StatelessWidget {
   static (Color bg, Color fg) _resolveColors(String s) {
     const successSet = {
       'paid', 'valid', 'approved', 'confirmed', 'active', 'completed',
+      'present',
     };
     const dangerSet = {
       'overdue', 'invalid', 'rejected', 'expired', 'cancelled', 'denied', 'disabled', 'ended',
+      'absent',
     };
     const warningSet = {
       'pending', 'partial', 'in_progress', 'assigned', 'open', 'dues_cleared', 'expiring',

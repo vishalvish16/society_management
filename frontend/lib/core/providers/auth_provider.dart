@@ -5,14 +5,26 @@ import '../models/user_model.dart';
 import '../services/notification_service.dart';
 import '../../features/settings/providers/permissions_provider.dart';
 
+// Re-export so router can import from one place.
+export '../api/dio_client.dart' show suspensionSignal;
+
+/// Secure storage key: phone/email last used in a successful login on this device.
+const kAuthStorageLastLoginIdentifier = 'last_login_identifier';
+
+/// After [AuthNotifier.logout], the login screen must not auto-open the biometric
+/// sheet. Cleared only on a new app process (cold start), so the next app open
+/// can auto-prompt if biometrics are enabled. Users can still tap "Use Biometrics".
+bool authSuppressLoginBiometricAuto = false;
+
 class AuthState {
   final UserModel? user;
   final String? token;
   final bool isLoading;
   final String? error;
   final bool isAuthenticated;
+  /// True when the backend returns SOCIETY_SUSPENDED — router redirects to suspended screen.
+  final bool isSuspended;
   /// Bumped whenever we want all avatar images to re-fetch.
-  /// Used to bust Flutter's in-memory/disk image cache after profile photo updates.
   final int avatarRevision;
 
   const AuthState({
@@ -21,6 +33,7 @@ class AuthState {
     this.isLoading = false,
     this.error,
     this.isAuthenticated = false,
+    this.isSuspended = false,
     this.avatarRevision = 0,
   });
 
@@ -30,6 +43,7 @@ class AuthState {
     bool? isLoading,
     String? error,
     bool? isAuthenticated,
+    bool? isSuspended,
     int? avatarRevision,
   }) {
     return AuthState(
@@ -38,6 +52,7 @@ class AuthState {
       isLoading: isLoading ?? this.isLoading,
       error: error,
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
+      isSuspended: isSuspended ?? this.isSuspended,
       avatarRevision: avatarRevision ?? this.avatarRevision,
     );
   }
@@ -45,12 +60,28 @@ class AuthState {
 
 class AuthNotifier extends StateNotifier<AuthState> {
   final Ref ref;
-  AuthNotifier(this.ref) : super(const AuthState(isLoading: true));
+  AuthNotifier(this.ref) : super(const AuthState(isLoading: true)) {
+    // Listen to global suspension signal emitted by Dio interceptor.
+    suspensionSignal.addListener(_onSuspensionSignal);
+  }
+
+  @override
+  void dispose() {
+    suspensionSignal.removeListener(_onSuspensionSignal);
+    super.dispose();
+  }
+
+  void _onSuspensionSignal() {
+    if (state.isAuthenticated && !state.isSuspended) {
+      state = state.copyWith(isSuspended: true);
+    }
+  }
+
+  /// Called directly when we know the society is suspended (e.g. from login response).
+  void markSuspended() => _onSuspensionSignal();
 
   final _client = DioClient();
   DioClient get client => _client;
-
-  static const _kLastLoginIdentifier = 'last_login_identifier';
 
   String _dioErrorMessage(DioException e) {
     final data = e.response?.data;
@@ -169,7 +200,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final normalizedIdentifier = identifier?.trim();
     if (normalizedIdentifier != null && normalizedIdentifier.isNotEmpty) {
       await _client.storage.write(
-        key: _kLastLoginIdentifier,
+        key: kAuthStorageLastLoginIdentifier,
         value: normalizedIdentifier,
       );
     }
@@ -236,7 +267,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  Future<void> logout() async {
+  /// [suppressLoginBiometricAuto] — when true (default), the login screen will not
+  /// auto-open biometrics until the next cold start. Use false for involuntary
+  /// session clears (e.g. 401) so users can still use quick biometric sign-in.
+  Future<void> logout({bool suppressLoginBiometricAuto = true}) async {
     try {
       final token = await _client.storage.read(key: 'accessToken');
       if (token != null) {
@@ -253,6 +287,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
       _client.storage.delete(key: 'userId'),
     ]);
 
+    if (suppressLoginBiometricAuto) {
+      authSuppressLoginBiometricAuto = true;
+    }
     state = const AuthState();
   }
 

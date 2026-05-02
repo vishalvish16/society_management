@@ -3,6 +3,39 @@ const { sendSuccess, sendError } = require('../../utils/response');
 const prisma = require('../../config/db');
 const { normalizeDuration, computeSubscriptionAmount } = require('../../config/planConfig');
 
+// ── Pricing Tier handlers ────────────────────────────────────────────
+
+async function listPlanTiers(req, res, next) {
+  try {
+    const tiers = await plansService.listTiers(req.params.id);
+    return sendSuccess(res, tiers, 'Tiers retrieved');
+  } catch (err) { next(err); }
+}
+
+async function savePlanTiers(req, res, next) {
+  try {
+    const { tiers } = req.body;
+    if (!Array.isArray(tiers)) return sendError(res, 'tiers must be an array', 400);
+    for (const t of tiers) {
+      if (t.minUnits === undefined || t.maxUnits === undefined || t.pricePerUnit === undefined) {
+        return sendError(res, 'Each tier requires minUnits, maxUnits, pricePerUnit', 400);
+      }
+    }
+    const result = await plansService.upsertTiers(req.params.id, tiers);
+    return sendSuccess(res, result, 'Tiers saved');
+  } catch (err) { next(err); }
+}
+
+async function deletePlanTier(req, res, next) {
+  try {
+    await plansService.deleteTier(req.params.tierId);
+    return sendSuccess(res, null, 'Tier deleted');
+  } catch (err) {
+    if (err.code === 'P2025') return sendError(res, 'Tier not found', 404);
+    next(err);
+  }
+}
+
 async function listPlans(req, res, next) {
   try {
     const plans = await plansService.listPlans({ activeOnly: false });
@@ -58,7 +91,7 @@ async function createPlan(req, res, next) {
       pricePerUnit: parseFloat(pricePerUnit),
       maxUnits: maxUnits !== undefined ? parseInt(maxUnits) : -1,
       maxUsers: maxUsers !== undefined ? parseInt(maxUsers) : -1,
-      features: Array.isArray(features) ? features : [],
+      features: features && !Array.isArray(features) ? features : (Array.isArray(features) ? features : {}),
       isActive: req.body.isActive !== undefined ? req.body.isActive : true
     });
     return sendSuccess(res, plan, 'Plan created', 201);
@@ -80,9 +113,7 @@ async function updatePlan(req, res, next) {
     if (req.body.priceYearly !== undefined) req.body.priceYearly = parseFloat(req.body.priceYearly);
     if (req.body.maxUnits !== undefined) req.body.maxUnits = parseInt(req.body.maxUnits);
     if (req.body.maxUsers !== undefined) req.body.maxUsers = parseInt(req.body.maxUsers);
-    if (req.body.features && !Array.isArray(req.body.features)) {
-      return sendError(res, 'features must be an array', 400);
-    }
+    // features may be a JSON object (map) or array — both are valid
 
     const plan = await plansService.updatePlan(req.params.id, req.body);
     return sendSuccess(res, plan, 'Plan updated');
@@ -124,7 +155,11 @@ async function publicQuote(req, res, next) {
 
     const plans = await prisma.plan.findMany({
       where: { isActive: true },
-      select: { id: true, name: true, displayName: true, pricePerUnit: true, maxUnits: true, maxUsers: true, features: true },
+      select: {
+        id: true, name: true, displayName: true, pricePerUnit: true,
+        maxUnits: true, maxUsers: true, features: true,
+        pricingTiers: { select: { minUnits: true, maxUnits: true, pricePerUnit: true, label: true, sortOrder: true }, orderBy: { sortOrder: 'asc' } },
+      },
       orderBy: { pricePerUnit: 'asc' },
     });
     const canonical = new Set(['basic', 'standard', 'premium']);
@@ -156,4 +191,4 @@ async function publicQuote(req, res, next) {
   }
 }
 
-module.exports = { listPlans, listPublicPlans, getPlan, createPlan, updatePlan, deactivatePlan, publicQuote, cleanupPlans };
+module.exports = { listPlans, listPublicPlans, getPlan, createPlan, updatePlan, deactivatePlan, publicQuote, cleanupPlans, listPlanTiers, savePlanTiers, deletePlanTier };
